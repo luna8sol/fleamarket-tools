@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Mercari Draft Publisher</title>
+  <style>
+    body {
+      width: 300px;
+      padding: 10px;
+      font-family: sans-serif;
+    }
+
+    .settings-group {
+      margin-bottom: 15px;
+    }
+
+    .debug-toggle {
+      display: flex;
+      align-items: center;
+      margin-top: 15px;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+    }
+
+    .debug-toggle label {
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Mercari Draft Publisher</h1>
+  <button id="start">出品開始</button>
+
+  <!-- デバッグモード切り替え -->
+  <div class="settings-group debug-toggle">
+    <input type="checkbox" id="debug-mode">
+    <label for="debug-mode">デバッグモードを有効にする</label>
+  </div>
+
+  <script src="scripts/popup.js"></script>
+</body>
+</html>

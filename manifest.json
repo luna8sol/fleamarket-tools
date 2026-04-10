@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Mercari Draft Publisher",
+  "version": "1.0",
+  "description": "メルカリ下書き商品を自動で出品する拡張機能",
+  "permissions": ["tabs", "scripting"],
+  "host_permissions": ["https://www.mercari.com/*"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://jp.mercari.com/mypage/drafts*",
+        "https://jp.mercari.com/mypage/listings*"
+      ],
+      "js": ["dist/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
