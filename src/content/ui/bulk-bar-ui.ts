@@ -9,9 +9,7 @@ import { detectCurrentPage } from '../infra/page-detector';
  * スタイルを適用するヘルパー関数
  */
 export function applyFixedStyles(element: HTMLElement, styles: Record<string, string>): void {
-  Object.entries(styles).forEach(([key, value]) => {
-    element.style[key as any] = value;
-  });
+  Object.assign(element.style, styles);
 }
 
 /**

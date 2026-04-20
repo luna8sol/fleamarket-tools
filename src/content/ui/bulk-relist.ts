@@ -180,7 +180,7 @@ export async function handleBulkAction(
     actionType: 'relist' | 'publish';
     logMessage: string;
     emptySelectionMessage: string;
-    processingFunction: (ids: string[]) => Promise<any>;
+    processingFunction: (ids: string[]) => Promise<unknown>;
     successMessage: string;
     errorMessage: string;
   }

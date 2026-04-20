@@ -7,6 +7,9 @@ import { getDraftItems, DraftItem } from './list';
 import { updateDraftCount } from './bulk-bar-core';
 import { updateOrderDisplay } from '../ui/order-display';
 
+// チェックボックスのトグル処理済みフラグを管理する WeakMap
+const toggleHandledMap = new WeakMap<HTMLInputElement, boolean>();
+
 // 共通のチェックボックス生成関数（クリック抑止＋手動トグル）
 function createBulkCheckboxElement(
   onChange: (this: HTMLInputElement, ev: Event) => void
@@ -21,7 +24,7 @@ function createBulkCheckboxElement(
   checkbox.style.position = 'relative';
   checkbox.style.zIndex = '99999';
   checkbox.style.pointerEvents = 'auto';
-  (checkbox as any).__mdpToggleHandled = false;
+  toggleHandledMap.set(checkbox, false);
 
   debugMethodStart('createBulkCheckboxElement.setupToggle');
   const toggleAndChange = (el: HTMLInputElement) => {
@@ -48,8 +51,8 @@ function createBulkCheckboxElement(
     e.stopImmediatePropagation();
     e.stopPropagation();
     e.preventDefault();
-    if (!(checkbox as any).__mdpToggleHandled) {
-      (checkbox as any).__mdpToggleHandled = true;
+    if (!toggleHandledMap.get(checkbox)) {
+      toggleHandledMap.set(checkbox, true);
       toggleAndChange(checkbox);
     }
 
@@ -66,7 +69,7 @@ function createBulkCheckboxElement(
     e.stopImmediatePropagation();
     e.stopPropagation();
     e.preventDefault();
-    (checkbox as any).__mdpToggleHandled = false;
+    toggleHandledMap.set(checkbox, false);
 
     debugMethodEnd('onPointerUp');
   };
