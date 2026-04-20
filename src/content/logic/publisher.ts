@@ -1,5 +1,4 @@
 import { WAIT } from '../infra/constants';
-import { sleep, randomInt } from '../../common/utils';
 import { findDraftItemById, getDraftItems, getDraftList } from '../ui/list';
 import { safeQuery } from '../../common/dom';
 import { log, warn, debug, debugMethodStart, debugMethodEnd } from '../infra/logger';

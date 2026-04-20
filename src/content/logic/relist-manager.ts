@@ -1,7 +1,7 @@
 import { CONFIG, SELECTOR } from '../infra/constants';
-import { log, warn, debugMethodStart, debugMethodEnd } from '../infra/logger';
+import { log, warn } from '../infra/logger';
 import { renderProcessingSpan } from '../ui/bulk-bar-ui';
-import { findLiByItemId, getRelistButton, getItemName, getItemIdFromLi } from '../logic/dom-utils';
+import { findLiByItemId, getRelistButton, getItemName } from '../logic/dom-utils';
 import { processItems, ItemProcessor } from './common-processor';
 
 /**
