@@ -164,10 +164,7 @@ export class ObserverManager {
 
     debug('mainタグ found, start observing');
     this.startObservingWithRoot(rootDiv);
-
-    setTimeout(() => {
-      this.isProcessingPage = false;
-    }, 1000);
+    this.isProcessingPage = false;
   }
 
   /**
@@ -238,9 +235,7 @@ export class ObserverManager {
         if (ul !== this.lastUl) {
           this.isProcessingPage = true;
           this.setupObserversForUl(ul);
-          setTimeout(() => {
-            this.isProcessingPage = false;
-          }, 500);
+          this.isProcessingPage = false;
         }
       } catch (e) {
         warn('ulObserver コールバックでエラーが発生しました', e);
