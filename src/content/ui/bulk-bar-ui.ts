@@ -68,30 +68,6 @@ export function createBulkCheckbox(li: HTMLLIElement, onChange: (id: string, che
 }
 
 /**
- * 件数表示用spanを生成・更新
- * @deprecated 代わりに renderBulkBar を使用してください
- */
-export function renderCountSpan(count: number): HTMLSpanElement {
-  const existingContainer = document.getElementById(ID_NAME.BULK_RELIST_CONTAINER);
-
-  if (existingContainer) {
-    // コンテナ内のspan要素を更新
-    let countSpan = existingContainer.querySelector(`#${ID_NAME.BULK_COUNT_SPAN}`) as HTMLSpanElement;
-    if (countSpan) {
-      countSpan.textContent = `選択中: ${count}件`;
-      return countSpan;
-    }
-  }
-
-  // コンテナがなければ、コンテナごと生成する
-  const container = createBulkRelistContainer(count);
-  document.body.appendChild(container);
-
-  // 生成したコンテナからspan要素を取得して返す
-  return container.querySelector(`#${ID_NAME.BULK_COUNT_SPAN}`) as HTMLSpanElement;
-}
-
-/**
  * 処理中表示用spanを生成・更新
  */
 export function renderProcessingSpan(text: string): HTMLSpanElement {

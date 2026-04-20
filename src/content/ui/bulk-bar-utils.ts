@@ -3,7 +3,7 @@ import { log, warn } from '../infra/logger';
 import { detectCurrentPage } from '../infra/page-detector';
 import { selectionManager } from '../logic/selection-manager';
 import { addCheckboxToLi } from './checkbox-manager';
-import { renderProcessingSpan, renderBulkBar, renderCountSpan } from './bulk-bar-ui';
+import { renderProcessingSpan, renderBulkBar } from './bulk-bar-ui';
 
 /**
  * 商品IDから商品名を取得する関数
@@ -64,9 +64,6 @@ export function initializePageUI(ul: HTMLUListElement): void {
     // 選択マネージャーをクリア（ページ読み込み時に必ず初期化）
     selectionManager.clearSelections();
 
-    // 選択件数の初期表示
-    renderCountSpan(selectionManager.getSelectionCount());
-
     // li にチェックボックス付与して selection を更新
     Array.from(ul.querySelectorAll('li')).forEach((li) => {
       const aTag = li.querySelector('a[data-testid="listed-item"]') as HTMLAnchorElement;
@@ -99,7 +96,7 @@ export function initializePageUI(ul: HTMLUListElement): void {
           log(`現在の選択: count=${count}, ids=[${ids.map(removeItemPrefix).join(' -> ')}]`);
 
           // 件数表示を更新
-          renderCountSpan(count);
+          renderBulkBar(count);
         },
         { type: 'listings', itemId: itemId }
       );
