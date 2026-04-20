@@ -27,7 +27,7 @@ export function createBulkRelistButton(): HTMLButtonElement {
     cursor: 'pointer'
   });
 
-  bulkBtn.onclick = () => handleBulkAction(bulkBtn, {
+  bulkBtn.onclick = (): Promise<void> => handleBulkAction(bulkBtn, {
     actionType: 'relist',
     logMessage: '再出品ボタンがクリックされました',
     emptySelectionMessage: '商品を選択してください',
@@ -58,7 +58,7 @@ export function createBulkPlaceholderButton(): HTMLButtonElement {
     cursor: 'pointer'
   });
 
-  bulkBtn.onclick = async () => {
+  bulkBtn.onclick = async (): Promise<void> => {
     await handleBulkAction(bulkBtn, {
       actionType: 'publish',
       logMessage: 'まとめて出品ボタンがクリックされました',

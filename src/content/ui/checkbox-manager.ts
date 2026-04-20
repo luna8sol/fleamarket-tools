@@ -27,7 +27,7 @@ function createBulkCheckboxElement(
   toggleHandledMap.set(checkbox, false);
 
   debugMethodStart('createBulkCheckboxElement.setupToggle');
-  const toggleAndChange = (el: HTMLInputElement) => {
+  const toggleAndChange = (el: HTMLInputElement): void => {
     debugMethodStart('toggleAndChange', {
       currentChecked: el.checked
     });
@@ -43,7 +43,7 @@ function createBulkCheckboxElement(
   debugMethodEnd('createBulkCheckboxElement.setupToggle');
 
   debugMethodStart('createBulkCheckboxElement.addPointerListeners');
-  const onPointerDown = (e: Event) => {
+  const onPointerDown = (e: Event): void => {
     debugMethodStart('onPointerDown', {
       eventType: e.type
     });
@@ -61,7 +61,7 @@ function createBulkCheckboxElement(
   checkbox.addEventListener('mousedown', onPointerDown, true);
   checkbox.addEventListener('touchstart', onPointerDown, true);
 
-  const onPointerUp = (e: Event) => {
+  const onPointerUp = (e: Event): void => {
     debugMethodStart('onPointerUp', {
       eventType: e.type
     });
@@ -293,7 +293,7 @@ export function addCheckboxAndOrderToLi(item: DraftItem, updateOrder: () => void
   }
 
   debugMethodStart('addCheckboxAndOrderToLi.setupCallback');
-  const checkboxChangeHandler = (resolvedId: string, checked: boolean) => {
+  const checkboxChangeHandler = (resolvedId: string, checked: boolean): void => {
     debugMethodStart('checkboxChangeHandler', {
       resolvedId,
       checked
@@ -345,7 +345,7 @@ export function addCheckboxToLi(
   li: HTMLLIElement,
   onChange: (id: string, checked: boolean) => void,
   options?: { type?: 'drafts' | 'listings'; itemId?: string }
-) {
+): HTMLInputElement | null {
   const startTime = performance.now();
   debugMethodStart('addCheckboxToLi', {
     liTagName: li?.tagName,
