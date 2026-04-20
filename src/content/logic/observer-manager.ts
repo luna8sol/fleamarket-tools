@@ -68,13 +68,7 @@ export class ObserverManager {
    * @returns {void}
    */
   disconnectObservers(): void {
-    const startTime = performance.now();
-    debugMethodStart('ObserverManager.disconnectObservers', {
-      hasUlObserver: !!this.ulObserver,
-      hasLiObserver: !!this.liObserver,
-      hasTimeout: !!this.relistTimeout,
-      hasWaitTimeout: !!this.waitForElementTimeout
-    });
+    debugMethodStart('ObserverManager.disconnectObservers');
 
     this.ulObserver?.disconnect();
     this.liObserver?.disconnect();
@@ -91,12 +85,7 @@ export class ObserverManager {
       this.waitForElementTimeout = null;
     }
 
-    const duration = Math.round(performance.now() - startTime);
-    debugMethodEnd('ObserverManager.disconnectObservers', {
-      status: 'completed',
-      observersCleared: true,
-      timeoutCleared: true
-    }, duration);
+    debugMethodEnd('ObserverManager.disconnectObservers', { status: 'completed' });
   }
 
   /**
@@ -116,20 +105,8 @@ export class ObserverManager {
     let retryCount = 0;
 
     const tryFindElement = (): void => {
-      debugMethodStart('ObserverManager.waitForElement.tryFindElement', {
-        selector,
-        retryCount,
-        maxRetryCount
-      });
-
       const element = rootElement.querySelector(selector) as HTMLElement;
       if (element) {
-        debugMethodEnd('ObserverManager.waitForElement.tryFindElement', {
-          status: 'found',
-          selector,
-          elementTagName: element.tagName,
-          childCount: element.children.length
-        });
         callback(element);
         return;
       }
@@ -137,12 +114,6 @@ export class ObserverManager {
       retryCount++;
       if (retryCount >= maxRetryCount) {
         warn(`要素 ${selector} が ${maxRetryCount} 回の試行後も見つかりませんでした`);
-        debugMethodEnd('ObserverManager.waitForElement.tryFindElement', {
-          status: 'failed',
-          reason: '最大試行回数に達した',
-          selector,
-          retryCount
-        });
         return;
       }
 
@@ -150,12 +121,6 @@ export class ObserverManager {
         this.waitForElementTimeout = null;
         tryFindElement();
       }, this.RETRY_INTERVAL);
-
-      debugMethodEnd('ObserverManager.waitForElement.tryFindElement', {
-        status: 'retry',
-        nextRetryCount: retryCount,
-        waitTime: this.RETRY_INTERVAL
-      });
     };
 
     tryFindElement();
@@ -166,10 +131,8 @@ export class ObserverManager {
    * @returns {void}
    */
   startObserving(): void {
-    // 現在のURLを取得
     const currentUrl = window.location.href;
 
-    // 前回と同じURLで実行中の場合は重複実行を防止
     if (this.isProcessingPage && this.lastProcessedUrl === currentUrl) {
       debug(`既に処理中のため、重複実行を防止しました: ${currentUrl}`);
       return;
@@ -180,17 +143,12 @@ export class ObserverManager {
 
     debugMethodStart('ObserverManager.startObserving');
 
-    // const containerDiv = document.getElementById(SELECTOR.ROOT_CONTAINER);
     const rootDiv = document.querySelector('main#main') as HTMLElement | null;
 
     if (!rootDiv) {
       warn('mainタグが見つかりません');
-      debugMethodEnd('ObserverManager.startObserving', {
-        status: 'failed',
-        reason: 'mainタグが見つからない'
-      });
+      debugMethodEnd('ObserverManager.startObserving', { status: 'failed', reason: 'mainタグが見つからない' });
 
-      // mainタグの読み込みを待機
       this.waitForElement(
         'main#main',
         document.body,
@@ -198,7 +156,7 @@ export class ObserverManager {
         (mainElement) => {
           debug('mainタグが遅延読み込みされました');
           this.startObservingWithRoot(mainElement);
-          this.isProcessingPage = false; // 処理完了
+          this.isProcessingPage = false;
         }
       );
       return;
@@ -207,10 +165,9 @@ export class ObserverManager {
     debug('mainタグ found, start observing');
     this.startObservingWithRoot(rootDiv);
 
-    // 処理が完了したら実行状態をリセット
     setTimeout(() => {
       this.isProcessingPage = false;
-    }, 1000); // 1秒後にリセット（UI描画が完了する時間を考慮）
+    }, 1000);
   }
 
   /**
@@ -219,17 +176,12 @@ export class ObserverManager {
    * @returns {void}
    */
   private startObservingWithRoot(rootDiv: HTMLElement): void {
-    debugMethodStart('ObserverManager.startObservingWithRoot', {
-      rootElement: rootDiv.tagName
-    });
+    debugMethodStart('ObserverManager.startObservingWithRoot', { rootElement: rootDiv.tagName });
 
     this.disconnectObservers();
 
-    // 表示画面を取得
     const pageType = detectCurrentPage();
-    debugMethodStart('ObserverManager.startObservingWithRoot.detectPage', { pageType });
 
-    // 監視する<ul>要素のセレクタを決定
     let ulSelector: string;
     if (pageType === PageType.DRAFTS) {
       ulSelector = SELECTOR.DRAFT_LIST;
@@ -244,20 +196,12 @@ export class ObserverManager {
       return;
     }
 
-    debugMethodStart('ObserverManager.startObservingWithRoot.setupUlObserver', {
-      targetSelector: ulSelector,
-      pageType
-    });
-
-    // 最初にul要素を探す
     const ul = rootDiv.querySelector(ulSelector) as HTMLUListElement;
     if (ul instanceof HTMLUListElement) {
       debug(`${ulSelector} 要素が見つかりました。UIを更新します`);
       this.setupObserversForUl(ul);
     } else {
       debug(`${ulSelector} 要素が見つかりませんでした。読み込みを待機します`);
-
-      // ul要素の読み込みを待機
       this.waitForElement(
         ulSelector,
         rootDiv,
@@ -271,39 +215,16 @@ export class ObserverManager {
       );
     }
 
-    // <ul>要素の監視を開始
-    this.ulObserver = new MutationObserver((mutations) => {
-      // 重複実行を防止するためのチェック
-      if (this.isProcessingPage) {
-        debugMethodStart('ulObserver.callback', {
-          mutationsCount: mutations.length,
-          isProcessing: true
-        });
-        debugMethodEnd('ulObserver.callback', {
-          status: 'skipped',
-          reason: '処理中のため重複実行を防止'
-        });
-        return;
-      }
-
-      debugMethodStart('ulObserver.callback', {
-        mutationsCount: mutations.length
-      });
+    this.ulObserver = new MutationObserver(() => {
+      if (this.isProcessingPage) return;
 
       try {
         const ul = rootDiv?.querySelector(ulSelector);
         if (!(ul instanceof HTMLUListElement)) {
-          debugMethodEnd('ulObserver.callback', {
-            status: 'aborted',
-            reason: 'ul要素が見つからない',
-            selector: ulSelector
-          });
-
-          // DOM変更後にul要素が見つからない場合も待機を開始
           this.waitForElement(
             ulSelector,
             rootDiv,
-            3, // 少ないリトライ回数（DOM変更後なので頻繁に試行する必要はない）
+            3,
             (ulElement) => {
               if (ulElement instanceof HTMLUListElement) {
                 debug(`DOM変更後に ${ulSelector} 要素が見つかりました`);
@@ -317,16 +238,9 @@ export class ObserverManager {
         if (ul !== this.lastUl) {
           this.isProcessingPage = true;
           this.setupObserversForUl(ul);
-
-          // 処理が完了したら実行状態をリセット
           setTimeout(() => {
             this.isProcessingPage = false;
           }, 500);
-        } else {
-          debugMethodEnd('ulObserver.callback', {
-            status: 'unchanged',
-            reason: '同じul要素が既に監視中'
-          });
         }
       } catch (e) {
         warn('ulObserver コールバックでエラーが発生しました', e);
@@ -334,14 +248,8 @@ export class ObserverManager {
       }
     });
 
-    debugMethodStart('ObserverManager.startObservingWithRoot.attachUlObserver', {
-      target: rootDiv.tagName,
-      options: { childList: true, subtree: true }
-    });
-
     this.ulObserver.observe(rootDiv, { childList: true, subtree: true });
 
-    debugMethodEnd('ObserverManager.startObservingWithRoot.attachUlObserver');
     debugMethodEnd('ObserverManager.startObservingWithRoot', {
       status: 'completed',
       ulObserverAttached: true,
@@ -357,8 +265,7 @@ export class ObserverManager {
    */
   private setupObserversForUl(ul: HTMLUListElement): void {
     debugMethodStart('ObserverManager.setupObserversForUl', {
-      oldUl: this.lastUl ? `${this.lastUl.tagName}(子要素:${this.lastUl.children.length})` : 'null',
-      newUl: `${ul.tagName}(子要素:${ul.children.length})`
+      ulChildCount: ul.children.length
     });
 
     this.lastUl = ul;
@@ -368,55 +275,23 @@ export class ObserverManager {
       warn('setupObserversForUl: renderUiComponents でエラーが発生しました', e);
     }
 
-    // liの追加削除監視
     this.liObserver?.disconnect();
-    this.liObserver = new MutationObserver((liMutations) => {
-      // 重複実行を防止するためのチェック
+    this.liObserver = new MutationObserver(() => {
       if (this.relistTimeout) {
-        debugMethodStart('liObserver.callback', {
-          mutationsCount: liMutations.length,
-          hasExistingTimeout: true
-        });
-        debugMethodStart('liObserver.clearExistingTimeout', {
-          timeoutId: this.relistTimeout
-        });
         clearTimeout(this.relistTimeout);
-        debugMethodEnd('liObserver.clearExistingTimeout');
-      } else {
-        debugMethodStart('liObserver.callback', {
-          mutationsCount: liMutations.length,
-          addedNodes: liMutations.reduce((sum, m) => sum + m.addedNodes.length, 0),
-          removedNodes: liMutations.reduce((sum, m) => sum + m.removedNodes.length, 0)
-        });
       }
-
-      debugMethodStart('liObserver.setNewTimeout');
       this.relistTimeout = window.setTimeout(() => {
-        debugMethodStart('liObserver.renderTimeout', {
-          ulChildCount: ul.children.length
-        });
         try {
           renderUiComponents(ul);
         } catch (e) {
           warn('liObserver: renderUiComponents でエラーが発生しました', e);
         }
-        debugMethodEnd('liObserver.renderTimeout');
       }, 500);
-      debugMethodEnd('liObserver.setNewTimeout', {
-        newTimeoutId: this.relistTimeout
-      });
-
-      debugMethodEnd('liObserver.callback');
     });
 
-    debugMethodStart('ObserverManager.setupObserversForUl.observeLiChanges');
     this.liObserver.observe(ul, { childList: true, subtree: false });
-    debugMethodEnd('ObserverManager.setupObserversForUl.observeLiChanges', {
-      status: 'started',
-      targetUl: `${ul.tagName}(子要素:${ul.children.length})`
-    });
 
-    debugMethodEnd('ObserverManager.setupObserversForUl');
+    debugMethodEnd('ObserverManager.setupObserversForUl', { status: 'completed' });
   }
 
 }

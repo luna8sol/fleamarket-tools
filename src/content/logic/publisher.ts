@@ -1,7 +1,7 @@
 import { WAIT } from '../infra/constants';
 import { findDraftItemById, getDraftItems, getDraftList } from '../ui/list';
 import { safeQuery } from '../../common/dom';
-import { log, warn, debug, debugMethodStart, debugMethodEnd } from '../infra/logger';
+import { log, warn, debugMethodStart, debugMethodEnd } from '../infra/logger';
 import { selectionManager } from './selection-manager';
 // import { renderCheckboxes } from '../ui/checkbox-manager';
 import { addCheckboxToLi } from '../ui/checkbox-manager';
@@ -23,89 +23,35 @@ async function publishDraftItem(id: string): Promise<boolean> {
   debugMethodStart('publishDraftItem', { id });
 
   const item = findDraftItemById(id);
-  debugMethodStart('publishDraftItem.findItem', {
-    id,
-    found: !!item,
-    hasLiElement: item && !!item.li
-  });
 
   // 商品名取得（itemがnullの場合は空文字）
   let itemName = '';
   if (item && item.li) {
     const labelElem = safeQuery<HTMLElement>('[data-testid="item-label"]', item.li);
     itemName = labelElem ? labelElem.textContent?.trim() ?? '' : '';
-    debugMethodStart('publishDraftItem.getItemName', {
-      labelFound: !!labelElem,
-      itemName
-    });
   }
 
   if (!item) {
     warn(`li not found for id: ${id} 商品名: ${itemName}`);
     alert(`下書き商品の要素が見つかりません (id: ${id}) 商品名: ${itemName}。ページ構造が変更された可能性があります。`);
-
-    debugMethodEnd('publishDraftItem', {
-      success: false,
-      reason: 'item not found',
-      id,
-      itemName
-    });
+    debugMethodEnd('publishDraftItem', { success: false, reason: 'item not found', id });
     return false;
   }
 
   const submitBtn = safeQuery<HTMLButtonElement>('button[id="submit-draft"]', item.li);
-  debugMethodStart('publishDraftItem.findSubmitButton', {
-    buttonFound: !!submitBtn,
-    isButtonElement: submitBtn instanceof HTMLButtonElement
-  });
-
-  debug('submitBtn:', submitBtn, 'item:', item, 'id:', id, '商品名:', itemName);
 
   if (submitBtn instanceof HTMLButtonElement) {
-    debug('submitBtn type:', submitBtn.type, 'form:', submitBtn.form);
-    if (submitBtn.form) {
-      debug('submitBtn.form:', submitBtn.form, 'form action:', submitBtn.form.action, 'method:', submitBtn.form.method);
-    }
-    debug('before click, submitBtn.disabled:', submitBtn.disabled, 'hidden:', submitBtn.hidden, 'display:', submitBtn.style.display);
-
-    debugMethodStart('publishDraftItem.prepareClickEvent', {
-      buttonDisabled: submitBtn.disabled,
-      hasForm: !!submitBtn.form
-    });
-
-    submitBtn.addEventListener('click', (e) => {
-      debugMethodStart('submitBtn.clickHandler', { eventType: e.type });
-      debug('submitBtn click event fired', e);
-      debugMethodEnd('submitBtn.clickHandler');
-    }, { once: true });
-
-    debugMethodStart('publishDraftItem.performClick');
     submitBtn.click();
     log(`出品ボタンをクリック: ${id} 商品名: ${itemName}`);
-    debug('after click, submitBtn.disabled:', submitBtn.disabled, 'hidden:', submitBtn.hidden, 'display:', submitBtn.style.display);
-    debugMethodEnd('publishDraftItem.performClick', {
-      buttonDisabledAfterClick: submitBtn.disabled
-    });
 
     const duration = Math.round(performance.now() - startTime);
-    debugMethodEnd('publishDraftItem', {
-      success: true,
-      id,
-      itemName,
-      executionTimeMs: duration
-    }, duration);
+    debugMethodEnd('publishDraftItem', { success: true, id, itemName }, duration);
     return true;
 
   } else {
     warn(`出品ボタンが見つかりません: ${id} 商品名: ${itemName}`);
     alert(`出品ボタンが見つかりません (id: ${id}) 商品名: ${itemName}。ページ構造が変更された可能性があります。`);
-
-    debugMethodEnd('publishDraftItem', {
-      success: false,
-      reason: 'submit button not found',
-      id,
-      itemName
-    });
+    debugMethodEnd('publishDraftItem', { success: false, reason: 'submit button not found', id });
     return false;
   }
 }
@@ -156,61 +102,30 @@ export function initializePublisherUI(): void {
   const startTime = performance.now();
   debugMethodStart('initializePublisherUI');
 
-  debugMethodStart('initializePublisherUI.getDraftList');
   const draftList = getDraftList();
   if (!(draftList instanceof HTMLUListElement)) {
     warn('draftList not found');
     alert('下書きリストが見つかりません。ページを再読み込みしてください。');
-    debugMethodEnd('initializePublisherUI', {
-      success: false,
-      reason: 'draft list not found'
-    });
+    debugMethodEnd('initializePublisherUI', { success: false, reason: 'draft list not found' });
     return;
   }
-  debugMethodEnd('initializePublisherUI.getDraftList', {
-    success: true,
-    draftListTagName: draftList.tagName
-  });
 
-  debugMethodStart('initializePublisherUI.getDraftItems');
   const items = getDraftItems();
   log(`draftList found, li count: ${items.length}`);
-  debugMethodEnd('initializePublisherUI.getDraftItems', {
-    itemCount: items.length
-  });
 
   const updateOrderFn = (): void => updateOrderDisplay(items, selectionManager);
 
   // ここで各liに共通のチェックボックスを付与（DRAFTSモード）
   // DraftItemのli→idマップを作成して渡せる場合は渡す
-  debugMethodStart('initializePublisherUI.createItemMap');
   const liToId = new Map<HTMLElement, string>();
   items.forEach(it => liToId.set(it.li, it.id));
-  debugMethodEnd('initializePublisherUI.createItemMap', {
-    mapSize: liToId.size
-  });
 
-  debugMethodStart('initializePublisherUI.attachCheckboxes');
   const liElements = Array.from(draftList.querySelectorAll('li'));
-  debugMethodStart('initializePublisherUI.processListItems', {
-    liCount: liElements.length
-  });
-
-  liElements.forEach((li, index) => {
+  liElements.forEach((li) => {
     const explicitId = liToId.get(li as HTMLElement); // 取れなければ内部推定に任せる
-    debugMethodStart('initializePublisherUI.addCheckbox', {
-      index,
-      hasExplicitId: !!explicitId
-    });
-
     addCheckboxToLi(
       li as HTMLLIElement,
       (id, checked) => {
-        debugMethodStart('checkbox.onChange', {
-          id,
-          checked
-        });
-
         if (checked) {
           selectionManager.addSelection(id);
         } else {
@@ -219,42 +134,19 @@ export function initializePublisherUI(): void {
         // 順番表示と件数表示を更新
         updateOrderFn();
         updateDraftCount(selectionManager.getSelectionCount(), items.length);
-
-        debugMethodEnd('checkbox.onChange', {
-          currentSelectionCount: selectionManager.getSelectionCount()
-        });
       },
       { type: 'drafts', itemId: explicitId }
     );
-
-    debugMethodEnd('initializePublisherUI.addCheckbox', {
-      index,
-      completed: true
-    });
-  });
-
-  debugMethodEnd('initializePublisherUI.processListItems', {
-    processedCount: liElements.length
-  });
-  debugMethodEnd('initializePublisherUI.attachCheckboxes', {
-    completed: true
   });
 
   // 初回の順番表示
-  debugMethodStart('initializePublisherUI.initialOrderDisplay');
   updateOrderDisplay(items, selectionManager);
-  debugMethodEnd('initializePublisherUI.initialOrderDisplay');
-
   // 初期カウント表示
-  debugMethodStart('initializePublisherUI.initialCountUpdate');
   updateDraftCount(selectionManager.getSelectionCount(), items.length);
-  debugMethodEnd('initializePublisherUI.initialCountUpdate');
 
   const duration = Math.round(performance.now() - startTime);
   debugMethodEnd('initializePublisherUI', {
     success: true,
     itemsProcessed: items.length,
-    uiInitialized: true,
-    executionTimeMs: duration
   }, duration);
 }
