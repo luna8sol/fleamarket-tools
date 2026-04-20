@@ -406,44 +406,6 @@ export class ObserverManager {
     debugMethodEnd('ObserverManager.setupObserversForUl');
   }
 
-  /**
-   * execOnDraftListPageメッセージが繰り返し表示される問題を防ぐため、
-   * 既存のリスナーを監視し、重複登録を防止する仕組みを提供
-   */
-  static preventDuplicateExecution(): void {
-    // windowオブジェクトに拡張機能の実行状態を管理するプロパティを追加
-    if (!(window as any).__mercariDraftPublisher) {
-      (window as any).__mercariDraftPublisher = {
-        executionCount: 0,
-        lastExecution: Date.now(),
-        isProcessing: false
-      };
-
-      // コンソール出力をモンキーパッチして重複出力を制御
-      const originalConsoleLog = console.log;
-      console.log = function(...args: any[]): void {
-        // {on: 'execOnDraftListPage'} のようなメッセージを制御
-        if (args.length === 1 &&
-            typeof args[0] === 'object' &&
-            args[0] !== null &&
-            args[0].on === 'execOnDraftListPage') {
-
-          const now = Date.now();
-          const lastExec = (window as any).__mercariDraftPublisher.lastExecution;
-
-          // 前回の実行から1秒以上経過している場合のみ出力
-          if (now - lastExec > 1000) {
-            (window as any).__mercariDraftPublisher.lastExecution = now;
-            (window as any).__mercariDraftPublisher.executionCount++;
-            originalConsoleLog.apply(console, args);
-          }
-        } else {
-          // それ以外のログは通常通り出力
-          originalConsoleLog.apply(console, args);
-        }
-      };
-    }
-  }
 }
 
 /**
@@ -451,6 +413,3 @@ export class ObserverManager {
  * @type {ObserverManager}
  */
 export const observerManager = new ObserverManager();
-
-// 重複実行防止機能を初期化
-ObserverManager.preventDuplicateExecution();
