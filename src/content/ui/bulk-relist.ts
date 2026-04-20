@@ -7,7 +7,7 @@ import { publishAllDrafts } from '../logic/publisher';
 import { applyFixedStyles } from './bulk-bar-ui';
 import { getOrCreateElement } from './bulk-bar-core';
 import { renderProcessingSpan } from './bulk-bar-ui';
-import { removeItemPrefix, getItemNameForLi } from './bulk-bar-utils';
+import { removeItemPrefix } from './bulk-bar-utils';
 
 /**
  * 一括再出品ボタンを生成
@@ -187,65 +187,7 @@ export async function handleBulkAction(
 ): Promise<void> {
   log(options.logMessage);
 
-  // デバッグ強化: DOM上のチェックボックス状態を確認
-  const checkedBoxes = document.querySelectorAll('input.bulk-checkbox:checked');
-  log(`DOM上のチェック済みボックス数: ${checkedBoxes.length}`);
-
-  // 詳細なチェックボックス情報の出力
-  if (checkedBoxes.length > 0) {
-    Array.from(checkedBoxes).forEach((cb, idx) => {
-      const itemId = (cb as HTMLInputElement).dataset.itemId || 'unknown';
-      const cleanId = removeItemPrefix(itemId);
-      const li = cb.closest('li');
-      const itemName = li ? getItemNameForLi(li as Element) : '';
-      log(`チェックボックス ${idx+1}: itemId = ${cleanId}${itemName ? ` - ${itemName}` : ''}`);
-    });
-  }
-
-  // デバッグ: 現在の選択状況
-  const count = selectionManager.getSelectionCount();
-  const ids = selectionManager.getOrderedSelections().map(item => item.id);
-  log(`ボタン押下時の選択状態: count=${count}, ids=[${ids.map(removeItemPrefix).join(' -> ')}]`);
-
-  // DOM状態とselectionManagerの状態を比較
-  log(`状態比較: DOM=${checkedBoxes.length}, selectionManager=${count}`);
-
-  // 問題の修正: チェックボックスの状態のみを更新し、選択順序は保持する
-  if (checkedBoxes.length !== count) {
-    log('不整合を検出: チェックボックスとselectionManagerを同期します（選択順序は保持）');
-
-    // チェックボックスが選択されているが、選択マネージャーにない場合は追加
-    Array.from(checkedBoxes).forEach(cb => {
-      const itemId = (cb as HTMLInputElement).dataset.itemId || '';
-      if (itemId && !ids.includes(itemId)) {
-        const cleanId = removeItemPrefix(itemId);
-        const li = cb.closest('li');
-        const itemName = li ? getItemNameForLi(li as Element) : '';
-        selectionManager.addSelection(itemId);
-        log(`選択マネージャーに追加: ${cleanId}${itemName ? ` - ${itemName}` : ''}`);
-      }
-    });
-
-    // 選択マネージャーにあるが、チェックボックスが選択されていない場合は削除
-    const checkedIds = Array.from(checkedBoxes).map(cb => (cb as HTMLInputElement).dataset.itemId || '');
-    ids.forEach(id => {
-      if (!checkedIds.includes(id)) {
-        const cleanId = removeItemPrefix(id);
-        selectionManager.removeSelection(id);
-        log(`選択マネージャーから削除: ${cleanId}`);
-      }
-    });
-
-    // 再取得して確認
-    const newCount = selectionManager.getSelectionCount();
-    const newIds = selectionManager.getOrderedSelections().map(item => item.id);
-    log(`同期後の選択順: count=${newCount}, ids=[${newIds.map(removeItemPrefix).join(' -> ')}]`);
-  }
-
-  // 改めてカウントを取得
-  const finalCount = selectionManager.getSelectionCount();
-
-  if (finalCount === 0) {
+  if (selectionManager.getSelectionCount() === 0) {
     alert(options.emptySelectionMessage);
     return;
   }
