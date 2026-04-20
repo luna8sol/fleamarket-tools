@@ -53,34 +53,16 @@ npm run clean          # dist ディレクトリを削除
 - 文字列はシングルクォート、文末セミコロン必須
 - 未使用 import は自動検出・エラー扱い
 
-## ブランチ運用
+## ブランチ運用・コミットルール
+
+詳細は [CONTRIBUTING.md](CONTRIBUTING.md) を参照。
 
 ```
-main      ← リリース済み安定版
+main      ← リリース済み安定版（直接コミット禁止）
 develop   ← 開発の統合ブランチ
 feature/* ← 機能追加
 fix/*     ← バグ修正
 docs/*    ← ドキュメント
 ```
 
-### コミットメッセージ
-
-以下のプレフィックスを付ける。
-
-| プレフィックス | 用途 |
-|--------------|------|
-| `feat:` | 新しい機能の追加 |
-| `fix:` | バグの修正 |
-| `docs:` | ドキュメントのみの変更 |
-| `style:` | 空白・フォーマット・セミコロン追加など、動作に影響しない変更 |
-| `refactor:` | 仕様に影響がないコード改善（リファクタリング） |
-| `perf:` | パフォーマンス向上に関する変更 |
-| `test:` | テストの追加・修正 |
-| `chore:` | ビルド・補助ツール・ライブラリなど開発環境に関する変更 |
-
-```
-# 例
-feat: add bulk publish button to draft page
-fix: correct selector for relist button
-docs: update CLAUDE.md with branch strategy
-```
+コミットメッセージは `feat:` / `fix:` / `docs:` / `style:` / `refactor:` / `perf:` / `test:` / `chore:` のプレフィックスを付ける。

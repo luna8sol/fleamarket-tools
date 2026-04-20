@@ -33,3 +33,4 @@ Chrome の拡張機能管理ページ（`chrome://extensions`）を開き、「�
 ## ドキュメント
 
 - [アーキテクチャ詳細](docs/ARCHITECTURE.md)
+- [コントリビューションガイド](CONTRIBUTING.md)
