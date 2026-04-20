@@ -2,6 +2,9 @@ import { ID_NAME } from '../infra/constants';
 
 /**
  * 既存のUI要素を取得または新規作成
+ * @param id 要素ID
+ * @param tagName 要素のタグ名
+ * @returns 取得または作成した要素
  */
 export function getOrCreateElement<K extends keyof HTMLElementTagNameMap>(
   id: string,

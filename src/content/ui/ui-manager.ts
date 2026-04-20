@@ -43,26 +43,6 @@ export function renderUiComponents(ul: HTMLUListElement): void {
 }
 
 /**
- * 既存のUI要素を取得または新規作成
- * @param id 要素ID
- * @param tagName 要素のタグ名
- * @returns 取得または作成した要素
- */
-export function getOrCreateElement<K extends keyof HTMLElementTagNameMap>(
-  id: string,
-  tagName: K
-): HTMLElementTagNameMap[K] {
-  let element = document.getElementById(id);
-  if (element && element.tagName === tagName.toUpperCase()) {
-    return element as HTMLElementTagNameMap[K];
-  }
-
-  element = document.createElement(tagName);
-  element.id = id;
-  return element as HTMLElementTagNameMap[K];
-}
-
-/**
  * DOM要素がすでに存在するか確認
  * @param id 要素ID
  * @returns 存在するかどうか
