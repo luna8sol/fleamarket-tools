@@ -290,42 +290,47 @@ export class ObserverManager {
         mutationsCount: mutations.length
       });
 
-      const ul = rootDiv?.querySelector(ulSelector);
-      if (!(ul instanceof HTMLUListElement)) {
-        debugMethodEnd('ulObserver.callback', {
-          status: 'aborted',
-          reason: 'ul要素が見つからない',
-          selector: ulSelector
-        });
+      try {
+        const ul = rootDiv?.querySelector(ulSelector);
+        if (!(ul instanceof HTMLUListElement)) {
+          debugMethodEnd('ulObserver.callback', {
+            status: 'aborted',
+            reason: 'ul要素が見つからない',
+            selector: ulSelector
+          });
 
-        // DOM変更後にul要素が見つからない場合も待機を開始
-        this.waitForElement(
-          ulSelector,
-          rootDiv,
-          3, // 少ないリトライ回数（DOM変更後なので頻繁に試行する必要はない）
-          (ulElement) => {
-            if (ulElement instanceof HTMLUListElement) {
-              debug(`DOM変更後に ${ulSelector} 要素が見つかりました`);
-              this.setupObserversForUl(ulElement as HTMLUListElement);
+          // DOM変更後にul要素が見つからない場合も待機を開始
+          this.waitForElement(
+            ulSelector,
+            rootDiv,
+            3, // 少ないリトライ回数（DOM変更後なので頻繁に試行する必要はない）
+            (ulElement) => {
+              if (ulElement instanceof HTMLUListElement) {
+                debug(`DOM変更後に ${ulSelector} 要素が見つかりました`);
+                this.setupObserversForUl(ulElement as HTMLUListElement);
+              }
             }
-          }
-        );
-        return;
-      }
+          );
+          return;
+        }
 
-      if (ul !== this.lastUl) {
-        this.isProcessingPage = true;
-        this.setupObserversForUl(ul);
+        if (ul !== this.lastUl) {
+          this.isProcessingPage = true;
+          this.setupObserversForUl(ul);
 
-        // 処理が完了したら実行状態をリセット
-        setTimeout(() => {
-          this.isProcessingPage = false;
-        }, 500);
-      } else {
-        debugMethodEnd('ulObserver.callback', {
-          status: 'unchanged',
-          reason: '同じul要素が既に監視中'
-        });
+          // 処理が完了したら実行状態をリセット
+          setTimeout(() => {
+            this.isProcessingPage = false;
+          }, 500);
+        } else {
+          debugMethodEnd('ulObserver.callback', {
+            status: 'unchanged',
+            reason: '同じul要素が既に監視中'
+          });
+        }
+      } catch (e) {
+        warn('ulObserver コールバックでエラーが発生しました', e);
+        this.isProcessingPage = false;
       }
     });
 
@@ -357,7 +362,11 @@ export class ObserverManager {
     });
 
     this.lastUl = ul;
-    renderUiComponents(ul);
+    try {
+      renderUiComponents(ul);
+    } catch (e) {
+      warn('setupObserversForUl: renderUiComponents でエラーが発生しました', e);
+    }
 
     // liの追加削除監視
     this.liObserver?.disconnect();
@@ -386,7 +395,11 @@ export class ObserverManager {
         debugMethodStart('liObserver.renderTimeout', {
           ulChildCount: ul.children.length
         });
-        renderUiComponents(ul);
+        try {
+          renderUiComponents(ul);
+        } catch (e) {
+          warn('liObserver: renderUiComponents でエラーが発生しました', e);
+        }
         debugMethodEnd('liObserver.renderTimeout');
       }, 500);
       debugMethodEnd('liObserver.setNewTimeout', {
