@@ -42,11 +42,14 @@ npm run format:check    # フォーマット（約 3 秒 / 既存コードが未
 変更パスは**この 3 つとも**集める:
 
 ```bash
-git diff --name-only --no-renames HEAD                    # 未コミットの変更（ステージ済み含む）
-git diff --name-only --no-renames <直前のコミット>..HEAD  # 今回の作業でコミット済みの変更
-git ls-files --others --exclude-standard                  # 未追跡の新規ファイル
+git fetch origin develop                              # 比較元を最新にする
+git diff --name-only --no-renames develop...HEAD      # このブランチが入れたコミット済みの変更
+git diff --name-only --no-renames HEAD                # 未コミットの変更（ステージ済み含む）
+git ls-files --others --exclude-standard              # 未追跡の新規ファイル
 ```
 
+- **`...`（3 点）を使う。** `develop..HEAD`（2 点）にすると、`develop` 側が進んでいるときに相手側の変更まで差分に出る。3 点なら**分岐点からこのブランチが入れた変更だけ**になる。
+- **比較元を最新にしてから実行する。** fetch を省くと、古い `develop` との差分を見ることになる。なお `git fetch origin develop` が更新するのは `origin/develop` で、**ローカルの `develop` は古いままのことがある**。`git log develop..origin/develop` が空でなければ、先に `git switch develop && git pull --ff-only` で追いつかせる。
 - **`--no-renames` を省かない。** 既定ではリネームが畳まれて移動後のパスしか出ず、移動元のディレクトリを対象から落とす。
 - **`| sort -u` のような 1 本のパイプにまとめない。** どれかが失敗してもパイプ全体は成功し、「変更なし」に見えたまま未検証で進む。3 回別々に実行して、それぞれの結果を見る。
 - **`git status --porcelain` は使わない。** リネームが `R old -> new` の 1 行になりパスとして取り出せない。

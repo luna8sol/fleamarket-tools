@@ -9,12 +9,17 @@ description: コミット前に、自分の変更をこのリポジトリ固有�
 
 ## 差分を集める（3 つとも）
 
+レビュー対象は**このブランチが `develop` に入れようとしている変更全体**。直前のコミットだけを見るとブランチ全体を取りこぼす。
+
 ```bash
-git diff --name-only --no-renames HEAD                    # 未コミットの変更（ステージ済み含む）
-git diff --name-only --no-renames <直前のコミット>..HEAD  # 今回の作業でコミット済みの変更
-git ls-files --others --exclude-standard                  # 未追跡の新規ファイル
+git fetch origin develop                  # 比較元を最新にする
+git diff --no-renames develop...HEAD      # このブランチが入れたコミット済みの変更
+git diff --no-renames HEAD                # 未コミットの変更（ステージ済み含む）
+git ls-files --others --exclude-standard  # 未追跡の新規ファイル
 ```
 
+- **`...`（3 点）を使う。** `develop..HEAD`（2 点）にすると、`develop` 側が進んでいるときに相手側の変更まで差分に出て、自分が書いていないコードをレビューすることになる。3 点なら**分岐点からこのブランチが入れた変更だけ**。
+- **比較元を最新にしてから実行する。** fetch が更新するのは `origin/develop` で、**ローカルの `develop` は古いままのことがある**。`git log develop..origin/develop` が空でなければ、先に `git switch develop && git pull --ff-only` で追いつかせる。
 - **未追跡の新規ファイルは `git diff` に出ない。** 3 つ目を必ず実行する。
 - **`--no-renames` を省かない**（移動元のパスが落ちる）。
 - **1 本のパイプにまとめない**（どれかが失敗しても全体は成功し、「変更なし」に見えたまま見落とす）。

@@ -60,7 +60,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## ブランチ運用・コミットルール
 
-**正本は [CONTRIBUTING.md](CONTRIBUTING.md)。** ブランチ構成（`main` / `develop` / `feature/*` / `fix/*` / `docs/*`）、コミットメッセージのプレフィックス 8 種（`feat:` / `fix:` / `docs:` / `style:` / `refactor:` / `perf:` / `test:` / `chore:`）、コードスタイルはそちらを参照する。
+**正本は [CONTRIBUTING.md](CONTRIBUTING.md)。** ブランチ構成（`main` / `develop` / `feature/*` / `fix/*` / `docs/*` / `refactor/*`）、コミットメッセージのプレフィックス 8 種（`feat:` / `fix:` / `docs:` / `style:` / `refactor:` / `perf:` / `test:` / `chore:`）、コードスタイルはそちらを参照する。
+
+### ブランチ運用の補足（CONTRIBUTING.md に無い部分）
+
+- **統合ブランチは `develop`。ここで直接作業しない。** 各タスクは `develop` からトピックブランチを切る。
+- 命名は CONTRIBUTING.md の規則（`feature/` / `fix/` / `docs/` / `refactor/` + ハイフン区切りの英小文字）。日付・イニシャル・連番は入れない。
+  - **`feature/` を既定にしない。** 中身が修正なら `fix/`、ドキュメントなら `docs/`、挙動を変えない整理なら `refactor/`。コミットの prefix と同じく**中身で選ぶ**。
+- **エージェントが自動命名したブランチ（`claude/...`、`worktree-...`）のまま作業を終えない。** 規約名に直す。
+
+  ```bash
+  git branch -m <規約名>
+  ```
+
+- **作業ブランチは origin に push しない**（ローカル限り）。`develop` は origin と同期する。
+- 統合は **`--no-ff`** で行う。手順は [.claude/skills/merge/SKILL.md](.claude/skills/merge/SKILL.md)。
+- **マージ後に作業ブランチを削除する**（`git branch -d`）。履歴はマージコミットに残るので情報は失われない。
+- このリポジトリは **worktree を使っている。ブランチ 1 本につき worktree が 1 つ占有される。** ブランチを削除するときは worktree も片付ける（手順は [.claude/skills/local-setup/SKILL.md](.claude/skills/local-setup/SKILL.md)）。
+
+### 件名の書き方の補足
 
 以下は CONTRIBUTING.md に書かれていない**件名の書き方の補足**。
 

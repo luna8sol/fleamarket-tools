@@ -67,3 +67,24 @@ content script が動くのは、`manifest.json` の `matches` にある**この
    cp -n ../<既存worktree>/.claude/settings.local.json .claude/settings.local.json
    ```
    `.claude/skills/` と `.claude/settings.json` は git 管理下なので、worktree を作った時点で入っている。
+3. **ブランチ名が規約どおりか確認する。** 自動命名（`claude/...`、`worktree-...`）のままなら直す（規約は [CLAUDE.md](../../../CLAUDE.md) の「ブランチ運用の補足」）:
+   ```bash
+   git branch --show-current
+   git branch -m <feature|fix|docs|refactor>/<英小文字の短い説明>
+   ```
+
+## worktree とブランチの関係
+
+- **worktree 1 つにつきブランチが 1 本占有される。** 同じブランチを 2 つの worktree で同時にチェックアウトできない。
+- そのため **`git switch develop` が `already checked out` で失敗することがある。** どの worktree が持っているかを見る:
+  ```bash
+  git worktree list
+  ```
+  持っている worktree があるなら、そのディレクトリで作業する。
+- **worktree を削除する前に、未コミットの変更が残っていないか必ず確認する:**
+  ```bash
+  git -C <worktree のパス> status --short     # 空でなければ中身を確認してから
+  git worktree remove <worktree のパス>
+  ```
+  `git worktree remove` は未コミットの変更があると拒否される。**`--force` で消す前に、失うものが無いか必ず見る。** gitignore されたファイル（`.claude/settings.local.json`、`node_modules/`、`dist/`）も一緒に消える。
+- マージ後の作業ブランチと worktree の片付けは [merge スキル](../merge/SKILL.md) の「後始末」にまとめてある。
