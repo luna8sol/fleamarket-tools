@@ -23,6 +23,7 @@ import { decorateButton, setButtonBusy } from './components';
 import { confirmAction, ConfirmFact } from './confirm-dialog';
 import { createIcon } from './icons';
 import { renderOrderNumbers } from './order-display';
+import { resetRangeAnchor } from './checkbox-manager';
 import { ensureTheme } from './theme';
 
 /**
@@ -319,6 +320,8 @@ export function clearAllSelections(): number {
     .querySelectorAll<HTMLInputElement>(COMPOSITE_SELECTOR.CHECKED_BULK_CHECKBOX)
     .forEach((checkbox) => (checkbox.checked = false));
   selectionManager.clearSelections();
+  // 解除後の Shift 選択が、消えた選択の起点から始まらないようにする
+  resetRangeAnchor();
 
   const list =
     document.querySelector<HTMLUListElement>(SELECTOR.ITEMS_LIST) ??

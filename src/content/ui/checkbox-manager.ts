@@ -1,4 +1,4 @@
-import { CLASS_NAME, SELECTOR } from '../infra/constants';
+import { CLASS_NAME, COMPOSITE_SELECTOR, SELECTOR } from '../infra/constants';
 import { safeQuery, safeGetAttr } from '../../common/dom';
 import { warn, debugMethodStart, debugMethodEnd } from '../infra/logger';
 import { selectionManager } from '../logic/selection-manager';
@@ -13,6 +13,65 @@ import { ensureRowGutter } from './row-gutter';
 // チェックボックスのトグル処理済みフラグを管理する WeakMap
 const toggleHandledMap = new WeakMap<HTMLInputElement, boolean>();
 
+/** Shift を押しながらの選択で、範囲の起点にするチェックボックス（最後に押したもの） */
+let rangeAnchor: HTMLInputElement | null = null;
+
+/**
+ * 範囲選択の起点を忘れる（選択をまとめて解除したときなど）
+ */
+export function resetRangeAnchor(): void {
+  rangeAnchor = null;
+}
+
+/**
+ * 行が画面に出ているか（絞り込みで隠した行は display: none になる）
+ *
+ * @param checkbox 行のチェックボックス
+ * @returns 出ていれば true
+ */
+function isRowVisible(checkbox: HTMLInputElement): boolean {
+  const row = checkbox.closest('li') ?? checkbox;
+  return row.getClientRects().length > 0;
+}
+
+/**
+ * Shift を押しながら押したとき、起点からそこまでの行を押した行と同じ状態にそろえる
+ *
+ * - **押した行より先に、起点の側から順に処理する。** 選んだ順がそのまま出品順になるため、
+ *   起点 → 押した行 の並びで積まれるようにする（押した行は呼び出し側が最後に切り替える）。
+ * - **押した行のチェックは、範囲を処理し終えるまで入れない。** 途中の再描画（順番表示）は
+ *   「チェック済みなのに選択に無い行」を見つけると末尾に足すため、先に入れると押した行が
+ *   範囲の途中に割り込んでしまう。
+ * - **画面に出ていない行は対象にしない。** 絞り込みで隠した商品が、見えないまま
+ *   一括出品・再出品の対象に入らないようにするため。
+ * - 起点と押した行が同じ一覧に無いとき（一覧が作り直された等）は何もしない。
+ * - 変更は 1 件ずつ change を発火させ、通常の選択と同じ経路（選択管理・順番表示・件数）に流す。
+ *
+ * @param target 押したチェックボックス（まだ切り替える前）
+ * @param checked 押した行がこれから向かう状態。範囲の行もこの状態にそろえる
+ */
+function applyRange(target: HTMLInputElement, checked: boolean): void {
+  const anchor = rangeAnchor;
+  if (!anchor || !anchor.isConnected || anchor === target) return;
+
+  const list = target.closest('ul');
+  if (!list || !list.contains(anchor)) return;
+
+  const boxes = Array.from(
+    list.querySelectorAll<HTMLInputElement>(COMPOSITE_SELECTOR.BULK_CHECKBOX_INPUT)
+  );
+  const from = boxes.indexOf(anchor);
+  const to = boxes.indexOf(target);
+  if (from < 0 || to < 0) return;
+
+  const range = from < to ? boxes.slice(from, to) : boxes.slice(to + 1, from + 1).reverse();
+  for (const box of range) {
+    if (box.disabled || box.checked === checked || !isRowVisible(box)) continue;
+    box.checked = checked;
+    box.dispatchEvent(new Event('change', { bubbles: false }));
+  }
+}
+
 // 共通のチェックボックス生成関数（クリック抑止＋手動トグル）
 function createBulkCheckboxElement(
   onChange: (this: HTMLInputElement, ev: Event) => void
@@ -26,24 +85,29 @@ function createBulkCheckboxElement(
   checkbox.type = 'checkbox';
   checkbox.className = CLASS_NAME.BULK_CHECKBOX;
   checkbox.setAttribute('aria-label', '一括操作の対象にする');
+  checkbox.title = 'クリックで選択（Shift を押しながらで、前に押した行からここまでをまとめて選択）';
   checkbox.style.position = 'relative';
   checkbox.style.zIndex = '99999';
   checkbox.style.pointerEvents = 'auto';
   toggleHandledMap.set(checkbox, false);
 
-  const toggleAndChange = (el: HTMLInputElement): void => {
-    el.checked = !el.checked;
+  // shift: Shift を押しながらなら、起点からここまでの範囲も同じ状態にそろえる
+  const toggleAndChange = (el: HTMLInputElement, shift: boolean): void => {
+    const next = !el.checked;
+    if (shift) applyRange(el, next);
+    el.checked = next;
     const ev = new Event('change', { bubbles: false });
     el.dispatchEvent(ev);
+    rangeAnchor = el;
   };
 
-  const onPointerDown = (e: Event): void => {
+  const onPointerDown = (e: MouseEvent | TouchEvent): void => {
     e.stopImmediatePropagation();
     e.stopPropagation();
     e.preventDefault();
     if (!toggleHandledMap.get(checkbox)) {
       toggleHandledMap.set(checkbox, true);
-      toggleAndChange(checkbox);
+      toggleAndChange(checkbox, e.shiftKey);
     }
   };
   checkbox.addEventListener('mousedown', onPointerDown, true);
@@ -67,7 +131,7 @@ function createBulkCheckboxElement(
       e.stopImmediatePropagation();
       e.stopPropagation();
       e.preventDefault();
-      toggleAndChange(checkbox);
+      toggleAndChange(checkbox, e.shiftKey);
     },
     true
   );
