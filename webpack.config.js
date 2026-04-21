@@ -49,6 +49,7 @@ export default (env, argv) => {
       target: 'web',
       entry: {
         content: './src/content/index.ts',
+        edit: './src/content/edit-entry.ts',
         popup: './src/popup/index.ts',
         options: './src/options/index.ts',
       },

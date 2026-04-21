@@ -20,6 +20,13 @@
       ],
       "js": ["dist/content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://jp.mercari.com/sell*"
+      ],
+      "js": ["dist/edit.js"],
+      "run_at": "document_idle"
     }
   ]
 }

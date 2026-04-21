@@ -45,6 +45,75 @@ export const SELECTOR = {
 };
 
 /**
+ * 出品・下書き編集フォームのセレクタ定数
+ *
+ * - 実際のメルカリ編集ページ（/sell/draft/{id}）のDOMを確認して決定したセレクタです。
+ * - メルカリ側のDOM変更に耐えられるよう、項目ごとに候補を優先度順の配列で保持します。
+ *   data-testid ベースのセレクタを先頭に置き、見つからない場合は name 属性などにフォールバックします。
+ * - 取得には {@link safeQueryFirst} / {@link safeQueryAllFirst} を使ってください。
+ *
+ * @example
+ *   const textarea = safeQueryFirst<HTMLTextAreaElement>(EDIT_SELECTOR.DESCRIPTION);
+ */
+export const EDIT_SELECTOR = {
+  /** 商品名の入力欄 */
+  NAME: [
+    '[data-testid="input-name"] input',
+    'input[name="name"]',
+  ],
+  /**
+   * 商品説明の入力欄
+   *
+   * - 自動リサイズ用の非表示textareaが併存するため、name属性で表示中のものを特定します。
+   */
+  DESCRIPTION: [
+    'textarea[name="description"]',
+  ],
+  /**
+   * カテゴリの表示要素
+   *
+   * - 「ゲーム・おもちゃ・グッズ / トレーディングカード / ポケモンカードゲーム」のように
+   *   階層が改行区切りで入っています。
+   */
+  CATEGORY: [
+    '[data-testid="sell-category"]',
+  ],
+  /**
+   * 商品の状態の表示要素
+   *
+   * - 1つ目のp要素が状態名（例: 目立った傷や汚れなし）、2つ目がその説明文です。
+   */
+  CONDITION: [
+    '[data-testid="item-condition"] p',
+  ],
+  /**
+   * 配送方法の表示要素
+   *
+   * - 「配送の方法 / 変更する / らくらくメルカリ便」のように見出しを含むため、最終行が値になります。
+   */
+  SHIPPING_METHOD: [
+    '[data-testid="shipping-method-link"]',
+  ],
+  /**
+   * カテゴリ固有の属性（ブランド・サイズ・シリーズなど）の選択欄
+   *
+   * - カテゴリによって項目が変わるため、ラベルと選択値をまとめて読み取ります。
+   */
+  ATTRIBUTE: [
+    '[data-testid="attribute-select"]',
+  ],
+  /**
+   * 出品画像
+   *
+   * - src は https のURLではなく data:image/jpeg;base64,... 形式のデータURIです。
+   */
+  IMAGES: [
+    '[data-testid="photo-thumbnail"] img',
+    '[data-testid^="image-list-item-"] img',
+  ],
+};
+
+/**
  * 要素ID定数
  */
 export const ID_NAME = {
@@ -64,6 +133,14 @@ export const ID_NAME = {
   // UI要素
   TOAST: 'toast-notification',
   CONFIRM_DIALOG: 'confirm-dialog',
+
+  // AI説明文生成UI
+  AI_DESCRIPTION_PANEL: 'ai-description-panel',
+  AI_DESCRIPTION_BTN: 'ai-description-btn',
+  AI_DESCRIPTION_PREVIEW: 'ai-description-preview',
+  AI_DESCRIPTION_APPLY_BTN: 'ai-description-apply-btn',
+  AI_DESCRIPTION_CANCEL_BTN: 'ai-description-cancel-btn',
+  AI_DESCRIPTION_STATUS: 'ai-description-status',
 };
 
 /**
@@ -74,6 +151,7 @@ export const CLASS_NAME = {
   BULK_ORDER_SPAN: 'bulk-order-span',
   SELECTED_ITEM: 'selected-item',
   DRAFT_ORDER: 'draft-order',
+  AI_DESCRIPTION_LINK: 'ai-description-link',
 };
 
 /**
@@ -98,6 +176,11 @@ export const CONFIG = {
   // DOM要素待機設定
   OBSERVER_MAX_RETRY_COUNT: 10, // 要素が見つかるまでの最大リトライ回数
   OBSERVER_RETRY_INTERVAL_MS: 500,
+
+  // AI説明文生成パネルの描画待ち設定
+  // 出品フォームはReactで遅延描画されるため、説明欄が現れるまで待つ必要がある
+  EDIT_PANEL_MAX_RETRY_COUNT: 20,
+  EDIT_PANEL_RETRY_INTERVAL_MS: 500,
 
   // UI設定
   ZINDEX: {
@@ -124,5 +207,11 @@ export const DEFAULT_USER_SETTINGS = {
 export enum PageType {
   DRAFTS = 'drafts',
   LISTINGS = 'listings',
+  /** 下書きの編集ページ */
+  EDIT_DRAFT = 'editDraft',
+  /** 出品中商品の編集ページ */
+  EDIT_LISTING = 'editListing',
+  /** 新規出品ページ */
+  SELL = 'sell',
   UNKNOWN = 'unknown',
 }

@@ -3,6 +3,7 @@ import { renderBulkBar } from './bulk-bar-ui';
 import { initializePageUI } from './bulk-bar-utils';
 import { addCheckboxToLi } from './checkbox-manager';
 import { renderOrderNumbers } from './order-display';
+import { addAiDescriptionLink } from './ai-description-link';
 import { detectCurrentPage } from '../infra/page-detector';
 import { PageType } from '../infra/constants';
 
@@ -14,8 +15,10 @@ export function renderUiComponents(ul: HTMLUListElement): void {
 
   const pageType = detectCurrentPage();
 
-  // チェックボックスの描画（DRAFTS/LISTINGS共通APIで付与）
+  // チェックボックスとAI説明文生成リンクの描画（DRAFTS/LISTINGS共通APIで付与）
   Array.from(ul.querySelectorAll('li')).forEach((li) => {
+    addAiDescriptionLink(li as HTMLLIElement, pageType);
+
     addCheckboxToLi(
       li as HTMLLIElement,
       (id, checked) => {

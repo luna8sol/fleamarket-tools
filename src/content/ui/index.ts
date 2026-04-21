@@ -6,3 +6,5 @@ export * from './bulk-bar-ui';
 export * from './bulk-relist';
 export * from './bulk-bar-utils';
 export * from './list';
+export * from './ai-description-link';
+export * from './description-panel';

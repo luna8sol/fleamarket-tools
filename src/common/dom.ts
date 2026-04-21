@@ -75,3 +75,86 @@ export function safeGetAttr(el: Element | null, attr: string): string {
 }
 
 // 必要に応じて他のDOM操作ラッパーも追加可能
+
+/**
+ * 複数のセレクタ候補を優先順に試し、最初に見つかった要素を返す。
+ *
+ * - メルカリ側のDOM変更でセレクタが変わっても動くよう、フォールバックを持たせるために使います。
+ *
+ * @template T 取得する要素型
+ * @param selectors CSSセレクタの配列（優先度順）
+ * @param parent 親要素（省略時はdocument）
+ * @returns {T | null} 最初に見つかった要素、またはnull
+ * @example
+ *   const textarea = safeQueryFirst<HTMLTextAreaElement>(EDIT_SELECTOR.DESCRIPTION);
+ */
+export function safeQueryFirst<T extends Element = Element>(
+  selectors: readonly string[],
+  parent: ParentNode = document
+): T | null {
+  for (const selector of selectors) {
+    const el = safeQuery<T>(selector, parent);
+    if (el) return el;
+  }
+  return null;
+}
+
+/**
+ * 複数のセレクタ候補を優先順に試し、最初にヒットしたセレクタの全要素を返す。
+ *
+ * @template T 取得する要素型
+ * @param selectors CSSセレクタの配列（優先度順）
+ * @param parent 親要素（省略時はdocument）
+ * @returns {T[]} 見つかった要素の配列。どれも見つからなければ空配列
+ * @example
+ *   const images = safeQueryAllFirst<HTMLImageElement>(EDIT_SELECTOR.IMAGES);
+ */
+export function safeQueryAllFirst<T extends Element = Element>(
+  selectors: readonly string[],
+  parent: ParentNode = document
+): T[] {
+  for (const selector of selectors) {
+    const els = safeQueryAll<T>(selector, parent);
+    if (els.length > 0) return els;
+  }
+  return [];
+}
+
+/**
+ * React が制御する input / textarea に値を設定する。
+ *
+ * - React は value プロパティを自前のセッターで管理しているため、単に `el.value = x` としても
+ *   React の state が更新されず、フォーム送信時に値が反映されません。
+ *   ネイティブの value セッターを直接呼び出したうえで input イベントを発火させる必要があります。
+ *
+ * @param el 値を設定する input または textarea
+ * @param value 設定する値
+ * @returns {boolean} 設定成功時true、失敗時false
+ * @example
+ *   setReactInputValue(textarea, '新しい説明文');
+ */
+export function setReactInputValue(
+  el: HTMLInputElement | HTMLTextAreaElement | null,
+  value: string
+): boolean {
+  if (!el) return false;
+
+  try {
+    const prototype =
+      el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+
+    if (setter) {
+      setter.call(el, value);
+    } else {
+      el.value = value;
+    }
+
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  } catch (e) {
+    warn('setReactInputValue error:', e, el);
+    return false;
+  }
+}
