@@ -115,6 +115,7 @@ export function createBulkRelistButton(): HTMLButtonElement {
       actionType: 'relist',
       logMessage: '再出品ボタンがクリックされました',
       emptySelectionMessage: '商品を選択してください',
+      confirm: confirmRelist,
       processingFunction: (ids) => relistManager.executeRelist(ids),
       successMessage: '再出品が完了しました',
       errorMessage: '再出品でエラーが発生しました',
@@ -122,6 +123,27 @@ export function createBulkRelistButton(): HTMLButtonElement {
   };
 
   return bulkBtn;
+}
+
+/**
+ * 再出品してよいかを利用者に確認する
+ *
+ * 再出品は選んだ順に 1 件ずつ進むので、**処理順のまま**商品名を並べる。
+ *
+ * @param ids 再出品する商品ID（処理順）
+ * @returns 実行してよければ true
+ */
+function confirmRelist(ids: string[]): Promise<boolean> {
+  return confirmAction({
+    title: `${ids.length}件を再出品します`,
+    message: '選んだ順に 1 件ずつ、元の商品をコピーした出品フォームを開きます。',
+    facts: buildFacts('relist', ids.length),
+    items: collectItemNames(ids),
+    maxItems: MAX_CONFIRM_ITEMS,
+    confirmLabel: `${ids.length}件を再出品する`,
+    tone: 'primary',
+    icon: 'relist',
+  });
 }
 
 /**
@@ -199,6 +221,7 @@ export function createBulkPlaceholderButton(): HTMLButtonElement {
       actionType: 'publish',
       logMessage: 'まとめて出品ボタンがクリックされました',
       emptySelectionMessage: '出品する下書き商品を選択してください',
+      confirm: confirmPublish,
       processingFunction: ids => publishAllDrafts(ids),
       successMessage: '出品が完了しました',
       errorMessage: '出品処理中にエラーが発生しました'
@@ -207,6 +230,27 @@ export function createBulkPlaceholderButton(): HTMLButtonElement {
 
   debugMethodEnd('createBulkPlaceholderButton', { elementId: bulkBtn.id });
   return bulkBtn;
+}
+
+/**
+ * 下書きを出品してよいかを利用者に確認する
+ *
+ * 出品した商品はすぐ公開される。選んだ順がそのまま出品順になるので、処理順のまま並べる。
+ *
+ * @param ids 出品する下書きのID（処理順）
+ * @returns 実行してよければ true
+ */
+function confirmPublish(ids: string[]): Promise<boolean> {
+  return confirmAction({
+    title: `下書き${ids.length}件を出品します`,
+    message: '選んだ順に 1 件ずつ出品します。出品した商品はすぐに公開されます。',
+    facts: buildFacts('publish', ids.length),
+    items: collectItemNames(ids),
+    maxItems: MAX_CONFIRM_ITEMS,
+    confirmLabel: `${ids.length}件を出品する`,
+    tone: 'primary',
+    icon: 'publish',
+  });
 }
 
 /**
