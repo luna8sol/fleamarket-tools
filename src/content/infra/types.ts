@@ -44,7 +44,8 @@ export type CompareFieldKey =
   | 'shippingMethod'
   | 'shippingFromArea'
   | 'shippingDuration'
-  | 'imageCount';
+  | 'imageCount'
+  | 'attributes';
 
 /**
  * 比較用に正規化した値の集合
@@ -138,8 +139,9 @@ export interface AutoSaveResult {
  * - `control`: input / textarea / select の value を読む
  * - `text`: 「変更する」リンク方式の項目。画面上の表示テキストを読む
  * - `count`: 該当要素の個数を数える（画像枚数）
+ * - `attributes`: カテゴリー固有の「商品の特徴」（可変個の select）をまとめて1つの文字列にする
  */
-export type SellFormReadKind = 'control' | 'text' | 'count';
+export type SellFormReadKind = 'control' | 'text' | 'count' | 'attributes';
 
 /**
  * `text` 読み取りで innerText のどの行を値とするか
@@ -155,9 +157,16 @@ export type SellFormTextLine = 'first' | 'last' | 'join';
  *
  * - `control`: 入力欄へ直接書き込む
  * - `category` / `condition` / `shippingMethod`: 別ページへ遷移して選び直す
+ * - `attributes`: 「商品の特徴」の各 select を選び直す
  * - `none`: 自動修正できない（画像枚数）
  */
-export type SellFormFixKind = 'control' | 'category' | 'condition' | 'shippingMethod' | 'none';
+export type SellFormFixKind =
+  | 'control'
+  | 'category'
+  | 'condition'
+  | 'shippingMethod'
+  | 'attributes'
+  | 'none';
 
 /**
  * 出品フォーム上の1フィールドの探索・比較定義

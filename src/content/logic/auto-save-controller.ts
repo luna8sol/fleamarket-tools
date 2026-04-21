@@ -10,6 +10,7 @@ import {
   findSubmitButton,
   readSellForm,
   readSellFormField,
+  waitForSellFormAttributes,
   waitForSellFormImages,
   waitForSellFormReady,
 } from './sell-form';
@@ -168,6 +169,9 @@ export async function runAutoSaveOnSellPage(): Promise<AutoSaveResult> {
     // 元商品の枚数に達するまで待たないと、途中の枚数で差分と判定してしまう。
     const expectedImages = Number(snapshot.values.imageCount);
     await waitForSellFormImages(document, Number.isFinite(expectedImages) ? expectedImages : null);
+
+    // 「商品の特徴」の欄もカテゴリー確定後に遅れて現れる
+    await waitForSellFormAttributes();
 
     // セレクタ調整用に、解決状況をデバッグログへ出力する
     dumpSellFormStructure();

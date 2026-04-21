@@ -1,7 +1,7 @@
 import { SELL_FORM_FIELDS } from '../infra/constants';
 import { debug } from '../infra/logger';
 import { CompareFieldKey, CompareValues, FieldDiff, FixResult } from '../infra/types';
-import { writeSellFormControl } from './sell-form';
+import { writeSellFormAttributes, writeSellFormControl } from './sell-form';
 import { fixByNavigation } from './sell-form-navigator';
 
 /**
@@ -68,8 +68,8 @@ export function compareValues(
 /**
  * 差分を出品フォームへ書き戻す
  *
- * 入力欄を持つ項目は直接書き込み、カテゴリー・商品の状態・配送の方法は
- * 選択ページへ遷移して選び直します。修正不可の項目（画像枚数・解決できなかった項目）は
+ * 入力欄を持つ項目と「商品の特徴」は直接書き込み、カテゴリー・商品の状態・
+ * 配送の方法は選択ページへ遷移して選び直します。修正不可の項目（画像枚数・解決できなかった項目）は
  * 書き込みを試みず、そのまま未修正として返します。
  *
  * 遷移操作は1件ずつ直列に行います（同時に2つの選択ページへは行けないため）。
@@ -93,10 +93,14 @@ export async function applyFixes(diffs: FieldDiff[]): Promise<FixResult> {
       continue;
     }
 
-    const succeeded =
-      spec.fix === 'control'
-        ? writeSellFormControl(spec, diff.expected)
-        : await fixByNavigation(spec, diff.expected);
+    let succeeded = false;
+    if (spec.fix === 'control') {
+      succeeded = writeSellFormControl(spec, diff.expected);
+    } else if (spec.fix === 'attributes') {
+      succeeded = writeSellFormAttributes(spec, diff.expected);
+    } else {
+      succeeded = await fixByNavigation(spec, diff.expected);
+    }
 
     if (succeeded) {
       fixed.push(diff);

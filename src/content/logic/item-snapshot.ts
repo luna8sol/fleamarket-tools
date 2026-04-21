@@ -2,7 +2,12 @@ import { waitFor } from '../../common/utils';
 import { CONFIG } from '../infra/constants';
 import { debug, debugMethodEnd, debugMethodStart, warn } from '../infra/logger';
 import { ItemSnapshot } from '../infra/types';
-import { isSellFormReady, readSellForm, waitForSellFormImages } from './sell-form';
+import {
+  isSellFormReady,
+  readSellForm,
+  waitForSellFormAttributes,
+  waitForSellFormImages,
+} from './sell-form';
 
 /**
  * 元商品のスナップショット取得。
@@ -152,8 +157,9 @@ export async function captureItemSnapshot(itemId: string, itemName: string): Pro
       );
     }
 
-    // 画像は商品名より遅れて描画されるため、枚数が安定するまで待つ
+    // 画像と「商品の特徴」は商品名より遅れて描画されるため、落ち着くまで待つ
     await waitForSellFormImages(loaded);
+    await waitForSellFormAttributes(loaded);
 
     const { values, unresolved } = readSellForm(loaded);
 

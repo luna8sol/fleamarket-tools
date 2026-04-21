@@ -1,6 +1,7 @@
 import { safeQuery, safeQueryAll, setReactInputValue } from '../../common/dom';
 import { sleep, waitFor } from '../../common/utils';
 import {
+  ATTRIBUTE,
   CATEGORY_PATH_SEPARATOR,
   CONFIG,
   SELL_FORM_FIELDS,
@@ -8,7 +9,7 @@ import {
 } from '../infra/constants';
 import { debug, log, warn } from '../infra/logger';
 import { CompareFieldKey, SellFormFieldSpec, SellFormReadResult } from '../infra/types';
-import { normalizeFieldValue } from './value-normalizer';
+import { normalizeFieldValue, toHalfWidth } from './value-normalizer';
 
 /**
  * 出品フォーム（`/sell/create` / `/sell/edit/{itemId}`）のアダプタ。
@@ -125,6 +126,77 @@ function readTextField(spec: SellFormFieldSpec, root: Document): string | null {
 }
 
 /**
+ * 選択肢の表示テキストを照合用に正規化する
+ * @param value 比較する文字列
+ * @returns 正規化後の文字列
+ */
+function normalizeOptionText(value: string | null | undefined): string {
+  return toHalfWidth(value ?? '')
+    .replace(/[\s　]+/g, ' ')
+    .trim();
+}
+
+/**
+ * カテゴリー固有の「商品の特徴」の欄をすべて取得する
+ *
+ * @param spec フィールド定義
+ * @param root 探索対象の Document
+ * @returns 各欄の要素の配列
+ */
+function findAttributeContainers(spec: SellFormFieldSpec, root: Document): HTMLElement[] {
+  for (const selector of spec.selectors) {
+    const containers = safeQueryAll<HTMLElement>(selector, root);
+    if (containers.length > 0) return containers;
+  }
+  return [];
+}
+
+/**
+ * 「商品の特徴」の1欄からラベルと選択中の表示テキストを取り出す
+ *
+ * label 要素は中に select を含むため innerText に選択肢が全部入ります。
+ * ラベル名は**1行目**だけを使います。
+ *
+ * @param container 1欄分の要素
+ * @returns ラベルと選択値。select が無い場合は null
+ */
+function readAttribute(container: HTMLElement): { label: string; value: string } | null {
+  const select = safeQuery<HTMLSelectElement>('select', container);
+  if (!select) return null;
+
+  const label = toLines(safeQuery('label', container))[0] ?? '';
+  if (label === '') return null;
+
+  const selected = normalizeOptionText(select.selectedOptions[0]?.textContent);
+  const value = selected === ATTRIBUTE.UNSELECTED_LABEL ? '' : selected;
+
+  return { label: normalizeOptionText(label), value };
+}
+
+/**
+ * 「商品の特徴」をまとめて1つの比較用文字列にする
+ *
+ * 未選択の欄は含めません。欄の並び順の違いを差分と誤認しないよう、
+ * ラベルで並べ替えてから連結します。
+ *
+ * @param spec フィールド定義
+ * @param root 探索対象の Document
+ * @returns `ラベル=値｜ラベル=値` 形式の文字列。欄が1つも無い場合は null
+ */
+function readAttributes(spec: SellFormFieldSpec, root: Document): string | null {
+  const containers = findAttributeContainers(spec, root);
+  if (containers.length === 0) return null;
+
+  return containers
+    .map(readAttribute)
+    .filter((entry): entry is { label: string; value: string } => entry !== null)
+    .filter((entry) => entry.value !== '')
+    .map((entry) => `${entry.label}${ATTRIBUTE.KEY_VALUE_SEPARATOR}${entry.value}`)
+    .sort()
+    .join(ATTRIBUTE.PAIR_SEPARATOR);
+}
+
+/**
  * 件数カウント型フィールド（画像枚数）の個数を数える
  *
  * @param spec フィールド定義
@@ -180,6 +252,8 @@ function readFieldRaw(spec: SellFormFieldSpec, root: Document): string | null {
     }
     case 'text':
       return readTextField(spec, root);
+    case 'attributes':
+      return readAttributes(spec, root);
     default: {
       const control = resolveFieldControl(spec, root);
       return control ? (control.value ?? '') : null;
@@ -279,6 +353,131 @@ export function writeSellFormControl(spec: SellFormFieldSpec, value: string): bo
 
   log(`${spec.label} を修正しました: "${applied}"`);
   return true;
+}
+
+/**
+ * 「商品の特徴」を元商品の内容へ揃える
+ *
+ * 各欄の select を、期待する選択肢の**表示テキスト**で選び直します。
+ * 期待値に含まれない欄は「選択してください」へ戻し、フォーム全体が
+ * 元商品と同じ状態になるようにします（余分な値が残ると差分が消えないため）。
+ *
+ * @param spec フィールド定義
+ * @param expected `ラベル=値｜ラベル=値` 形式の期待値
+ * @returns すべて設定できたか
+ */
+export function writeSellFormAttributes(spec: SellFormFieldSpec, expected: string): boolean {
+  const containers = findAttributeContainers(spec, document);
+  if (containers.length === 0) {
+    warn(`${spec.label} の入力欄が見つかりません`);
+    return false;
+  }
+
+  const wanted = new Map<string, string>();
+  for (const pair of expected.split(ATTRIBUTE.PAIR_SEPARATOR)) {
+    if (pair === '') continue;
+    const index = pair.indexOf(ATTRIBUTE.KEY_VALUE_SEPARATOR);
+    if (index < 0) continue;
+    wanted.set(pair.slice(0, index), pair.slice(index + 1));
+  }
+
+  let allApplied = true;
+
+  for (const container of containers) {
+    const current = readAttribute(container);
+    const select = safeQuery<HTMLSelectElement>('select', container);
+    if (!current || !select) continue;
+
+    const target = wanted.get(current.label) ?? '';
+    if (current.value === target) continue;
+
+    // 未選択へ戻す場合も含め、表示テキストで選択肢を探す
+    const option = Array.from(select.options).find((candidate) =>
+      target === ''
+        ? normalizeOptionText(candidate.textContent) === ATTRIBUTE.UNSELECTED_LABEL
+        : normalizeOptionText(candidate.textContent) === target
+    );
+
+    if (!option) {
+      warn(`${spec.label}「${current.label}」に "${target}" の選択肢がありません`);
+      allApplied = false;
+      continue;
+    }
+
+    setControlValue(select, option.value);
+
+    const applied = readAttribute(container);
+    if (applied?.value !== target) {
+      warn(`${spec.label}「${current.label}」の値が反映されませんでした`, {
+        target,
+        applied: applied?.value,
+      });
+      allApplied = false;
+      continue;
+    }
+
+    log(
+      `${spec.label}「${current.label}」を修正しました: "${target || ATTRIBUTE.UNSELECTED_LABEL}"`
+    );
+  }
+
+  // 期待値にあるのにフォームへ欄が無いものは、カテゴリーが違う可能性がある
+  const presentLabels = new Set(
+    containers
+      .map(readAttribute)
+      .filter((entry): entry is { label: string; value: string } => entry !== null)
+      .map((entry) => entry.label)
+  );
+
+  for (const label of wanted.keys()) {
+    if (!presentLabels.has(label)) {
+      warn(`${spec.label}「${label}」の欄がフォームにありません`);
+      allApplied = false;
+    }
+  }
+
+  return allApplied;
+}
+
+/**
+ * 「商品の特徴」の欄が出そろうのを待つ
+ *
+ * 欄はカテゴリーが決まってから描画されるため、画像と同じく遅れて増えます。
+ * 欄数が変わらなくなった時点で待機を終えます。
+ *
+ * @param root 対象の Document（省略時は現在のページ）
+ * @param timeoutMs 待機の上限（ミリ秒）
+ * @returns 最後に数えた欄数
+ */
+export async function waitForSellFormAttributes(
+  root: Document = document,
+  timeoutMs: number = CONFIG.SELL_FORM_IMAGE_TIMEOUT_MS
+): Promise<number> {
+  const spec = SELL_FORM_FIELDS.find((candidate) => candidate.key === 'attributes');
+  if (!spec) return 0;
+
+  const deadline = Date.now() + timeoutMs;
+  let lastCount = -1;
+  let unchangedSince = Date.now();
+
+  for (;;) {
+    const count = findAttributeContainers(spec, root).length;
+
+    if (count !== lastCount) {
+      lastCount = count;
+      unchangedSince = Date.now();
+    } else if (Date.now() - unchangedSince >= CONFIG.SELL_FORM_IMAGE_SETTLE_MS) {
+      debug('商品の特徴の欄が出そろいました', { count });
+      return count;
+    }
+
+    if (Date.now() >= deadline) {
+      debug('商品の特徴の待機を打ち切りました', { count });
+      return count;
+    }
+
+    await sleep(CONFIG.SELL_FORM_POLL_INTERVAL_MS / 1000);
+  }
 }
 
 /**

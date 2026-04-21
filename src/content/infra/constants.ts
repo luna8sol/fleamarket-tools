@@ -347,6 +347,13 @@ export const SELL_FORM_FIELDS: readonly SellFormFieldSpec[] = [
     selectors: ['select[name="shippingDuration"]'],
   },
   {
+    key: 'attributes',
+    label: '商品の特徴',
+    read: 'attributes',
+    fix: 'attributes',
+    selectors: ['[data-testid="attribute-select"]'],
+  },
+  {
     // 画像はファイル実体を持たないため再アップロードできず、自動修正は不可
     key: 'imageCount',
     label: '画像枚数',
@@ -390,6 +397,22 @@ export const SELL_FORM_SELECTOR = {
   SHIPPING_METHOD_RADIO: 'input[type="radio"][name="selectedShippingMethod"]',
   /** 配送の方法を確定するボタンの文言。これを押して初めてフォームへ戻る */
   SHIPPING_METHOD_CONFIRM_TEXT: '更新する',
+} as const;
+
+/**
+ * カテゴリー固有の「商品の特徴」（ブランド・シリーズ・サイズなど）の扱い
+ *
+ * 項目数も内容もカテゴリーによって変わるため、`ラベル=選択値` の組を
+ * 1つの文字列にまとめて比較します。順序の違いを差分と誤認しないよう、
+ * ラベルで並べ替えてから連結します。
+ */
+export const ATTRIBUTE = {
+  /** 未選択を表す選択肢の文言 */
+  UNSELECTED_LABEL: '選択してください',
+  /** 組と組の区切り */
+  PAIR_SEPARATOR: '｜',
+  /** ラベルと選択値の区切り */
+  KEY_VALUE_SEPARATOR: '=',
 } as const;
 
 /**
