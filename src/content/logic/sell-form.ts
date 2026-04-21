@@ -373,14 +373,6 @@ export async function writeSellFormAttributes(
   spec: SellFormFieldSpec,
   expected: string
 ): Promise<boolean> {
-  await waitForSellFormAttributes();
-
-  const containers = findAttributeContainers(spec, document);
-  if (containers.length === 0) {
-    warn(`${spec.label} の入力欄が見つかりません`);
-    return false;
-  }
-
   const wanted = new Map<string, string>();
   for (const pair of expected.split(ATTRIBUTE.PAIR_SEPARATOR)) {
     if (pair === '') continue;
@@ -389,7 +381,59 @@ export async function writeSellFormAttributes(
     wanted.set(pair.slice(0, index), pair.slice(index + 1));
   }
 
-  let allApplied = true;
+  let problems: string[] = [];
+
+  for (let pass = 0; pass < CONFIG.SELL_FORM_ATTRIBUTE_MAX_PASSES; pass++) {
+    // 親を選ぶと子の欄が現れるため、毎周取り直す
+    await waitForSellFormAttributes();
+    const containers = findAttributeContainers(spec, document);
+
+    if (containers.length === 0) {
+      warn(`${spec.label} の入力欄が見つかりません`);
+      return false;
+    }
+
+    const { changed, failed } = applyAttributePass(spec, containers, wanted);
+
+    const present = new Set(
+      containers
+        .map(readAttribute)
+        .filter((entry): entry is { label: string; value: string } => entry !== null)
+        .map((entry) => entry.label)
+    );
+    const missing = [...wanted.keys()].filter((label) => !present.has(label));
+
+    problems = [...failed, ...missing];
+    if (problems.length === 0) return true;
+
+    // 何か変えられたなら、その結果として欄が増えている可能性がある
+    if (!changed) break;
+
+    debug('商品の特徴を再走査します', { pass, problems });
+  }
+
+  for (const label of problems) {
+    warn(`${spec.label}「${label}」を元商品の値に揃えられませんでした`);
+  }
+
+  return false;
+}
+
+/**
+ * 「商品の特徴」の各欄を1周ぶん期待値へ揃える
+ *
+ * @param spec フィールド定義
+ * @param containers 対象の欄
+ * @param wanted ラベルごとの期待値
+ * @returns 変更できたかどうかと、揃えられなかったラベル
+ */
+function applyAttributePass(
+  spec: SellFormFieldSpec,
+  containers: HTMLElement[],
+  wanted: Map<string, string>
+): { changed: boolean; failed: string[] } {
+  let changed = false;
+  const failed: string[] = [];
 
   for (const container of containers) {
     const current = readAttribute(container);
@@ -407,8 +451,8 @@ export async function writeSellFormAttributes(
     );
 
     if (!option) {
-      warn(`${spec.label}「${current.label}」に "${target}" の選択肢がありません`);
-      allApplied = false;
+      debug(`${spec.label}「${current.label}」に "${target}" の選択肢がありません`);
+      failed.push(current.label);
       continue;
     }
 
@@ -416,35 +460,21 @@ export async function writeSellFormAttributes(
 
     const applied = readAttribute(container);
     if (applied?.value !== target) {
-      warn(`${spec.label}「${current.label}」の値が反映されませんでした`, {
+      debug(`${spec.label}「${current.label}」の値が反映されませんでした`, {
         target,
         applied: applied?.value,
       });
-      allApplied = false;
+      failed.push(current.label);
       continue;
     }
 
     log(
       `${spec.label}「${current.label}」を修正しました: "${target || ATTRIBUTE.UNSELECTED_LABEL}"`
     );
+    changed = true;
   }
 
-  // 期待値にあるのにフォームへ欄が無いものは、カテゴリーが違う可能性がある
-  const presentLabels = new Set(
-    containers
-      .map(readAttribute)
-      .filter((entry): entry is { label: string; value: string } => entry !== null)
-      .map((entry) => entry.label)
-  );
-
-  for (const label of wanted.keys()) {
-    if (!presentLabels.has(label)) {
-      warn(`${spec.label}「${label}」の欄がフォームにありません`);
-      allApplied = false;
-    }
-  }
-
-  return allApplied;
+  return { changed, failed };
 }
 
 /**

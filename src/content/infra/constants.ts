@@ -213,6 +213,10 @@ export const CONFIG = {
   SELL_FORM_IMAGE_TIMEOUT_MS: 30000,
   // 枚数がこの時間変わらなければ出そろったとみなす
   SELL_FORM_IMAGE_SETTLE_MS: 1500,
+  // 「商品の特徴」を書き込み直す最大回数。
+  // 「セット」が「シリーズ」に連動するように、親を選んで初めて現れる欄があるため、
+  // 1周では書き終わらない。欄が増えなくなるまで繰り返す。
+  SELL_FORM_ATTRIBUTE_MAX_PASSES: 5,
   SELL_FORM_FIX_SETTLE_MS: 300,      // 差分修正後、再読み取りまでの待機時間
   SNAPSHOT_IFRAME_TIMEOUT_MS: 30000, // 元商品の編集フォームを隠しiframeで読み込む上限
   RELIST_QUEUE_TTL_MS: 30 * 60 * 1000, // キューに残った古いエントリを破棄するまでの時間
