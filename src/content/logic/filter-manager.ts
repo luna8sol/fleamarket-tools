@@ -109,14 +109,6 @@ export class FilterManager {
   }
 
   /**
-   * 全フィルターをOFFにして全件表示に戻す
-   */
-  reset(): void {
-    this.state = { likes: false, comments: false };
-    this.apply();
-  }
-
-  /**
    * 非表示にしたli要素の選択を解除する。
    *
    * 一括再出品の対象はSelectionManagerが持つ選択順から決まり、liの表示状態は見ない。
