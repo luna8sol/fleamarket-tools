@@ -52,11 +52,11 @@ content script が動くのは、`manifest.json` の `matches` にある**この
 | Chrome に読み込もうとして「マニフェストが見つかりません」 | `dist/` を選んでいる。選ぶのは**リポジトリルート**（README の記述が誤り） |
 | 拡張機能は読み込めたが、メルカリの画面に一括操作バーが出ない | `npm run build` をしていない。`dist/content.js` が無いと content script はロードされない（エラーも出ないので「機能が壊れた」ように見える） |
 | ソースを直したのに挙動が変わらない | ①再ビルドしていない（`npm run build`）②ビルド後に `chrome://extensions` で拡張機能の再読み込みをしていない ③ページをリロードしていない。**この 3 つは全部必要** |
-| `scripts/content.js` を直したのに何も変わらない | `scripts/*.js` は**古いビルド成果物**で、現在のビルドでは更新されず、`manifest.json` からも参照されていない。ソースは `src/` 配下 |
 | バーは出るが対象の商品が 1 件も拾えない | メルカリ側の DOM が変わった可能性。`src/content/infra/constants.ts` の `SELECTOR` と、実際のページの DOM を突き合わせる |
-| 選択状態や設定が前回の値のまま／消えない | 保存先は `chrome.storage` ではなく `localStorage`。拡張機能を再読み込みしても消えない。`src/content/infra/storage.ts` の `StorageKey` を見て、DevTools の Application タブから消す |
+| 設定が前回の値のまま／消えない | 保存先は `chrome.storage.local`（[ext-storage.ts](../../../src/content/infra/ext-storage.ts) の `ExtStorageKey`）。拡張機能を再読み込みしても消えない。**ページの DevTools の Application タブには出ない**（拡張機能の領域で、ポップアップとコンテンツスクリプトが共有する）。消すには `chrome://extensions` でこの拡張機能の Service Worker を開き、コンソールで `chrome.storage.local.clear()` |
+| 選択した商品・選択順がページをまたぐと消える | **選択状態は永続化していない**（メモリ上のみ）。リロードやページ遷移で消えるのが現在の仕様 |
 | `chrome.tabs` / `chrome.scripting` を使う処理が権限エラーになる | `manifest.json` の `host_permissions` は `https://www.mercari.com/*` だが、実際の対象は `jp.mercari.com`。**この不一致が実害を出すかは未検証**。該当したらまずここを疑う |
-| `npm run format:check` が落ちる | **元から落ちている**（既存コード 29 ファイル）。セットアップの失敗ではない。`npm run lint` のほうは通るのが正常。詳細は [CLAUDE.md の「検証」](../../../CLAUDE.md) |
+| `npm run format:check` が落ちる | **元から落ちている**（既存コード 30 ファイル）。セットアップの失敗ではない。`npm run lint` のほうは通るのが正常。詳細は [CLAUDE.md の「検証」](../../../CLAUDE.md) |
 | `npm run build:tsc` を実行したら `dist/` の中身が変わった | `build:tsc` は `tsc`（`--noEmit` なし）で成果物を吐く。型チェックには使わない。`npm run build` で作り直す |
 
 ## worktree を新しく作ったとき

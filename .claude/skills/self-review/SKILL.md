@@ -49,13 +49,13 @@ git ls-files --others --exclude-standard  # 未追跡の新規ファイル
 - **`await` 忘れ**。非同期の出品処理を待たずに次へ進むと、順序が崩れて誤出品につながる。
 - 握り潰した `catch`。
 - 後始末されない fire-and-forget（`MutationObserver` の `disconnect`、`setTimeout` / `setInterval` の解除、イベントリスナーの解除）。
-- 外部入力（DOM のテキスト、`localStorage` の値）の未検証。`storage.ts` から読んだ値を型どおりと信じていないか。
+- 外部入力（DOM のテキスト、`chrome.storage.local` の値）の未検証。`ext-storage.ts` から読んだ値を型どおりと信じていないか。
 - secret がログや応答に出ていないか。
 
 ### 4. 出す前の形式
 
 - **型チェック・ビルド・lint を実際に通したか**（`npx tsc --noEmit` / `npm run build` / `npm run lint`）。通していないなら通す。**この 3 つは通るのが正常。**
-- `npm run format:check` で自分が触ったファイルが増えていないか（既存 29 ファイルの失敗は対象外）。
+- `npm run format:check` で自分が触ったファイルが増えていないか（既存分の失敗は対象外）。
 - 一時設定・デバッグ出力・コメントアウトした旧コードが残っていないか。
 - 依頼されていない変更が混ざっていないか（既存コードの format 一括修正を含む）。
 

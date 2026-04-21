@@ -14,7 +14,7 @@ description: 作業ブランチを統合ブランチ develop に取り込む。�
 満たしていないものがあれば、**先に満たす。通っていないものを `develop` に入れない。**
 
 1. **作業ツリーがクリーン** — `git status` で未コミット・未追跡が残っていないこと
-2. **型チェック・ビルド・lint が通っている** — `quality-check` スキル（`npm run format:check` の既存 29 ファイルは対象外）
+2. **型チェック・ビルド・lint が通っている** — `quality-check` スキル（`npm run format:check` の既存分の失敗は対象外）
 3. **セルフレビュー済み** — `self-review` スキルで Must が 0 件
 
 ## 2. rebase してから早送りで取り込む

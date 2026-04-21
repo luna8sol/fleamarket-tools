@@ -26,7 +26,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | セレクタ・クラス名・ID・待機時間・既定設定 | [src/content/infra/constants.ts](src/content/infra/constants.ts) |
 | 型定義 | [src/content/infra/types.ts](src/content/infra/types.ts) |
 | ページ種別（下書き / 出品中）の判定 | [src/content/infra/page-detector.ts](src/content/infra/page-detector.ts) |
-| 永続化 | [src/content/infra/storage.ts](src/content/infra/storage.ts) |
+| 永続化（`chrome.storage.local`） | [src/content/infra/ext-storage.ts](src/content/infra/ext-storage.ts) |
+| ユーザー設定の読み書き | [src/content/infra/user-settings.ts](src/content/infra/user-settings.ts) |
 | 初期化とページ種別ごとの分岐 | [src/content/logic/app-initializer.ts](src/content/logic/app-initializer.ts) |
 | 出品処理 | [src/content/logic/publisher.ts](src/content/logic/publisher.ts) |
 | 再出品処理 | [src/content/logic/relist-manager.ts](src/content/logic/relist-manager.ts) |
@@ -40,12 +41,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### ドキュメントとコードの既知のズレ
 
-**文書とコードが食い違ったらコードが正。** 2026-09-17 時点（`df91b03`）で確認済み:
+**文書とコードが食い違ったらコードが正。** 2026-09-19 時点（`7f0bf1e`）で確認済み:
 
 - **docs/ARCHITECTURE.md** の表に載っている `src/content/logic/observer.ts` / `src/content/logic/selection.ts` / `src/content/ui/bulk-bar.ts` は**存在しない**。`selection.ts` は `selection-manager.ts` に統合済み、`bulk-bar.ts` は `bulk-bar-core.ts` / `bulk-bar-ui.ts` / `bulk-bar-utils.ts` に分割済み。
 - **docs/ARCHITECTURE.md に未記載のファイル**: `src/content/logic/common-processor.ts`、`src/content/ui/index.ts`、`src/content/ui/list.ts`、`src/content/ui/bulk-relist.ts`。
 - **README.md の「セットアップ」**は Chrome に `dist` ディレクトリを読み込ませると書いているが誤り。`manifest.json` はリポジトリルートにあり、そこから `dist/content.js` を参照している。読み込む対象は**リポジトリルート**。
-- `scripts/content.js` / `scripts/popup.js` は git 管理下に残っているが**古いビルド成果物**で、ビルドしても更新されず `manifest.json` からも参照されていない（ARCHITECTURE.md は「旧」と正しく注記している）。
+- **docs/ARCHITECTURE.md の永続化の記述が古い。** `storage.ts` / `localStorage` / `StorageKey` を挙げているが、永続化は [ext-storage.ts](src/content/infra/ext-storage.ts) の **`chrome.storage.local`** に移っている（`ExtStorageKey`）。ポップアップとコンテンツスクリプトで同じ領域を共有するための変更。
+- **docs/ARCHITECTURE.md のディレクトリ構造に載っている `scripts/` は削除済み。** ビルド出力は `dist/` だけ。
 
 古い記述を見つけたらその場で直す。
 
@@ -147,12 +149,12 @@ update observer-manager.ts
 
 パッケージは**ルート 1 つだけ**（モノレポではない）。すべてリポジトリルートで実行する。
 
-| 項目 | コマンド | 現状（2026-09-17 / `df91b03` 実測） |
+| 項目 | コマンド | 現状（2026-09-19 / `7f0bf1e` 実測） |
 | --- | --- | --- |
-| 型チェック | `npx tsc --noEmit` | **通過**（exit 0）。約 5 秒 |
-| ビルド | `npm run build` | **通過**（exit 0）。約 3.5 秒 |
-| 静的解析 | `npm run lint` | **通過**（exit 0） |
-| フォーマット | `npm run format:check` | **落ちる**（exit 1 / 29 ファイルに差分）。既存コードが未通過 |
+| 型チェック | `npx tsc --noEmit` | **通過**（exit 0）。約 8 秒 |
+| ビルド | `npm run build` | **通過**（exit 0）。約 8 秒 |
+| 静的解析 | `npm run lint` | **通過**（exit 0）。約 6 秒 |
+| フォーマット | `npm run format:check` | **落ちる**（exit 1 / 30 ファイルに差分）。既存コードが未通過 |
 | テスト | （無し） | テストフレームワーク未導入 |
 
 その他のコマンドは [README.md の「開発コマンド」](README.md) を参照。
@@ -160,10 +162,10 @@ update observer-manager.ts
 ### 落とし穴
 
 - **`npm run lint` は現在通っている。落ちたらそれは自分の変更のせい。** `main` では 17 errors あったが `develop` で解消済み（`refactor/codebase-cleanup` のマージ。`7f80007` で戻り値型を明示）。**通っている状態を壊さないこと。**
-- **`npm run format:check` は元から落ちる**（29 ファイルに差分）。これだけは自分の変更が正しくても落ちる。自分が触ったファイルが指摘に増えていないかで判断する。**リポジトリ全体をここで一括 `npm run format` しない**（差分が膨れて本来の変更が埋もれる）。
+- **`npm run format:check` は元から落ちる**（30 ファイルに差分）。これだけは自分の変更が正しくても落ちる。自分が触ったファイルが指摘に増えていないかで判断する。**リポジトリ全体をここで一括 `npm run format` しない**（差分が膨れて本来の変更が埋もれる）。
 - **型チェックに `npm run build:tsc` を使わない。** これは `tsc`（`--noEmit` なし）なので `dist/` に成果物を吐いてビルド出力を汚す。型チェックは必ず `npx tsc --noEmit`。
 - **ESLint の設定ファイルが 2 つある。** `eslint.config.js`（flat config、ESLint 9 が実際に読むのはこちら）と `.eslintrc.json`（legacy、**無視されている**）。ルールを変えるなら `eslint.config.js` 側。`.eslintrc.json` を直しても何も変わらない。
-- **`lint` スクリプトの `--ext .ts,.js` は flat config では効いていない。** `background.js` と `scripts/*.js` は lint 対象外（そもそも対象が `src` のみ）。
+- **`lint` スクリプトの `--ext .ts,.js` は flat config では効いていない。** ルート直下の `background.js` は lint 対象外（そもそも対象が `src` のみ）。
 - **`eslint.config.js` が `globals` を import しているが `package.json` の devDependencies に無い。** 現在は ESLint の推移的依存で偶然解決している。依存を更新して lint が `Cannot find package 'globals'` で落ちたら、これが原因。
 
 ### CI

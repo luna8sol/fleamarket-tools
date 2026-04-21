@@ -12,7 +12,7 @@ description: このリポジトリのタスクに着手する。一次資料と�
 - **CLAUDE.md の「着手前に読むもの」索引にある一次資料と、該当コードを直接読む。** 索引に無い領域なら、該当ディレクトリのコードを読んでから始める。
 - **文書とコードが食い違ったらコードが正。** `docs/ARCHITECTURE.md` と `README.md` には既知のズレがある（CLAUDE.md に一覧がある）。古い記述を見つけたらその場で直す。
 - **過去のメモや会話に書かれた構成図を信用しない。** 廃止された仕組みがそのまま残っていることがある。実例:
-  - `scripts/content.js` / `scripts/popup.js` は git 管理下に残っているが、現在のビルドでは更新されず `manifest.json` からも参照されていない
+  - `docs/ARCHITECTURE.md` は永続化を `storage.ts` の `localStorage` と書いているが、実際は `ext-storage.ts` の `chrome.storage.local`
   - `docs/ARCHITECTURE.md` は `selection.ts` / `observer.ts` / `bulk-bar.ts` を挙げているが、いずれも現在は存在しない
 
   必ず現物のファイルで確かめる。
