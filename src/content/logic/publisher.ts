@@ -1,12 +1,7 @@
 import { WAIT } from '../infra/constants';
-import { findDraftItemById, getDraftItems, getDraftList } from '../ui/list';
+import { findDraftItemById } from '../ui/list';
 import { safeQuery } from '../../common/dom';
 import { log, warn, debugMethodStart, debugMethodEnd } from '../infra/logger';
-import { selectionManager } from './selection-manager';
-// import { renderCheckboxes } from '../ui/checkbox-manager';
-import { addCheckboxToLi } from '../ui/checkbox-manager';
-import { updateOrderDisplay } from '../ui/order-display';
-import { updateDraftCount } from '../ui/bulk-bar-core';
 import { processItems, ItemProcessor } from './common-processor';
 
 /**
@@ -90,63 +85,3 @@ export async function publishAllDrafts(ids: string[]): Promise<void> {
   await processItems(ids, processor);
 }
 
-/**
- * draftListの存在チェック・UI挿入・イベント登録を統括するエントリ関数。
- *
- * - UI初期化時のエントリポイントです。
- * - draftListがなければ警告を表示し、既にバーが存在する場合は何もしません。
- * @example
- *   initializePublisherUI();
- */
-export function initializePublisherUI(): void {
-  const startTime = performance.now();
-  debugMethodStart('initializePublisherUI');
-
-  const draftList = getDraftList();
-  if (!(draftList instanceof HTMLUListElement)) {
-    warn('draftList not found');
-    alert('下書きリストが見つかりません。ページを再読み込みしてください。');
-    debugMethodEnd('initializePublisherUI', { success: false, reason: 'draft list not found' });
-    return;
-  }
-
-  const items = getDraftItems();
-  log(`draftList found, li count: ${items.length}`);
-
-  const updateOrderFn = (): void => updateOrderDisplay(items, selectionManager);
-
-  // ここで各liに共通のチェックボックスを付与（DRAFTSモード）
-  // DraftItemのli→idマップを作成して渡せる場合は渡す
-  const liToId = new Map<HTMLElement, string>();
-  items.forEach(it => liToId.set(it.li, it.id));
-
-  const liElements = Array.from(draftList.querySelectorAll('li'));
-  liElements.forEach((li) => {
-    const explicitId = liToId.get(li as HTMLElement); // 取れなければ内部推定に任せる
-    addCheckboxToLi(
-      li as HTMLLIElement,
-      (id, checked) => {
-        if (checked) {
-          selectionManager.addSelection(id);
-        } else {
-          selectionManager.removeSelection(id);
-        }
-        // 順番表示と件数表示を更新
-        updateOrderFn();
-        updateDraftCount(selectionManager.getSelectionCount(), items.length);
-      },
-      { type: 'drafts', itemId: explicitId }
-    );
-  });
-
-  // 初回の順番表示
-  updateOrderDisplay(items, selectionManager);
-  // 初期カウント表示
-  updateDraftCount(selectionManager.getSelectionCount(), items.length);
-
-  const duration = Math.round(performance.now() - startTime);
-  debugMethodEnd('initializePublisherUI', {
-    success: true,
-    itemsProcessed: items.length,
-  }, duration);
-}
