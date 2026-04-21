@@ -4,9 +4,8 @@ import { detectCurrentPage } from '../infra/page-detector';
 import { relistManager } from '../logic/relist-manager';
 import { selectionManager } from '../logic/selection-manager';
 import { publishAllDrafts } from '../logic/publisher';
-import { applyFixedStyles } from './bulk-bar-ui';
+import { applyFixedStyles, renderProcessingSpan } from './bulk-bar-ui';
 import { getOrCreateElement } from './bulk-bar-core';
-import { renderProcessingSpan } from './bulk-bar-ui';
 import { removeItemPrefix } from './bulk-bar-utils';
 
 /**
@@ -71,6 +70,18 @@ export function createBulkPlaceholderButton(): HTMLButtonElement {
 
   debugMethodEnd('createBulkPlaceholderButton', { elementId: bulkBtn.id });
   return bulkBtn;
+}
+
+/**
+ * 現在のページタイプに応じたボタンを生成する
+ * DRAFTS → まとめて出品ボタン、それ以外 → 再出品ボタン
+ */
+export function createButtonForCurrentPage(): HTMLButtonElement {
+  const pageType = detectCurrentPage();
+  if (pageType === PageType.DRAFTS) {
+    return createBulkPlaceholderButton();
+  }
+  return createBulkRelistButton();
 }
 
 /**
@@ -143,18 +154,7 @@ export function createBulkRelistContainer(count: number): HTMLDivElement {
   });
 
   // ボタンを生成
-  let bulkBtn: HTMLButtonElement;
-
-  if (pageType === PageType.LISTINGS) {
-    // 出品一覧ページでは再出品ボタン
-    bulkBtn = createBulkRelistButton();
-  } else if (pageType === PageType.DRAFTS) {
-    // 下書き一覧ページでは別のメソッドを呼び出す
-    bulkBtn = createBulkPlaceholderButton();
-  } else {
-    // その他のページでは汎用ボタン
-    bulkBtn = createBulkRelistButton();
-  }
+  const bulkBtn = createButtonForCurrentPage();
 
   // 要素をコンテナに追加
   container.appendChild(bulkBtn);

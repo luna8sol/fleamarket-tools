@@ -1,9 +1,8 @@
-import { ID_NAME, PageType } from '../infra/constants';
+import { ID_NAME } from '../infra/constants';
 import { debug, debugMethodStart, debugMethodEnd } from '../infra/logger';
 import { selectionManager } from '../logic/selection-manager';
 import { getOrCreateElement } from './bulk-bar-core';
-import { createBulkRelistContainer, createBulkRelistButton, createBulkPlaceholderButton } from './bulk-relist';
-import { detectCurrentPage } from '../infra/page-detector';
+import { createBulkRelistContainer, createButtonForCurrentPage } from './bulk-relist';
 
 /**
  * スタイルを適用するヘルパー関数
@@ -119,19 +118,9 @@ export function renderBulkBar(selectedCount: number): void {
     const btnInContainer = existingContainer.querySelector(`#${ID_NAME.BULK_RELIST_BTN}`);
     if (!btnInContainer) {
       debug('コンテナ内にボタンがないため、新規作成します');
-
-      // 下書き出品ページの場合、下書き用のボタンを生成
-      if (detectCurrentPage() === PageType.DRAFTS) {
-        const newBtn = createBulkPlaceholderButton();
-        existingContainer.appendChild(newBtn);
-        debug('既存コンテナにボタンを追加しました', { buttonId: newBtn.id });
-      }
-      // 出品一覧ページの場合は再出品ボタンを生成
-      else if (detectCurrentPage() === PageType.LISTINGS) {
-        const newBtn = createBulkRelistButton();
-        existingContainer.appendChild(newBtn);
-        debug('既存コンテナにボタンを追加しました', { buttonId: newBtn.id });
-      }
+      const newBtn = createButtonForCurrentPage();
+      existingContainer.appendChild(newBtn);
+      debug('既存コンテナにボタンを追加しました', { buttonId: newBtn.id });
     }
   } else {
     debug('新規コンテナを作成します');
