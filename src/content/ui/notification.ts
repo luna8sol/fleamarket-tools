@@ -54,14 +54,3 @@ export function showToast(
   }, duration);
 }
 
-/**
- * 確認ダイアログを表示
- * @param message 確認メッセージ
- * @returns 確認結果のPromise
- */
-export function showConfirmation(message: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const result = confirm(message);
-    resolve(result);
-  });
-}

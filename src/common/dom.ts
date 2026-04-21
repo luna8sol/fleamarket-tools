@@ -46,44 +46,6 @@ export function safeQueryAll<T extends Element = Element>(selector: string, pare
 }
 
 /**
- * 要素を安全に生成する。
- *
- * @template K タグ名
- * @param tagName タグ名
- * @returns {HTMLElementTagNameMap[K] | null} 生成した要素、またはnull
- * @example
- *   const div = safeCreateElement('div');
- */
-export function safeCreateElement<K extends keyof HTMLElementTagNameMap>(tagName: K): HTMLElementTagNameMap[K] | null {
-  try {
-    return document.createElement(tagName);
-  } catch (e) {
-    console.warn('safeCreateElement error:', e, tagName);
-    return null;
-  }
-}
-
-/**
- * 親要素に子要素を安全に追加する。
- *
- * @param parent 親ノード
- * @param child 子ノード
- * @returns {boolean} 追加成功時true、失敗時false
- * @example
- *   safeAppend(parent, child);
- */
-export function safeAppend(parent: Node | null, child: Node | null): boolean {
-  if (!parent || !child) return false;
-  try {
-    parent.appendChild(child);
-    return true;
-  } catch (e) {
-    console.warn('safeAppend error:', e, parent, child);
-    return false;
-  }
-}
-
-/**
  * 親要素の先頭に子要素を安全に挿入。失敗時はfalse。
  */
 export function safePrepend(parent: Node | null, child: Node | null): boolean {
@@ -107,20 +69,6 @@ export function safeGetAttr(el: Element | null, attr: string): string {
   } catch (e) {
     console.warn('safeGetAttr error:', e, el, attr);
     return '';
-  }
-}
-
-/**
- * 要素の属性を安全に設定。失敗時はfalse。
- */
-export function safeSetAttr(el: Element | null, attr: string, value: string): boolean {
-  if (!el) return false;
-  try {
-    el.setAttribute(attr, value);
-    return true;
-  } catch (e) {
-    console.warn('safeSetAttr error:', e, el, attr, value);
-    return false;
   }
 }
 

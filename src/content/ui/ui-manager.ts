@@ -42,11 +42,3 @@ export function renderUiComponents(ul: HTMLUListElement): void {
   renderBulkBar(selectionManager.getSelectionCount());
 }
 
-/**
- * DOM要素がすでに存在するか確認
- * @param id 要素ID
- * @returns 存在するかどうか
- */
-export function elementExists(id: string): boolean {
-  return document.getElementById(id) !== null;
-}

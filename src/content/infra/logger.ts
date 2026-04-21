@@ -47,14 +47,6 @@ export function setDebugMode(isDebugMode: boolean): void {
 }
 
 /**
- * 現在のログレベルを取得
- * @returns 現在のログレベル
- */
-export function getLogLevel(): LogLevel {
-  return currentLogLevel;
-}
-
-/**
  * 現在のデバッグモードステータスを取得
  * @returns デバッグモードが有効かどうか
  */
@@ -102,17 +94,6 @@ export function debug(message: string, ...optionalParams: unknown[]): void {
 export function log(message: string, ...optionalParams: unknown[]): void {
   if (currentLogLevel <= LogLevel.LOG) {
     console.log(getTimestampedMessage(`[LOG] ${message}`), ...optionalParams);
-  }
-}
-
-/**
- * 情報ログ出力
- * @param message ログメッセージ
- * @param optionalParams 追加パラメータ
- */
-export function info(message: string, ...optionalParams: unknown[]): void {
-  if (currentLogLevel <= LogLevel.INFO) {
-    console.info(getTimestampedMessage(`[INFO] ${message}`), ...optionalParams);
   }
 }
 

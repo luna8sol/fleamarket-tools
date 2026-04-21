@@ -2,27 +2,6 @@ import { error } from './logger';
 import { showToast } from '../ui/notification';
 
 /**
- * グローバルエラーハンドラの定義。
- *
- * - 予期しない例外発生時の通知・ログ出力を担います。
- * - UI/ロジックのエントリポイントでラップして使うことで、クラッシュを防ぎます。
- *
- * @param main メイン処理（例外安全化したい関数）
- * @example
- *   withGlobalErrorHandler(() => { ... });
- */
-export function withGlobalErrorHandler(main: () => void): void {
-  try {
-    main();
-  } catch (e) {
-    const err = e as Error;
-    const msg = '[Mercari Draft Publisher] 予期せぬエラーが発生しました: ' + (err && err.message ? err.message : String(err));
-    console.error(msg, err);
-    alert('拡張機能で予期せぬエラーが発生しました。ページを再読み込みしてください。\n' + (err && err.message ? err.message : String(err)));
-  }
-}
-
-/**
  * エラータイプ定義
  */
 export enum ErrorType {
@@ -95,37 +74,3 @@ export function handleError(err: Error | unknown | ErrorInfo): void {
   }
 }
 
-/**
- * DOM要素が見つからないエラーを生成
- * @param selector 見つからなかったセレクタ
- * @param showToUser ユーザーに表示するか
- * @returns AppErrorインスタンス
- */
-export function createElementNotFoundError(
-  selector: string,
-  showToUser: boolean = false
-): AppError {
-  return new AppError({
-    type: ErrorType.DOM,
-    message: `要素が見つかりません: ${selector}`,
-    showToUser,
-  });
-}
-
-/**
- * ネットワークエラーを生成
- * @param message エラーメッセージ
- * @param originalError 元のエラー
- * @returns AppErrorインスタンス
- */
-export function createNetworkError(
-  message: string,
-  originalError?: Error | unknown
-): AppError {
-  return new AppError({
-    type: ErrorType.NETWORK,
-    message,
-    originalError,
-    showToUser: true,
-  });
-}

@@ -20,28 +20,10 @@ export function getItemNameById(itemId: string): string {
 }
 
 /**
- * li要素から商品名を取得する関数
- */
-export function getItemNameForLi(li: Element): string {
-  const labelElem = li.querySelector('[data-testid="item-label"]');
-  return labelElem instanceof HTMLElement ? (labelElem.textContent?.trim() ?? '') : '';
-}
-
-/**
  * 商品IDから/item/プレフィックスを取り除く
  */
 export function removeItemPrefix(itemId: string): string {
   return itemId.replace(/^\/item\//, '');
-}
-
-/**
- * DOM上のチェックボックスとselectionManagerの選択状態が一致するか確認
- */
-export function areSelectionsEqual(checkedBoxes: NodeListOf<Element>, ids: string[]): boolean {
-  if (checkedBoxes.length !== ids.length) return false;
-
-  const checkedIds = Array.from(checkedBoxes).map(cb => (cb as HTMLInputElement).dataset.itemId);
-  return checkedIds.every(id => ids.includes(id || '')) && ids.every(id => checkedIds.includes(id));
 }
 
 /**
@@ -50,13 +32,10 @@ export function areSelectionsEqual(checkedBoxes: NodeListOf<Element>, ids: strin
 export function initializePageUI(ul: HTMLUListElement): void {
   const pageType = detectCurrentPage();
 
-  // DRAFTS では再出品ボタンを出さない（もしあれば削除）
   if (pageType === PageType.DRAFTS) {
+    // 再出品ボタンが残っていれば削除
     const existing = document.getElementById(ID_NAME.BULK_RELIST_BTN);
     if (existing) existing.remove();
-  }
-
-  if (pageType === PageType.DRAFTS) {
   } else if (pageType === PageType.LISTINGS) {
     // 出品中ページ: 初期は非表示にしておく
     renderProcessingSpan('');

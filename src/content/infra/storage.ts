@@ -44,17 +44,3 @@ export function loadFromStorage<T>(key: StorageKey, defaultValue: T): T {
   }
 }
 
-/**
- * ローカルストレージからデータを削除
- * @param key ストレージキー
- * @returns 削除に成功したか
- */
-export function removeFromStorage(key: StorageKey): boolean {
-  try {
-    localStorage.removeItem(key);
-    return true;
-  } catch (e) {
-    error(`ストレージからの削除に失敗しました: ${key}`, e);
-    return false;
-  }
-}

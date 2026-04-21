@@ -31,18 +31,4 @@ export function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-/**
- * null/undefined/空文字列を安全に判定する。
- *
- * @param val 判定対象
- * @returns {boolean} null/undefined/空文字列ならtrue
- * @example
- *   isNullOrEmpty('') // true
- *   isNullOrEmpty(null) // true
- *   isNullOrEmpty('abc') // false
- */
-export function isNullOrEmpty(val: unknown): boolean {
-  return val === null || val === undefined || (typeof val === 'string' && val.trim() === '');
-}
-
 // 今後も共通化したい関数があればここに追加してください

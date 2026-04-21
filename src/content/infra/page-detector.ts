@@ -18,11 +18,3 @@ export function detectCurrentPage(): PageType {
   return PageType.UNKNOWN;
 }
 
-/**
- * 特定のページタイプかどうかを判定
- * @param pageType 判定するページタイプ
- * @returns ページタイプが一致するか
- */
-export function isPageType(pageType: PageType): boolean {
-  return detectCurrentPage() === pageType;
-}
