@@ -40,7 +40,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### ドキュメントとコードの既知のズレ
 
-**文書とコードが食い違ったらコードが正。** 2026-09-17 時点（`5d4c243`）で確認済み:
+**文書とコードが食い違ったらコードが正。** 2026-09-17 時点（`df91b03`）で確認済み:
 
 - **docs/ARCHITECTURE.md** の表に載っている `src/content/logic/observer.ts` / `src/content/logic/selection.ts` / `src/content/ui/bulk-bar.ts` は**存在しない**。`selection.ts` は `selection-manager.ts` に統合済み、`bulk-bar.ts` は `bulk-bar-core.ts` / `bulk-bar-ui.ts` / `bulk-bar-utils.ts` に分割済み。
 - **docs/ARCHITECTURE.md に未記載のファイル**: `src/content/logic/common-processor.ts`、`src/content/ui/index.ts`、`src/content/ui/list.ts`、`src/content/ui/bulk-relist.ts`。
@@ -147,7 +147,7 @@ update observer-manager.ts
 
 パッケージは**ルート 1 つだけ**（モノレポではない）。すべてリポジトリルートで実行する。
 
-| 項目 | コマンド | 現状（2026-09-17 / `5d4c243` 実測） |
+| 項目 | コマンド | 現状（2026-09-17 / `df91b03` 実測） |
 | --- | --- | --- |
 | 型チェック | `npx tsc --noEmit` | **通過**（exit 0）。約 5 秒 |
 | ビルド | `npm run build` | **通過**（exit 0）。約 3.5 秒 |
@@ -159,7 +159,7 @@ update observer-manager.ts
 
 ### 落とし穴
 
-- **`npm run lint` は現在通っている。落ちたらそれは自分の変更のせい。** `main` では 17 errors あったが `develop` で解消済み（`dfb0919` 系の整理）。**通っている状態を壊さないこと。**
+- **`npm run lint` は現在通っている。落ちたらそれは自分の変更のせい。** `main` では 17 errors あったが `develop` で解消済み（`refactor/codebase-cleanup` のマージ。`7f80007` で戻り値型を明示）。**通っている状態を壊さないこと。**
 - **`npm run format:check` は元から落ちる**（29 ファイルに差分）。これだけは自分の変更が正しくても落ちる。自分が触ったファイルが指摘に増えていないかで判断する。**リポジトリ全体をここで一括 `npm run format` しない**（差分が膨れて本来の変更が埋もれる）。
 - **型チェックに `npm run build:tsc` を使わない。** これは `tsc`（`--noEmit` なし）なので `dist/` に成果物を吐いてビルド出力を汚す。型チェックは必ず `npx tsc --noEmit`。
 - **ESLint の設定ファイルが 2 つある。** `eslint.config.js`（flat config、ESLint 9 が実際に読むのはこちら）と `.eslintrc.json`（legacy、**無視されている**）。ルールを変えるなら `eslint.config.js` 側。`.eslintrc.json` を直しても何も変わらない。
