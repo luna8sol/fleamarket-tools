@@ -1,5 +1,5 @@
 import { ID_NAME } from '../infra/constants';
-import { debug, debugMethodStart, debugMethodEnd } from '../infra/logger';
+import { debugMethodStart, debugMethodEnd } from '../infra/logger';
 import { selectionManager } from '../logic/selection-manager';
 import { getOrCreateElement } from './bulk-bar-core';
 import { createBulkRelistContainer, createButtonForCurrentPage } from './bulk-relist';
@@ -74,63 +74,29 @@ export function renderProcessingSpan(text: string): HTMLSpanElement {
 export function renderBulkBar(selectedCount: number): void {
   debugMethodStart('renderBulkBar', { selectedCount });
 
-  // 既存のコンテナを確認
   const existingContainer = document.getElementById(ID_NAME.BULK_RELIST_CONTAINER);
   const existingBtn = document.getElementById(ID_NAME.BULK_RELIST_BTN);
 
-  debug('既存要素の状態:', {
-    hasContainer: !!existingContainer,
-    hasButton: !!existingBtn,
-    containerInDOM: existingContainer?.isConnected,
-    buttonInDOM: existingBtn?.isConnected,
-    containerParent: existingContainer?.parentElement?.tagName,
-    buttonParent: existingBtn?.parentElement?.tagName || '不明'
-  });
+  // コンテナが正常（DOMに接続済み かつ ボタンを内包）かどうかで分岐
+  const isContainerValid = existingContainer?.isConnected === true
+    && existingContainer.contains(existingBtn);
 
-  // 処理の安定性向上: DOM更新前に既存のコンテナを削除
-  if (existingContainer && !existingContainer.contains(existingBtn)) {
-    debug('コンテナ内にボタンが存在しないため再作成します');
-    existingContainer.remove();
-    // 新しいコンテナを作成
-    const container = createBulkRelistContainer(selectedCount);
-    document.body.appendChild(container);
-    debug('新規コンテナをDOMに追加しました（古いコンテナを削除後）', { container });
-
-    // 処理中表示は別管理のままにする
-    const processingSpan = document.getElementById(ID_NAME.BULK_PROCESSING_SPAN);
-    if (processingSpan) {
-      processingSpan.style.display = 'none';
-    }
-
-    debugMethodEnd('renderBulkBar');
-    return;
-  }
-
-  if (existingContainer && existingContainer.isConnected) {
-    // コンテナが既に存在する場合は、カウント表示のみ更新
+  if (isContainerValid && existingContainer) {
+    // 正常なコンテナが存在: カウント表示を更新し、ボタンがなければ追加
     const countSpan = existingContainer.querySelector(`#${ID_NAME.BULK_COUNT_SPAN}`);
     if (countSpan) {
       countSpan.textContent = `選択中: ${selectedCount}件`;
-      debug('既存コンテナのカウントを更新しました', { count: selectedCount });
     }
-
-    // ボタンが存在しない場合は、新たに追加
-    const btnInContainer = existingContainer.querySelector(`#${ID_NAME.BULK_RELIST_BTN}`);
-    if (!btnInContainer) {
-      debug('コンテナ内にボタンがないため、新規作成します');
-      const newBtn = createButtonForCurrentPage();
-      existingContainer.appendChild(newBtn);
-      debug('既存コンテナにボタンを追加しました', { buttonId: newBtn.id });
+    if (!existingContainer.querySelector(`#${ID_NAME.BULK_RELIST_BTN}`)) {
+      existingContainer.appendChild(createButtonForCurrentPage());
     }
   } else {
-    debug('新規コンテナを作成します');
-    // コンテナがない場合は新規作成して追加
-    const container = createBulkRelistContainer(selectedCount);
-    document.body.appendChild(container);
-    debug('新規コンテナをDOMに追加しました', { container });
+    // コンテナが存在しないか壊れている: 旧コンテナを除去して再作成
+    existingContainer?.remove();
+    document.body.appendChild(createBulkRelistContainer(selectedCount));
   }
 
-  // 処理中表示は別管理のままにする
+  // 処理中表示は非表示にする
   const processingSpan = document.getElementById(ID_NAME.BULK_PROCESSING_SPAN);
   if (processingSpan) {
     processingSpan.style.display = 'none';
