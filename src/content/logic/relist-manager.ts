@@ -1,5 +1,6 @@
 import { CONFIG, SELECTOR } from '../infra/constants';
 import { log, warn } from '../infra/logger';
+import { loadAutoSaveSettings } from '../infra/auto-save-settings';
 import { enqueueSnapshot } from '../infra/relist-queue';
 import { renderProcessingSpan } from '../ui/bulk-bar-ui';
 import { findLiByItemId, getRelistButton, getItemName } from '../logic/dom-utils';
@@ -73,6 +74,10 @@ export class RelistManager {
  * 元商品のスナップショットをキューへ積みます。出品フォーム側はこれを
  * 取り出して、コピー内容が元商品と一致しているかを検証します。
  *
+ * 自動保存が無効なら取得しません。スナップショットは隠しiframeで編集フォームを
+ * 描画して読むため1件あたり数秒かかり、使われないまま件数分の待ち時間と
+ * メルカリへのアクセスが積み上がるためです。
+ *
  * @param itemListElement 商品リスト要素
  * @param id 再出品する商品ID
  * @returns 処理が成功したかどうか
@@ -94,8 +99,10 @@ async function relistSingleItem(itemListElement: HTMLUListElement, id: string): 
   log(`再出品処理: ${id} - ${itemName}`);
 
   // 比較の基準となる元商品の状態を、出品フォームが開く前に記録する
-  const snapshot = await captureItemSnapshot(id, itemName);
-  await enqueueSnapshot(snapshot);
+  if ((await loadAutoSaveSettings()).autoSaveAfterRelist) {
+    const snapshot = await captureItemSnapshot(id, itemName);
+    await enqueueSnapshot(snapshot);
+  }
 
   // 再出品ボタンをクリック
   try {
