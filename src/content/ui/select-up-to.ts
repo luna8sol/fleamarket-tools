@@ -3,6 +3,8 @@ import { safeQuery, safeQueryAll } from '../../common/dom';
 import { warn } from '../infra/logger';
 import { selectionManager } from '../logic/selection-manager';
 import { showToast } from './notification';
+import { createIcon } from './icons';
+import { ensureTheme } from './theme';
 
 /**
  * 起点の行を含め、一覧の先頭からそこまでの行をまとめて選択する
@@ -68,28 +70,17 @@ export function createSelectUpToButton(
   li: HTMLLIElement,
   onSelectionChanged: () => void
 ): HTMLButtonElement {
+  ensureTheme();
+
   const button = document.createElement('button');
   button.type = 'button';
   button.className = CLASS_NAME.SELECT_UP_TO_BTN;
-  button.textContent = '↑ここまで';
   button.title = 'この商品から上へ順に、一覧の先頭までまとめて選択します';
+  button.setAttribute('aria-label', 'この商品から一覧の先頭までまとめて選択');
 
-  Object.assign(button.style, {
-    marginRight: '8px',
-    padding: '0 6px',
-    height: '20px',
-    lineHeight: '18px',
-    fontSize: '11px',
-    whiteSpace: 'nowrap',
-    background: '#fff',
-    color: '#ff0211',
-    border: '1px solid #ff0211',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    position: 'relative',
-    zIndex: '99999',
-    pointerEvents: 'auto',
-  });
+  const label = document.createElement('span');
+  label.textContent = 'ここまで';
+  button.append(createIcon('selectUpTo', 12), label);
 
   const suppress = (e: Event): void => {
     e.stopImmediatePropagation();
@@ -97,29 +88,43 @@ export function createSelectUpToButton(
     e.preventDefault();
   };
 
+  /** 先頭からこの行までをまとめて選び、結果を知らせる */
+  const selectUpTo = (): void => {
+    const added = selectUpToLi(li);
+    if (added === null) {
+      showToast('一覧の構造が読めないため、まとめて選択できませんでした', 'error');
+      return;
+    }
+
+    onSelectionChanged();
+
+    if (added === 0) {
+      showToast('この商品までは選択済みです', 'info');
+      return;
+    }
+
+    showToast(
+      `${added}件を選択しました（選択中 ${selectionManager.getSelectionCount()}件）`,
+      'success'
+    );
+  };
+
   // click まで待つとリンクの遷移に間に合わないため mousedown で処理する
   button.addEventListener(
     'mousedown',
     (e) => {
       suppress(e);
-
-      const added = selectUpToLi(li);
-      if (added === null) {
-        showToast('一覧の構造が読めないため、まとめて選択できませんでした', 'error');
-        return;
-      }
-
-      onSelectionChanged();
-
-      if (added === 0) {
-        showToast('この商品までは選択済みです', 'info');
-        return;
-      }
-
-      showToast(
-        `${added}件を選択しました（選択中 ${selectionManager.getSelectionCount()}件）`,
-        'success'
-      );
+      selectUpTo();
+    },
+    true
+  );
+  // キーボード（Enter / Space）でも押せるようにする。click は握りつぶしているので別に受ける
+  button.addEventListener(
+    'keydown',
+    (e) => {
+      if ((e.key !== 'Enter' && e.key !== ' ') || e.repeat) return;
+      suppress(e);
+      selectUpTo();
     },
     true
   );

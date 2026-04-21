@@ -3,29 +3,25 @@ import { safeQuery } from '../../common/dom';
 import { SelectionManager } from '../logic/selection-manager';
 import { DraftItem } from './list';
 import { warn } from '../infra/logger';
+import { ensureTheme } from './theme';
 
 /**
- * 選択状態の強調表示に使うCSSをdocument.headに一度だけ注入する
+ * 出品順バッジの数字を更新する
+ *
+ * 見た目は数字だけの丸いバッジにし、読み上げには「出品順 N番目」を渡す。
+ * 同じ番号のときは触らない（触るとバッジの出現アニメーションが毎回かかる）。
+ *
+ * @param orderSpan 出品順バッジ
+ * @param order 1始まりの順番
  */
-function injectOrderStyles(): void {
-  if (document.getElementById('bulk-selection-style')) return;
-  const style = document.createElement('style');
-  style.id = 'bulk-selection-style';
-  style.textContent = `
-    .selected-item {
-      background-color: rgba(255, 2, 17, 0.05);
-      border-left: 3px solid #ff0211;
-    }
-    .${CLASS_NAME.BULK_ORDER_SPAN} {
-      display: inline-block;
-      min-width: 24px;
-      text-align: center;
-    }
-  `;
-  document.head.appendChild(style);
+function setOrderBadge(orderSpan: HTMLSpanElement, order: number): void {
+  if (orderSpan.textContent === String(order)) return;
+  orderSpan.textContent = String(order);
+  orderSpan.setAttribute('aria-label', `出品順 ${order}番目`);
+  orderSpan.title = `${order}番目に処理します`;
 }
 
-injectOrderStyles();
+ensureTheme();
 
 /**
  * SelectionManagerの状態に応じてli内の順番表示を更新する。
@@ -46,29 +42,33 @@ export function updateOrderDisplay(
     if (!orderSpan) {
       orderSpan = document.createElement('span');
       orderSpan.className = CLASS_NAME.BULK_ORDER_SPAN;
-      orderSpan.style.marginRight = '4px';
-      orderSpan.style.fontWeight = 'bold';
-      orderSpan.style.color = '#ff0211';
-      li.insertBefore(orderSpan, li.firstChild?.nextSibling || li.firstChild);
+      // チェックボックスのすぐ隣に置く（どの行の番号か一目で対応が取れるように）
+      if (cb?.parentNode) {
+        cb.insertAdjacentElement('afterend', orderSpan);
+      } else {
+        li.insertBefore(orderSpan, li.firstChild?.nextSibling || li.firstChild);
+      }
     }
 
     // 選択中のアイテムを視覚的に強調
     if (cb && cb.checked) {
-      li.classList.add('selected-item');
+      li.classList.add(CLASS_NAME.SELECTED_ITEM);
       const idx = selection.getOrderIndex(id);
       if (idx >= 0) {
-        orderSpan.textContent = `${idx + 1}番`;
+        setOrderBadge(orderSpan, idx + 1);
       } else {
         // チェック済みだが選択リストにない場合は追加して番号を表示
         warn(`checked item not in selection list: ${id}`);
         selection.addSelection(id);
         const newIdx = selection.getOrderIndex(id);
-        orderSpan.textContent = `${newIdx + 1}番`;
+        setOrderBadge(orderSpan, newIdx + 1);
       }
     } else {
-      li.classList.remove('selected-item');
+      li.classList.remove(CLASS_NAME.SELECTED_ITEM);
       if (orderSpan.textContent !== '') {
         orderSpan.textContent = '';
+        orderSpan.removeAttribute('aria-label');
+        orderSpan.removeAttribute('title');
       }
     }
   });

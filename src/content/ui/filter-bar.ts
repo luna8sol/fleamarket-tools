@@ -1,7 +1,8 @@
 import { ID_NAME } from '../infra/constants';
 import { filterManager, FilterType } from '../logic/filter-manager';
-import { applyFixedStyles } from './bulk-bar-ui';
 import { showToast } from './notification';
+import { createIcon, IconName } from './icons';
+import { ensureTheme } from './theme';
 
 /**
  * カウントを読み取れずフィルターを解除したときの通知文
@@ -17,19 +18,10 @@ const FILTER_BUTTONS: { id: string; filter: FilterType }[] = [
 ];
 
 /**
- * フィルターボタンのスタイルをアクティブ状態に応じて切り替える
+ * フィルターボタンの押下状態を切り替える（見た目は aria-pressed に連動する）
  */
 function applyFilterButtonStyles(btn: HTMLButtonElement, isActive: boolean): void {
-  applyFixedStyles(btn, {
-    padding: '6px 14px',
-    border: '2px solid #ff333a',
-    borderRadius: '20px',
-    fontWeight: 'bold',
-    fontSize: '13px',
-    cursor: 'pointer',
-    background: isActive ? '#ff333a' : '#fff',
-    color: isActive ? '#fff' : '#ff333a',
-  });
+  btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
 }
 
 /**
@@ -62,10 +54,20 @@ function handleApplyResult(applied: boolean): void {
 /**
  * フィルタートグルボタンを生成する
  */
-function createFilterButton(id: string, label: string, filter: FilterType): HTMLButtonElement {
+function createFilterButton(
+  id: string,
+  label: string,
+  icon: IconName,
+  filter: FilterType
+): HTMLButtonElement {
   const btn = document.createElement('button');
   btn.id = id;
-  btn.textContent = label;
+  btn.type = 'button';
+  btn.className = 'mdp-chip';
+
+  const text = document.createElement('span');
+  text.textContent = label;
+  btn.append(createIcon(icon, 14), text);
   applyFilterButtonStyles(btn, filterManager.isActive(filter));
 
   btn.addEventListener('click', () => {
@@ -94,38 +96,24 @@ export function renderFilterBar(ul: HTMLUListElement): void {
   }
   existing?.remove();
 
+  ensureTheme();
+
   // バーを生成
   const bar = document.createElement('div');
   bar.id = ID_NAME.FILTER_BAR;
-  applyFixedStyles(bar, {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '10px 14px',
-    margin: '8px 0',
-    background: '#fff',
-    borderRadius: '8px',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-    flexWrap: 'wrap',
-  });
+  bar.className = 'mdp-filterbar mdp-scope';
+  bar.setAttribute('role', 'group');
+  bar.setAttribute('aria-label', '出品中の商品の絞り込み');
 
   const label = document.createElement('span');
-  label.textContent = 'フィルター:';
-  applyFixedStyles(label, {
-    fontWeight: 'bold',
-    color: '#555',
-    fontSize: '13px',
-    marginRight: '4px',
-  });
+  label.className = 'mdp-filterbar__label';
+  label.textContent = '絞り込み';
 
-  const likesBtn = createFilterButton(
-    ID_NAME.FILTER_LIKES_BTN,
-    '❤️ いいねあり',
-    'likes'
-  );
+  const likesBtn = createFilterButton(ID_NAME.FILTER_LIKES_BTN, 'いいねあり', 'heart', 'likes');
   const commentsBtn = createFilterButton(
     ID_NAME.FILTER_COMMENTS_BTN,
-    '💬 コメントあり',
+    'コメントあり',
+    'comment',
     'comments'
   );
 

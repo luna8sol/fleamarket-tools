@@ -1,4 +1,4 @@
-import { CONFIG, ID_NAME, PageType, COMPOSITE_SELECTOR, SELECTOR } from '../infra/constants';
+import { CLASS_NAME, CONFIG, ID_NAME, PageType, SELECTOR, WAIT } from '../infra/constants';
 import { log, warn, debugMethodStart, debugMethodEnd } from '../infra/logger';
 import { detectCurrentPage } from '../infra/page-detector';
 import { relistManager } from '../logic/relist-manager';
@@ -6,11 +6,15 @@ import { deleteManager } from '../logic/delete-manager';
 import { findLiByItemId, getItemName } from '../logic/dom-utils';
 import { selectionManager } from '../logic/selection-manager';
 import { publishAllDrafts } from '../logic/publisher';
-import { applyFixedStyles, renderProcessingSpan } from './bulk-bar-ui';
+import { renderProcessingSpan, updateDockCount } from './bulk-bar-ui';
 import { getOrCreateElement } from './bulk-bar-core';
 import { removeItemPrefix } from './bulk-bar-utils';
 import { showToast } from './notification';
 import { createDescriptionReplaceButton } from './description-replace-panel';
+import { decorateButton, setButtonBusy } from './components';
+import { confirmAction, ConfirmFact } from './confirm-dialog';
+import { createIcon } from './icons';
+import { ensureTheme } from './theme';
 
 /**
  * 確認ダイアログに商品名を並べる上限
@@ -21,6 +25,24 @@ const MAX_CONFIRM_ITEMS = 10;
  * 一括操作の種別
  */
 type BulkActionType = 'relist' | 'publish' | 'delete';
+
+/**
+ * 1 件ごとの待機秒数の幅（common-processor に渡している値と同じもの）
+ */
+const WAIT_RANGE_SECONDS: Record<BulkActionType, { min: number; max: number }> = {
+  publish: {
+    min: WAIT.BASE_SECONDS + WAIT.EXTRA_MIN_SECONDS,
+    max: WAIT.BASE_SECONDS + WAIT.EXTRA_MAX_SECONDS,
+  },
+  relist: {
+    min: CONFIG.RELIST_WAIT_BASE_MS / 1000,
+    max: (CONFIG.RELIST_WAIT_BASE_MS + CONFIG.RELIST_WAIT_RANDOM_MS) / 1000,
+  },
+  delete: {
+    min: CONFIG.DELETE_WAIT_BASE_MS / 1000,
+    max: (CONFIG.DELETE_WAIT_BASE_MS + CONFIG.DELETE_WAIT_RANDOM_MS) / 1000,
+  },
+};
 
 /**
  * 一括操作の種別を表示用の日本語にする
@@ -40,21 +62,52 @@ function describeAction(actionType: BulkActionType): string {
 }
 
 /**
+ * 選択した商品の名前を処理順に並べる
+ *
+ * 名前を読めない行は商品IDで代用する（空欄にすると、何が対象か確かめられないため）。
+ * 出品中一覧と下書き一覧のどちらでも使うので、両方のリストから探す。
+ *
+ * @param ids 商品ID（処理順）。下書きは編集ページのパス（/sell/draft/{id}）が入っている
+ * @returns 表示用の名前
+ */
+function collectItemNames(ids: string[]): string[] {
+  const itemListElement =
+    document.querySelector<HTMLUListElement>(SELECTOR.ITEMS_LIST) ??
+    document.querySelector<HTMLUListElement>(SELECTOR.DRAFT_LIST);
+
+  return ids.map((id) => {
+    const li = itemListElement ? findLiByItemId(itemListElement, id) : null;
+    const fallback = removeItemPrefix(id).split('/').filter(Boolean).pop() ?? id;
+    return (li ? getItemName(li) : '') || fallback;
+  });
+}
+
+/**
+ * 件数・間隔・待機の合計の目安を確認ダイアログ用に並べる
+ *
+ * @param actionType 一括操作の種別
+ * @param count 件数
+ * @returns 要点
+ */
+function buildFacts(actionType: BulkActionType, count: number): ConfirmFact[] {
+  const { min, max } = WAIT_RANGE_SECONDS[actionType];
+  const waitMinutes = Math.ceil(((count - 1) * (min + max)) / 2 / 60);
+
+  return [
+    { label: `${describeAction(actionType)}する件数`, value: `${count}件`, emphasis: true },
+    { label: '1件ごとの間隔', value: `${min}〜${max}秒` },
+    { label: '待機の合計（目安）', value: count > 1 ? `約${waitMinutes}分` : 'なし' },
+  ];
+}
+
+/**
  * 一括再出品ボタンを生成
  */
 export function createBulkRelistButton(): HTMLButtonElement {
-  const bulkBtn = getOrCreateElement(ID_NAME.BULK_RELIST_BTN, 'button');
-  bulkBtn.textContent = '選択した商品を再出品';
-
-  // 固定位置を使わないようにスタイル変更
-  applyFixedStyles(bulkBtn, {
-    padding: '8px 16px',
-    background: '#ff333a',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '4px',
-    fontWeight: 'bold',
-    cursor: 'pointer'
+  const bulkBtn = decorateButton(getOrCreateElement(ID_NAME.BULK_RELIST_BTN, 'button'), {
+    label: '選択した商品を再出品',
+    variant: 'primary',
+    icon: 'relist',
   });
 
   bulkBtn.onclick = async (): Promise<void> => {
@@ -79,17 +132,10 @@ export function createBulkRelistButton(): HTMLButtonElement {
  * 人が止められる機会はここだけになります。
  */
 export function createBulkDeleteButton(): HTMLButtonElement {
-  const deleteBtn = getOrCreateElement(ID_NAME.BULK_DELETE_BTN, 'button');
-  deleteBtn.textContent = '選択した商品を削除';
-
-  applyFixedStyles(deleteBtn, {
-    padding: '8px 16px',
-    background: '#fff',
-    color: '#d32f2f',
-    border: '1px solid #d32f2f',
-    borderRadius: '4px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
+  const deleteBtn = decorateButton(getOrCreateElement(ID_NAME.BULK_DELETE_BTN, 'button'), {
+    label: '選択した商品を削除',
+    variant: 'danger',
+    icon: 'trash',
   });
 
   deleteBtn.onclick = async (): Promise<void> => {
@@ -122,26 +168,18 @@ export function createBulkDeleteButton(): HTMLButtonElement {
  * @param ids 削除対象の商品ID
  * @returns 実行してよければ true
  */
-function confirmDeletion(ids: string[]): boolean {
-  const itemListElement = document.querySelector<HTMLUListElement>(SELECTOR.ITEMS_LIST);
-
-  const names = ids.map((id) => {
-    const li = itemListElement ? findLiByItemId(itemListElement, id) : null;
-    return `・${(li ? getItemName(li) : '') || removeItemPrefix(id)}`;
+function confirmDeletion(ids: string[]): Promise<boolean> {
+  return confirmAction({
+    title: `出品中の商品を${ids.length}件削除します`,
+    message: 'メルカリ側の削除確認は 1 件ずつ自動で承認します。止められるのはここが最後です。',
+    facts: buildFacts('delete', ids.length),
+    items: collectItemNames(ids),
+    maxItems: MAX_CONFIRM_ITEMS,
+    note: '削除すると元に戻せません。',
+    confirmLabel: `${ids.length}件を削除する`,
+    tone: 'danger',
+    icon: 'trash',
   });
-
-  const shown = names.slice(0, MAX_CONFIRM_ITEMS).join('\n');
-  const rest = names.length > MAX_CONFIRM_ITEMS ? `
-…ほか${names.length - MAX_CONFIRM_ITEMS}件` : '';
-
-  return window.confirm(
-    `出品中の商品を${ids.length}件削除します。
-削除すると元に戻せません。
-
-${shown}${rest}
-
-実行しますか？`
-  );
 }
 
 /**
@@ -150,17 +188,10 @@ ${shown}${rest}
 export function createBulkPlaceholderButton(): HTMLButtonElement {
   debugMethodStart('createBulkPlaceholderButton');
 
-  const bulkBtn = getOrCreateElement(ID_NAME.BULK_RELIST_BTN, 'button');
-  bulkBtn.textContent = '選択した商品をまとめて出品';
-
-  applyFixedStyles(bulkBtn, {
-    padding: '8px 16px',
-    background: '#ff333a',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '4px',
-    fontWeight: 'bold',
-    cursor: 'pointer'
+  const bulkBtn = decorateButton(getOrCreateElement(ID_NAME.BULK_RELIST_BTN, 'button'), {
+    label: '選択した商品をまとめて出品',
+    variant: 'primary',
+    icon: 'publish',
   });
 
   bulkBtn.onclick = async (): Promise<void> => {
@@ -191,92 +222,116 @@ export function createButtonForCurrentPage(): HTMLButtonElement {
 }
 
 /**
- * 一括再出品ボタンを含むコンテナを生成
+ * 一括再出品ボタンを含むコンテナ（画面下の浮遊ドック）を生成
  */
 export function createBulkRelistContainer(count: number): HTMLDivElement {
+  ensureTheme();
+
   const container = document.createElement('div');
   container.id = ID_NAME.BULK_RELIST_CONTAINER;
-
-  // コンテナのスタイル設定
-  applyFixedStyles(container, {
-    position: 'fixed',
-    top: '50px',
-    left: '5px',
-    zIndex: '9999',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '1rem',
-    backgroundColor: '#f8f8f8',
-    borderRadius: '6px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
-  });
+  container.className = 'mdp-dock mdp-scope';
+  container.setAttribute('role', 'region');
+  container.setAttribute('aria-label', '一括操作');
 
   // ページタイプに応じて情報を取得
   const pageType = detectCurrentPage();
 
-  // カウント表示用のspanを生成
+  // 左側: アイコンと件数
+  const lead = document.createElement('div');
+  lead.className = 'mdp-dock__lead';
+
+  const tile = document.createElement('span');
+  tile.className = 'mdp-icon-tile';
+  tile.appendChild(createIcon('layers', 18));
+
+  const stats = document.createElement('div');
+  stats.className = 'mdp-dock__stats';
+
   const countSpan = document.createElement('span');
   countSpan.id = ID_NAME.BULK_COUNT_SPAN;
-  countSpan.textContent = `選択中: ${count}件`;
-  applyFixedStyles(countSpan, {
-    fontWeight: 'bold',
-    color: '#333',
-    background: '#fffbe6',
-    padding: '6px 12px',
-    borderRadius: '4px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-  });
+  countSpan.className = 'mdp-dock__count';
+  countSpan.setAttribute('role', 'status');
 
-  // 全件数表示用のspan - 下書き一覧ページの場合のみ追加
-  const totalSpan = document.createElement('span');
-  totalSpan.id = ID_NAME.BULK_TOTAL_COUNT;
+  const num = document.createElement('span');
+  num.className = `${CLASS_NAME.DOCK_COUNT_NUM} mdp-num`;
+  num.setAttribute('aria-hidden', 'true');
+  const unit = document.createElement('span');
+  unit.className = 'mdp-dock__count-unit';
+  unit.setAttribute('aria-hidden', 'true');
+  unit.textContent = '件 選択中';
+  countSpan.append(num, unit);
 
-  // ページタイプに応じて全件数を取得
-  let totalCount = document.querySelectorAll(COMPOSITE_SELECTOR.BULK_CHECKBOX_INPUT).length;
-  totalSpan.textContent = `全体: ${totalCount}件`;
-  applyFixedStyles(totalSpan, {
-    color: '#555',
-    background: '#fffbe6',
-    padding: '6px 12px',
-    borderRadius: '4px'
-  });
+  // 下書き一覧は全件数、それ以外は処理順の補足を出す
+  const meta = document.createElement('span');
+  meta.className = CLASS_NAME.DOCK_META;
+  if (pageType === PageType.DRAFTS) {
+    meta.id = ID_NAME.BULK_TOTAL_COUNT;
+    meta.classList.add('mdp-num');
+  } else {
+    meta.textContent = '選んだ順に処理します';
+  }
 
-  // 処理中表示用のspanを生成し、初期状態では非表示
-  const processingSpan = document.createElement('span');
-  processingSpan.id = ID_NAME.BULK_PROCESSING_SPAN;
-  processingSpan.textContent = '';
-  applyFixedStyles(processingSpan, {
-    fontWeight: 'bold',
-    color: '#d32f2f',
-    background: '#fffbe6',
-    padding: '6px 12px',
-    borderRadius: '4px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-    display: 'none'
-  });
+  stats.append(countSpan, meta);
+  lead.append(tile, stats);
 
-  // ボタンを生成
-  const bulkBtn = createButtonForCurrentPage();
+  const divider = document.createElement('span');
+  divider.className = 'mdp-dock__divider';
+  divider.setAttribute('aria-hidden', 'true');
 
-  // 要素をコンテナに追加
-  container.appendChild(bulkBtn);
+  // 右側: 操作ボタン
+  const actions = document.createElement('div');
+  actions.className = CLASS_NAME.DOCK_ACTIONS;
+  actions.appendChild(createButtonForCurrentPage());
 
   // 出品中一覧だけ、削除ボタンと説明文の一括置換ボタンも並べる
   if (pageType === PageType.LISTINGS) {
-    container.appendChild(createBulkDeleteButton());
-    container.appendChild(createDescriptionReplaceButton());
-  }
-  container.appendChild(countSpan);
-
-  // 下書き一覧ページの場合のみ全体数を表示
-  if (pageType === PageType.DRAFTS) {
-    container.appendChild(totalSpan);
+    actions.appendChild(createBulkDeleteButton());
+    actions.appendChild(createDescriptionReplaceButton());
   }
 
-  container.appendChild(processingSpan);
+  container.append(lead, divider, actions);
+
+  // 処理中表示（初期状態では非表示）は renderProcessingSpan が必要になったときに足す
+  updateDockCount(container, count);
+  trackDockHeight(container);
 
   return container;
+}
+
+/**
+ * ドックの高さを CSS 変数（--mdp-dock-offset）に書き出し続ける
+ *
+ * ドックは進捗が出ると 2 段になり、幅が狭いとボタンが折り返して高さが変わる。
+ * トーストや置換パネルはその上に置くので、固定値で避けると重なってしまう。
+ *
+ * @param container ドック
+ */
+function trackDockHeight(container: HTMLElement): void {
+  if (typeof ResizeObserver === 'undefined') return;
+
+  new ResizeObserver(() => {
+    if (!container.isConnected) return;
+    // ドックの下余白（20px）と、上に置くものとの間隔（14px）を足す
+    const offset = Math.ceil(container.getBoundingClientRect().height) + 20 + 14;
+    document.documentElement.style.setProperty('--mdp-dock-offset', `${offset}px`);
+  }).observe(container);
+}
+
+/**
+ * ドックの操作ボタンをまとめて押せなくする
+ *
+ * 一括処理の最中に別の一括処理（再出品中の削除など）を始めさせないため。
+ *
+ * @returns 元に戻す関数（もともと押せなかったボタンは押せないまま残す）
+ */
+function lockDockActions(): () => void {
+  const container = document.getElementById(ID_NAME.BULK_RELIST_CONTAINER);
+  const buttons = Array.from(
+    container?.querySelectorAll<HTMLButtonElement>(`.${CLASS_NAME.DOCK_ACTIONS} button`) ?? []
+  ).filter((button) => !button.disabled);
+
+  buttons.forEach((button) => (button.disabled = true));
+  return (): void => buttons.forEach((button) => (button.disabled = false));
 }
 
 /**
@@ -290,7 +345,7 @@ export async function handleBulkAction(
     logMessage: string;
     emptySelectionMessage: string;
     /** 実行前の確認。false を返したら何もしない（省略時は確認しない） */
-    confirm?: (ids: string[]) => boolean;
+    confirm?: (ids: string[]) => boolean | Promise<boolean>;
     processingFunction: (ids: string[]) => Promise<unknown>;
     successMessage: string;
     errorMessage: string;
@@ -307,15 +362,17 @@ export async function handleBulkAction(
   const orderedIds = selectionManager.getOrderedSelections().map((item) => item.id);
 
   // 取り消せない操作は、ここで人が止められるようにする
-  if (options.confirm && !options.confirm(orderedIds)) {
+  if (options.confirm && !(await options.confirm(orderedIds))) {
     log('確認で中止されました');
     return false;
   }
 
+  const unlock = lockDockActions();
+
   try {
-    bulkBtn.disabled = true;
+    setButtonBusy(bulkBtn, true);
     // 実行中のみ表示
-    renderProcessingSpan('処理中...');
+    renderProcessingSpan('準備中…');
 
     log(`${describeAction(options.actionType)}処理を選択順で実行: ${orderedIds.map(removeItemPrefix).join(' -> ')}`);
 
@@ -327,7 +384,8 @@ export async function handleBulkAction(
   } finally {
     // 必ず非表示へ戻す
     renderProcessingSpan('');
-    bulkBtn.disabled = false;
+    setButtonBusy(bulkBtn, false);
+    unlock();
   }
 
   return true;

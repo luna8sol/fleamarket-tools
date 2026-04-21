@@ -7,6 +7,7 @@ import { getDraftItems, DraftItem } from './list';
 import { updateDraftCount } from './bulk-bar-core';
 import { updateOrderDisplay } from '../ui/order-display';
 import { createSelectUpToButton } from './select-up-to';
+import { ensureTheme } from './theme';
 
 // チェックボックスのトグル処理済みフラグを管理する WeakMap
 const toggleHandledMap = new WeakMap<HTMLInputElement, boolean>();
@@ -18,10 +19,12 @@ function createBulkCheckboxElement(
   const startTime = performance.now();
   debugMethodStart('createBulkCheckboxElement');
 
+  ensureTheme();
+
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.className = CLASS_NAME.BULK_CHECKBOX;
-  checkbox.style.marginRight = '8px';
+  checkbox.setAttribute('aria-label', '一括操作の対象にする');
   checkbox.style.position = 'relative';
   checkbox.style.zIndex = '99999';
   checkbox.style.pointerEvents = 'auto';
@@ -53,6 +56,20 @@ function createBulkCheckboxElement(
   };
   checkbox.addEventListener('mouseup', onPointerUp, true);
   checkbox.addEventListener('touchend', onPointerUp, true);
+
+  // キーボード（Space）でも切り替えられるようにする。
+  // click を握りつぶしているため、ブラウザ標準の Space による切り替えは効かない。
+  checkbox.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key !== ' ' || e.repeat) return;
+      e.stopImmediatePropagation();
+      e.stopPropagation();
+      e.preventDefault();
+      toggleAndChange(checkbox);
+    },
+    true
+  );
 
   // クリックは完全抑止（手動トグルで一貫）
   checkbox.addEventListener(

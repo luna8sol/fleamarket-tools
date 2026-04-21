@@ -7,9 +7,18 @@ import {
 } from '../infra/types';
 import { buildReplacePlan, parseDescriptionEntries } from '../logic/description-replace-data';
 import { descriptionReplaceManager } from '../logic/description-replace-manager';
-import { applyFixedStyles } from './bulk-bar-ui';
 import { getOrCreateElement } from './bulk-bar-core';
 import { showToast } from './notification';
+import {
+  buildProgress,
+  decorateButton,
+  decorateIconButton,
+  ProgressView,
+  updateProgress,
+} from './components';
+import { confirmAction } from './confirm-dialog';
+import { createIcon, IconName } from './icons';
+import { ensureTheme } from './theme';
 
 /**
  * 説明文の一括置換パネル（出品中一覧のみ）。
@@ -34,40 +43,100 @@ interface PanelState {
 const state: PanelState = { fixed: null, originals: null, plan: null };
 
 /**
- * ボタンの見た目をそろえる
- * @param button 対象のボタン
- * @param variant 主操作（赤地）か副操作（白地）か
+ * ファイルを選ぶ欄を作る（ラベル全体を押せる大きな的にする）
+ *
+ * @param input ファイル入力欄
+ * @param labelText 欄の名前
+ * @returns 欄の要素
  */
-function styleButton(button: HTMLButtonElement, variant: 'primary' | 'secondary'): void {
-  applyFixedStyles(button, {
-    padding: '6px 12px',
-    borderRadius: '4px',
-    fontWeight: 'bold',
-    fontSize: '13px',
-    cursor: 'pointer',
-    background: variant === 'primary' ? '#ff333a' : '#fff',
-    color: variant === 'primary' ? '#fff' : '#333',
-    border: variant === 'primary' ? 'none' : '1px solid #999',
+function fileField(input: HTMLInputElement, labelText: string): HTMLLabelElement {
+  const field = document.createElement('label');
+  field.className = 'mdp-file';
+
+  const text = document.createElement('span');
+  text.className = 'mdp-file__text';
+
+  const label = document.createElement('span');
+  label.className = 'mdp-file__label';
+  label.textContent = labelText;
+
+  const name = document.createElement('span');
+  name.className = 'mdp-file__name';
+  name.textContent = '未選択';
+
+  text.append(label, name);
+  field.append(createIcon('fileJson', 20), text, input);
+
+  input.addEventListener('change', () => {
+    const file = input.files?.[0];
+    name.textContent = file ? file.name : '未選択';
+    field.title = file ? file.name : '';
+    field.dataset.filled = file ? 'true' : 'false';
   });
+
+  return field;
 }
 
 /**
- * ラベル付きの 1 行を作る
- * @param labelText ラベルの文言
- * @param control 右側に置く入力欄
- * @returns 1 行分の要素
+ * 番号付きの見出しを持つまとまりを作る
+ *
+ * @param step 手順の番号
+ * @param titleText 見出し
+ * @returns まとまりの要素
  */
-function labeledRow(labelText: string, control: HTMLElement): HTMLLabelElement {
-  const row = document.createElement('label');
-  applyFixedStyles(row, { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' });
+function section(step: number, titleText: string): HTMLElement {
+  const wrap = document.createElement('section');
+  wrap.className = 'mdp-section';
 
-  const label = document.createElement('span');
-  label.textContent = labelText;
-  applyFixedStyles(label, { flex: '0 0 110px', color: '#333', fontWeight: 'bold' });
+  const title = document.createElement('h3');
+  title.className = 'mdp-section__title';
 
-  row.appendChild(label);
-  row.appendChild(control);
-  return row;
+  const badge = document.createElement('span');
+  badge.className = 'mdp-step';
+  badge.textContent = String(step);
+
+  const text = document.createElement('span');
+  text.textContent = titleText;
+
+  title.append(badge, text);
+  wrap.appendChild(title);
+  return wrap;
+}
+
+/**
+ * 件数のタイルを作る
+ *
+ * @param label 名前
+ * @param value 件数
+ * @param emphasis 主役として強調するか
+ * @returns タイルの要素
+ */
+function statTile(label: string, value: number, emphasis = false): HTMLDivElement {
+  const tile = document.createElement('div');
+  tile.className = 'mdp-fact';
+  if (emphasis) tile.dataset.emphasis = 'true';
+
+  const num = document.createElement('span');
+  num.className = 'mdp-fact__value mdp-num';
+  num.textContent = String(value);
+
+  const name = document.createElement('span');
+  name.className = 'mdp-fact__label';
+  name.textContent = label;
+
+  tile.append(num, name);
+  return tile;
+}
+
+/**
+ * 一括操作バーの「説明文を一括置換」ボタンに、パネルの開閉状態を伝える
+ *
+ * @param expanded パネルが開いているか
+ */
+function setPanelExpanded(expanded: boolean): void {
+  document
+    .getElementById(ID_NAME.DESCRIPTION_REPLACE_BTN)
+    ?.setAttribute('aria-expanded', expanded ? 'true' : 'false');
 }
 
 /**
@@ -93,8 +162,12 @@ function syncControls(running: boolean): void {
   const startBtn = byId<HTMLButtonElement>(ID_NAME.DESCRIPTION_REPLACE_START_BTN);
   const abortBtn = byId<HTMLButtonElement>(ID_NAME.DESCRIPTION_REPLACE_ABORT_BTN);
 
-  if (fixedInput) fixedInput.disabled = running;
-  if (originalInput) originalInput.disabled = running;
+  for (const input of [fixedInput, originalInput]) {
+    if (!input) continue;
+    input.disabled = running;
+    const field = input.closest<HTMLElement>('label');
+    if (field) field.dataset.disabled = running ? 'true' : 'false';
+  }
   if (intervalInput) intervalInput.disabled = running;
   if (loadBtn) loadBtn.disabled = running;
   if (startBtn) startBtn.disabled = running || !hasTargets;
@@ -109,43 +182,53 @@ function renderSummary(plan: DescriptionReplacePlan | null): void {
   const summary = byId<HTMLDivElement>(ID_NAME.DESCRIPTION_REPLACE_SUMMARY);
   if (!summary) return;
 
-  summary.textContent = '';
+  summary.replaceChildren();
 
   if (!plan) {
-    summary.textContent = '確定版と原本の JSON を選んで「読み込む」を押してください。';
+    const empty = document.createElement('div');
+    empty.className = 'mdp-empty';
+    const text = document.createElement('span');
+    text.textContent =
+      '確定版と原本の JSON を選んで「読み込む」を押してください。読み込むだけでは保存しません。';
+    empty.append(createIcon('info', 16), text);
+    summary.appendChild(empty);
     return;
   }
 
-  const lines = [
-    `対象 ${plan.total}件 / 適用済み ${plan.alreadyDone.length}件 / 対象外 ${plan.excluded.length}件`,
-    `これから処理: ${plan.targets.length}件`,
-  ];
-
-  for (const line of lines) {
-    const div = document.createElement('div');
-    div.textContent = line;
-    summary.appendChild(div);
-  }
+  const stats = document.createElement('div');
+  stats.className = 'mdp-stats';
+  stats.append(
+    statTile('これから処理', plan.targets.length, true),
+    statTile('対象', plan.total),
+    statTile('適用済み', plan.alreadyDone.length),
+    statTile('対象外', plan.excluded.length)
+  );
+  summary.appendChild(stats);
 
   if (plan.excluded.length > 0) {
-    const head = document.createElement('div');
-    head.textContent = '対象外の内訳:';
-    applyFixedStyles(head, { marginTop: '4px', color: '#d32f2f' });
-    summary.appendChild(head);
+    const list = document.createElement('ul');
+    list.className = 'mdp-exclusions';
+
+    const head = document.createElement('li');
+    head.className = 'mdp-exclusions__head';
+    head.textContent = `対象外の内訳（${plan.excluded.length}件）`;
+    list.appendChild(head);
 
     for (const exclusion of plan.excluded.slice(0, MAX_EXCLUSION_LINES)) {
-      const div = document.createElement('div');
-      div.textContent = `・${exclusion.id} ${exclusion.name}: ${exclusion.reason}`;
-      applyFixedStyles(div, { fontSize: '12px', color: '#555' });
-      summary.appendChild(div);
+      const li = document.createElement('li');
+      const id = document.createElement('code');
+      id.textContent = exclusion.id;
+      li.append(id, ` ${exclusion.name}: ${exclusion.reason}`);
+      list.appendChild(li);
     }
 
     if (plan.excluded.length > MAX_EXCLUSION_LINES) {
-      const rest = document.createElement('div');
+      const rest = document.createElement('li');
       rest.textContent = `…ほか${plan.excluded.length - MAX_EXCLUSION_LINES}件`;
-      applyFixedStyles(rest, { fontSize: '12px', color: '#555' });
-      summary.appendChild(rest);
+      list.appendChild(rest);
     }
+
+    summary.appendChild(list);
   }
 }
 
@@ -159,31 +242,80 @@ function renderSummary(plan: DescriptionReplacePlan | null): void {
  * @returns 表示用の文言（改行区切りの 2 行）
  */
 export function formatReplaceProgress(progress: DescriptionReplaceProgress): string {
-  const { counts, current, total } = progress;
+  const { counts } = progress;
   const breakdown =
     `[成功 ${counts.applied} / 適用済み ${counts.already} / スキップ ${counts.skipped}` +
     ` / 失敗 ${counts.failed} / 未確認 ${counts.unverified}]`;
 
-  let headline: string;
+  return `${formatReplaceHeadline(progress)}\n${breakdown}`;
+}
+
+/**
+ * 進捗の 1 行目（何件目・何をしているか）を作る
+ *
+ * @param progress 進捗
+ * @returns 表示用の文言
+ */
+function formatReplaceHeadline(progress: DescriptionReplaceProgress): string {
+  const { current, total } = progress;
+
   switch (progress.phase) {
     case 'done':
-      headline = `置換完了: ${total}件`;
-      break;
+      return `置換完了: ${total}件`;
     case 'aborted':
-      headline = `中断しました: ${current}/${total}件まで処理`;
-      break;
+      return `中断しました: ${current}/${total}件まで処理`;
     case 'halted':
-      headline = `停止しました: ${progress.message ?? '理由不明'}（${current}/${total}件）`;
-      break;
+      return `停止しました: ${progress.message ?? '理由不明'}（${current}/${total}件）`;
     case 'waiting':
-      headline = `${current}/${total}件 完了 — 次まで ${progress.remainingSeconds ?? 0}秒`;
-      break;
+      return `${current}/${total}件 完了 — 次まで ${progress.remainingSeconds ?? 0}秒`;
     default:
-      headline = `置換中 ${current}/${total}件 ${progress.itemName ?? ''}`.trimEnd();
+      return `置換中 ${current}/${total}件 ${progress.itemName ?? ''}`.trimEnd();
   }
-
-  return `${headline}\n${breakdown}`;
 }
+
+/**
+ * 進捗を表示の割合・色調に直す
+ *
+ * 処理中の 1 件はまだ終わっていないので割合に含めない（current - 1）。
+ *
+ * @param progress 進捗
+ * @returns 表示内容（文言を除く）
+ */
+function toReplaceView(progress: DescriptionReplaceProgress): Omit<ProgressView, 'label'> {
+  const total = Math.max(progress.total, 1);
+  const { counts } = progress;
+  const problems = counts.skipped + counts.failed + counts.unverified;
+
+  switch (progress.phase) {
+    case 'done':
+      return {
+        ratio: 1,
+        tone: problems > 0 ? 'warning' : 'success',
+        icon: problems > 0 ? 'warning' : 'success',
+      };
+    case 'aborted':
+      return { ratio: progress.current / total, tone: 'warning', icon: 'stop' };
+    case 'halted':
+      return { ratio: progress.current / total, tone: 'danger', icon: 'error' };
+    case 'waiting':
+      return { ratio: progress.current / total, tone: 'active', icon: 'clock' };
+    default:
+      return { ratio: (progress.current - 1) / total, tone: 'active' };
+  }
+}
+
+/** 内訳バッジの並びと色調 */
+const BREAKDOWN_BADGES: {
+  key: keyof DescriptionReplaceProgress['counts'];
+  label: string;
+  tone: 'success' | 'info' | 'warning' | 'danger';
+}[] = [
+  { key: 'applied', label: '成功', tone: 'success' },
+  { key: 'already', label: '適用済み', tone: 'info' },
+  { key: 'skipped', label: 'スキップ', tone: 'warning' },
+  { key: 'failed', label: '失敗', tone: 'danger' },
+  { key: 'unverified', label: '未確認', tone: 'warning' },
+];
 
 /**
  * 進捗をパネルに表示する
@@ -193,8 +325,30 @@ function renderStatus(progress: DescriptionReplaceProgress): void {
   const status = byId<HTMLDivElement>(ID_NAME.DESCRIPTION_REPLACE_STATUS);
   if (!status) return;
 
-  status.textContent = formatReplaceProgress(progress);
-  status.style.color = progress.phase === 'halted' ? '#d32f2f' : '#333';
+  let bar = status.querySelector<HTMLElement>('.mdp-progress');
+  let badges = status.querySelector<HTMLElement>('.mdp-badges');
+  if (!bar || !badges) {
+    bar = buildProgress(document.createElement('div'));
+    badges = document.createElement('div');
+    badges.className = 'mdp-badges';
+    status.replaceChildren(bar, badges);
+  }
+
+  updateProgress(bar, { label: formatReplaceHeadline(progress), ...toReplaceView(progress) });
+
+  badges.replaceChildren();
+  for (const { key, label, tone } of BREAKDOWN_BADGES) {
+    const value = progress.counts[key];
+    const badge = document.createElement('span');
+    badge.className = 'mdp-badge';
+    badge.dataset.tone = tone;
+    badge.dataset.nonzero = value > 0 ? 'true' : 'false';
+
+    const num = document.createElement('b');
+    num.textContent = String(value);
+    badge.append(`${label} `, num);
+    badges.appendChild(badge);
+  }
 }
 
 /**
@@ -261,15 +415,28 @@ function readWaitBaseSeconds(): number | null {
  * @param waitBaseSeconds 待機の基準秒数
  * @returns 実行してよければ true
  */
-function confirmStart(plan: DescriptionReplacePlan, waitBaseSeconds: number): boolean {
+function confirmStart(plan: DescriptionReplacePlan, waitBaseSeconds: number): Promise<boolean> {
   const randomSeconds = Math.round(CONFIG.DESCRIPTION_REPLACE_WAIT_RANDOM_MS / 1000);
-  return window.confirm(
-    `出品中の商品の説明文を ${plan.targets.length}件 置き換えて保存します。\n` +
-      `（対象 ${plan.total}件 / 適用済み ${plan.alreadyDone.length}件は処理しません / 対象外 ${plan.excluded.length}件）\n\n` +
-      `1件ごとに ${waitBaseSeconds}〜${waitBaseSeconds + randomSeconds}秒待ちます。\n` +
-      '保存した内容は元に戻せません（原本ファイルから手で戻す必要があります）。\n\n' +
-      '実行しますか？'
-  );
+  const count = plan.targets.length;
+  const waitMinutes = Math.ceil(((count - 1) * (waitBaseSeconds + randomSeconds / 2)) / 60);
+
+  return confirmAction({
+    title: `説明文を${count}件置き換えて保存します`,
+    message:
+      '出品中の商品の説明欄を、確定版の本文で上書きします。\n' +
+      `適用済み ${plan.alreadyDone.length}件・対象外 ${plan.excluded.length}件は処理しません。`,
+    facts: [
+      { label: '置き換える件数', value: `${count}件`, emphasis: true },
+      { label: '1件ごとの間隔', value: `${waitBaseSeconds}〜${waitBaseSeconds + randomSeconds}秒` },
+      { label: '待機の合計（目安）', value: count > 1 ? `約${waitMinutes}分` : 'なし' },
+    ],
+    items: plan.targets.map(({ entry }) => entry.name || entry.id),
+    maxItems: 8,
+    note: '保存した内容は元に戻せません（原本ファイルから手で戻す必要があります）。',
+    confirmLabel: `${count}件を置き換える`,
+    tone: 'danger',
+    icon: 'fileText',
+  });
 }
 
 /**
@@ -293,7 +460,7 @@ async function handleStart(): Promise<void> {
     return;
   }
 
-  if (!confirmStart(plan, waitBaseSeconds)) {
+  if (!(await confirmStart(plan, waitBaseSeconds))) {
     log('説明文の一括置換は確認で中止されました');
     return;
   }
@@ -361,149 +528,202 @@ async function handleExport(): Promise<void> {
 }
 
 /**
- * パネルを組み立てる（1 度だけ）
- * @returns パネル要素
+ * パネル用のボタンを作る
+ *
+ * @param id 要素ID
+ * @param label 文言
+ * @param variant 種類
+ * @param icon アイコン
+ * @param onClick 押したときの処理
+ * @returns ボタン
  */
-function createPanel(): HTMLDivElement {
-  const panel = document.createElement('div');
-  panel.id = ID_NAME.DESCRIPTION_REPLACE_PANEL;
-  applyFixedStyles(panel, {
-    position: 'fixed',
-    top: '120px',
-    left: '5px',
-    zIndex: String(CONFIG.ZINDEX.CONTROL_PANEL),
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-    width: '460px',
-    maxWidth: 'calc(100vw - 10px)',
-    padding: '1rem',
-    backgroundColor: '#f8f8f8',
-    borderRadius: '6px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.15)',
-    fontSize: '13px',
+function panelButton(
+  id: string,
+  label: string,
+  variant: 'primary' | 'secondary' | 'ghost',
+  icon: IconName,
+  onClick: () => void
+): HTMLButtonElement {
+  const button = decorateButton(getOrCreateElement(id, 'button'), {
+    label,
+    variant,
+    icon,
+    size: 'sm',
   });
+  button.addEventListener('click', onClick);
+  return button;
+}
 
-  // 見出しと閉じるボタン
-  const header = document.createElement('div');
-  applyFixedStyles(header, {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  });
-
-  const title = document.createElement('span');
-  title.textContent = '説明文の一括置換';
-  applyFixedStyles(title, { fontWeight: 'bold', fontSize: '14px', color: '#333' });
-
-  const closeBtn = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_CLOSE_BTN, 'button');
-  closeBtn.type = 'button';
-  closeBtn.textContent = '×';
-  closeBtn.title = '閉じる（読み込んだデータと実行中の処理は保持されます）';
-  applyFixedStyles(closeBtn, {
-    background: 'transparent',
-    border: 'none',
-    fontSize: '18px',
-    cursor: 'pointer',
-    color: '#555',
-  });
-  closeBtn.addEventListener('click', () => {
-    panel.style.display = 'none';
-  });
-
-  header.appendChild(title);
-  header.appendChild(closeBtn);
-  panel.appendChild(header);
-
-  // ファイル入力
-  const fixedInput = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_FIXED_FILE, 'input');
-  fixedInput.type = 'file';
-  fixedInput.accept = '.json,application/json';
-  panel.appendChild(labeledRow('確定版 JSON', fixedInput));
-
-  const originalInput = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_ORIGINAL_FILE, 'input');
-  originalInput.type = 'file';
-  originalInput.accept = '.json,application/json';
-  panel.appendChild(labeledRow('原本 JSON', originalInput));
-
-  // 待機秒数
-  const intervalWrap = document.createElement('span');
-  applyFixedStyles(intervalWrap, { display: 'flex', alignItems: 'center', gap: '6px' });
-
+/**
+ * 待機秒数の入力欄を組み立てる
+ *
+ * @returns 1 行分の要素
+ */
+function createIntervalRow(): HTMLDivElement {
   const intervalInput = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_INTERVAL, 'input');
   intervalInput.type = 'number';
   intervalInput.min = '0';
   intervalInput.step = '1';
+  intervalInput.inputMode = 'numeric';
   intervalInput.value = String(Math.round(CONFIG.DESCRIPTION_REPLACE_WAIT_BASE_MS / 1000));
-  applyFixedStyles(intervalInput, { width: '70px', padding: '4px' });
+  intervalInput.setAttribute('aria-label', '1件ごとの待機（秒）');
 
-  const intervalHint = document.createElement('span');
-  intervalHint.textContent = `秒 + 0〜${Math.round(CONFIG.DESCRIPTION_REPLACE_WAIT_RANDOM_MS / 1000)}秒のランダム`;
-  applyFixedStyles(intervalHint, { color: '#555', fontSize: '12px' });
+  const row = document.createElement('div');
+  row.className = 'mdp-inline-field';
 
-  intervalWrap.appendChild(intervalInput);
-  intervalWrap.appendChild(intervalHint);
-  panel.appendChild(labeledRow('1件ごとの待機', intervalWrap));
+  const text = document.createElement('div');
+  const label = document.createElement('div');
+  label.className = 'mdp-inline-field__label';
+  label.textContent = '1件ごとの待機';
+  const hint = document.createElement('div');
+  hint.className = 'mdp-inline-field__hint';
+  hint.textContent = `さらに 0〜${Math.round(CONFIG.DESCRIPTION_REPLACE_WAIT_RANDOM_MS / 1000)}秒をランダムに足します`;
+  text.append(label, hint);
 
-  // 件数表示
+  const wrap = document.createElement('label');
+  wrap.className = 'mdp-number';
+  wrap.append(intervalInput, '秒');
+
+  row.append(text, wrap);
+  return row;
+}
+
+/**
+ * パネルの見出し（アイコン・題名・閉じるボタン）を組み立てる
+ *
+ * @param panel パネル要素
+ * @returns 見出しの要素
+ */
+function createPanelHeader(panel: HTMLElement): HTMLDivElement {
+  const header = document.createElement('div');
+  header.className = 'mdp-panel__head';
+
+  const tile = document.createElement('span');
+  tile.className = 'mdp-icon-tile';
+  tile.appendChild(createIcon('fileText', 18));
+
+  const titles = document.createElement('div');
+  titles.className = 'mdp-panel__titles';
+
+  const title = document.createElement('h2');
+  title.id = `${ID_NAME.DESCRIPTION_REPLACE_PANEL}-title`;
+  title.className = 'mdp-panel__title';
+  title.textContent = '説明文の一括置換';
+
+  const subtitle = document.createElement('p');
+  subtitle.className = 'mdp-panel__subtitle';
+  subtitle.textContent = '確定版の本文で、出品中の説明欄を 1 件ずつ上書きします';
+
+  titles.append(title, subtitle);
+
+  const closeBtn = decorateIconButton(
+    getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_CLOSE_BTN, 'button'),
+    'close',
+    '閉じる（読み込んだデータと実行中の処理は保持されます）'
+  );
+  closeBtn.addEventListener('click', () => {
+    panel.style.display = 'none';
+    setPanelExpanded(false);
+  });
+
+  header.append(tile, titles, closeBtn);
+  return header;
+}
+
+/**
+ * パネルを組み立てる（1 度だけ）
+ *
+ * 「ファイルを選ぶ → 件数を確かめる → 実行する」の 3 段に分ける。
+ * 上から順にたどれば、件数を見ないまま開始に進むことがない並びにしている。
+ *
+ * @returns パネル要素
+ */
+function createPanel(): HTMLDivElement {
+  ensureTheme();
+
+  const panel = document.createElement('div');
+  panel.id = ID_NAME.DESCRIPTION_REPLACE_PANEL;
+  panel.className = 'mdp-panel mdp-scope';
+  panel.setAttribute('role', 'region');
+  panel.setAttribute('aria-labelledby', `${ID_NAME.DESCRIPTION_REPLACE_PANEL}-title`);
+
+  const body = document.createElement('div');
+  body.className = 'mdp-panel__body';
+
+  // 1. ファイルと待機秒数
+  const filesSection = section(1, 'ファイルを選ぶ');
+
+  const fixedInput = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_FIXED_FILE, 'input');
+  fixedInput.type = 'file';
+  fixedInput.accept = '.json,application/json';
+
+  const originalInput = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_ORIGINAL_FILE, 'input');
+  originalInput.type = 'file';
+  originalInput.accept = '.json,application/json';
+
+  const files = document.createElement('div');
+  files.className = 'mdp-field-row';
+  files.append(fileField(fixedInput, '確定版 JSON'), fileField(originalInput, '原本 JSON'));
+
+  const loadActions = document.createElement('div');
+  loadActions.className = 'mdp-actions';
+  loadActions.appendChild(
+    panelButton(ID_NAME.DESCRIPTION_REPLACE_LOAD_BTN, '読み込む', 'secondary', 'upload', () => {
+      void handleLoad();
+    })
+  );
+
+  filesSection.append(files, createIntervalRow(), loadActions);
+
+  // 2. 件数の確認
+  const summarySection = section(2, '件数を確かめる');
   const summary = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_SUMMARY, 'div');
-  applyFixedStyles(summary, {
-    padding: '8px 10px',
-    background: '#fffbe6',
-    borderRadius: '4px',
-    color: '#333',
-    lineHeight: '1.5',
-  });
-  panel.appendChild(summary);
+  summary.setAttribute('aria-live', 'polite');
+  summarySection.appendChild(summary);
 
-  // 操作ボタン
+  // 3. 実行
+  const runSection = section(3, '実行する');
+
   const actions = document.createElement('div');
-  applyFixedStyles(actions, { display: 'flex', gap: '8px', flexWrap: 'wrap' });
+  actions.className = 'mdp-actions';
 
-  const loadBtn = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_LOAD_BTN, 'button');
-  loadBtn.type = 'button';
-  loadBtn.textContent = '読み込む';
-  styleButton(loadBtn, 'secondary');
-  loadBtn.addEventListener('click', () => void handleLoad());
+  const startBtn = panelButton(
+    ID_NAME.DESCRIPTION_REPLACE_START_BTN,
+    '開始（確認あり）',
+    'primary',
+    'play',
+    () => void handleStart()
+  );
+  const abortBtn = panelButton(
+    ID_NAME.DESCRIPTION_REPLACE_ABORT_BTN,
+    '中断',
+    'secondary',
+    'stop',
+    () => {
+      descriptionReplaceManager.requestAbort();
+      showToast('中断します。処理中の1件が終わり次第止まります', 'info');
+    }
+  );
+  const spacer = document.createElement('span');
+  spacer.className = 'mdp-spacer';
+  const exportBtn = panelButton(
+    ID_NAME.DESCRIPTION_REPLACE_EXPORT_BTN,
+    '結果を出力（JSON）',
+    'ghost',
+    'download',
+    () => void handleExport()
+  );
 
-  const startBtn = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_START_BTN, 'button');
-  startBtn.type = 'button';
-  startBtn.textContent = '開始（確認あり）';
-  styleButton(startBtn, 'primary');
-  startBtn.addEventListener('click', () => void handleStart());
+  actions.append(startBtn, abortBtn, spacer, exportBtn);
 
-  const abortBtn = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_ABORT_BTN, 'button');
-  abortBtn.type = 'button';
-  abortBtn.textContent = '中断';
-  styleButton(abortBtn, 'secondary');
-  abortBtn.addEventListener('click', () => {
-    descriptionReplaceManager.requestAbort();
-    showToast('中断します。処理中の1件が終わり次第止まります', 'info');
-  });
-
-  const exportBtn = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_EXPORT_BTN, 'button');
-  exportBtn.type = 'button';
-  exportBtn.textContent = '結果を出力（JSON）';
-  styleButton(exportBtn, 'secondary');
-  exportBtn.addEventListener('click', () => void handleExport());
-
-  actions.appendChild(loadBtn);
-  actions.appendChild(startBtn);
-  actions.appendChild(abortBtn);
-  actions.appendChild(exportBtn);
-  panel.appendChild(actions);
-
-  // 進捗表示
+  // 進捗表示（最初の進捗が届くまでは空のまま隠れる）
   const status = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_STATUS, 'div');
-  // 進捗は 2 行（状態と内訳）で出すので、textContent の改行をそのまま表示させる
-  applyFixedStyles(status, {
-    minHeight: '3em',
-    color: '#333',
-    fontWeight: 'bold',
-    whiteSpace: 'pre-line',
-    lineHeight: '1.5',
-  });
-  panel.appendChild(status);
+  status.className = 'mdp-run';
+
+  runSection.append(actions, status);
+
+  body.append(filesSection, summarySection, runSection);
+  panel.append(createPanelHeader(panel), body);
 
   return panel;
 }
@@ -523,6 +743,7 @@ export function showDescriptionReplacePanel(): void {
   }
 
   panel.style.display = 'flex';
+  setPanelExpanded(true);
   renderSummary(state.plan);
   syncControls(descriptionReplaceManager.isRunning());
 }
@@ -534,6 +755,7 @@ export function toggleDescriptionReplacePanel(): void {
   const panel = document.getElementById(ID_NAME.DESCRIPTION_REPLACE_PANEL);
   if (panel?.isConnected && panel.style.display !== 'none') {
     panel.style.display = 'none';
+    setPanelExpanded(false);
     return;
   }
   showDescriptionReplacePanel();
@@ -547,19 +769,13 @@ export function toggleDescriptionReplacePanel(): void {
  * @returns 生成したボタン
  */
 export function createDescriptionReplaceButton(): HTMLButtonElement {
-  const button = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_BTN, 'button');
-  button.type = 'button';
-  button.textContent = '説明文を一括置換';
-
-  applyFixedStyles(button, {
-    padding: '8px 16px',
-    background: '#fff',
-    color: '#333',
-    border: '1px solid #999',
-    borderRadius: '4px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
+  const button = decorateButton(getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_BTN, 'button'), {
+    label: '説明文を一括置換',
+    variant: 'secondary',
+    icon: 'fileText',
   });
+  button.setAttribute('aria-controls', ID_NAME.DESCRIPTION_REPLACE_PANEL);
+  button.setAttribute('aria-expanded', 'false');
 
   button.onclick = (): void => {
     toggleDescriptionReplacePanel();

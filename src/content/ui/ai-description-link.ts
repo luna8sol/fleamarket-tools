@@ -1,6 +1,8 @@
 import { CLASS_NAME, PageType, SELECTOR } from '../infra/constants';
 import { safeQuery, safeGetAttr } from '../../common/dom';
 import { debug } from '../infra/logger';
+import { createIcon } from './icons';
+import { ensureTheme } from './theme';
 
 /**
  * 一覧ページ（下書き / 出品中）の各商品に「AIで説明文を作る」リンクを追加するモジュール。
@@ -58,21 +60,18 @@ export function addAiDescriptionLink(
     return null;
   }
 
+  ensureTheme();
+
   const link = document.createElement('a');
   link.className = CLASS_NAME.AI_DESCRIPTION_LINK;
-  link.textContent = 'AIで説明文を作る';
   link.href = toEditPageUrl(href, pageType);
   link.target = '_blank';
   link.rel = 'noopener';
+  link.title = '編集ページを新しいタブで開き、AIで説明文を作ります';
 
-  const style = link.style;
-  style.display = 'inline-block';
-  style.marginTop = '4px';
-  style.fontSize = '12px';
-  style.color = '#ea352d';
-  style.textDecoration = 'underline';
-  style.position = 'relative';
-  style.zIndex = '99999';
+  const label = document.createElement('span');
+  label.textContent = 'AIで説明文を作る';
+  link.append(createIcon('sparkles', 12), label);
 
   // 商品リンク（li全体を覆うaタグ）より前面に出すため、li直下に追加する
   li.appendChild(link);

@@ -139,6 +139,7 @@ export const ID_NAME = {
   // UI要素
   TOAST: 'toast-notification',
   CONFIRM_DIALOG: 'confirm-dialog',
+  THEME_STYLE: 'mdp-theme-style',
 
   // AI説明文生成UI
   AI_DESCRIPTION_PANEL: 'ai-description-panel',
@@ -185,6 +186,16 @@ export const CLASS_NAME = {
   DRAFT_ORDER: 'draft-order',
   AI_DESCRIPTION_LINK: 'ai-description-link',
   SELECT_UP_TO_BTN: 'bulk-select-up-to-btn',
+
+  // 一括操作ドック・共通部品（スタイルは ui/theme.ts）
+  DOCK_ACTIONS: 'mdp-dock__actions',
+  DOCK_COUNT_NUM: 'mdp-dock__count-num',
+  DOCK_META: 'mdp-dock__meta',
+  BTN_LABEL: 'mdp-btn__label',
+  PROGRESS_LABEL: 'mdp-progress__label',
+  PROGRESS_PCT: 'mdp-progress__pct',
+  PROGRESS_BAR: 'mdp-progress__bar',
+  PROGRESS_HEAD: 'mdp-progress__head',
 };
 
 /**
@@ -260,9 +271,11 @@ export const CONFIG = {
   DESCRIPTION_REPLACE_MAX_LENGTH: 1000,
 
   // UI設定
+  // 一覧の行に差し込む部品（チェックボックスなど）は、行全体を覆う商品リンクより前に出すため
+  // z-index 99999 を使っている。画面に浮かせる UI はそれより上に置かないと、行の部品が透けて重なる。
   ZINDEX: {
-    TOAST: 10000,
-    CONTROL_PANEL: 9999,
+    TOAST: 100001,
+    CONTROL_PANEL: 100000,
   },
 };
 
