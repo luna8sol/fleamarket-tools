@@ -189,10 +189,15 @@ content/edit-entry.ts
 `/sell*` にマッチする他のページ（`/sell` トップ、`/sell/drafts` 一覧など）にも `dist/edit.js` は注入されるが、`isSellFormPage()` が false になるため UI は出ない。
 
 **`dist/content.js` のマッチは `/sell/create*` に絞っている。** 一覧向けの DOM 監視を編集ページにまで持ち込まないため。`all_frames` は既定の false なので、スナップショット用の隠し iframe には content script は注入されない。
-### 再出品後の自動保存フロー
+### 再出品後の自動下書き保存フロー
 
 再出品ボタンを押すと、コピー内容が入った出品フォームが別タブで開きます。
-その内容が元商品と一致しているかを検証し、問題がなければ自動で保存します。
+その内容が元商品と一致しているかを検証し、問題がなければ**下書きに保存**します。
+
+**押すのは `[data-testid="save-draft"]`（下書きに保存する）だけ。**
+「出品する」（`[data-testid="list-item-button"]`）は押さない。流し込みが途中の内容でも
+世に出てしまい取り消せないため、公開は下書き一覧からの一括出品で人が見てから行う。
+下書き保存ボタンが見つからないときも公開ボタンへフォールバックせず、中断する。
 
 ```
 一覧ページ（LISTINGS）                     出品フォーム（SELL / 別タブ）
@@ -208,7 +213,7 @@ content/edit-entry.ts
                                                     ├── sell-form.readSellForm()
                                                     ├── relist-verifier.compareValues()
                                                     ├── relist-verifier.applyFixes()（差分があれば）
-                                                    └── sell-form.findSubmitButton().click()
+                                                    └── sell-form.findSaveDraftButton().click()
 ```
 
 比較対象は商品名・販売価格・商品の説明・カテゴリー・商品の状態・配送料の負担・
@@ -216,8 +221,8 @@ content/edit-entry.ts
 
 判定は次の 3 通りです。
 
-- 差分なし → そのまま保存
-- 差分あり・自動修正可能 → 元商品の値へ書き戻し、再読み取りで解消を確認してから保存
+- 差分なし → そのまま下書き保存
+- 差分あり・自動修正可能 → 元商品の値へ書き戻し、再読み取りで解消を確認してから下書き保存
 - 自動修正できない差分が残る → **保存せずに中断**し、内容を通知して手動確認へ引き継ぐ
 
 自動修正できないのは次のケースです。
@@ -307,8 +312,12 @@ name 属性を持つ実コントロールは `name` `description` `price` `shipp
 を通し、`input` / `change` を発火させる。React 管理下の入力欄で `value` への直接代入が
 内部状態に反映されない問題を避けるため。
 
-出品ボタンは `[data-testid="list-item-button"]`（「出品する」）、
-編集フォームの確定ボタンは `[data-testid="edit-button"]`（「変更する」）。
+下書き保存ボタンは `[data-testid="save-draft"]`。**自動処理が押すのはこれだけ。**
+参考までに同じフォームの「出品する」は `[data-testid="list-item-button"]`、
+編集フォームの確定ボタンは `[data-testid="edit-button"]` だが、どちらも押さない。
+
+**クリックすると遷移して content script ごと破棄される。** 成否のログとトーストは
+押す**前**に出す。押したあとに出しても読めない。
 
 ## 設計原則
 

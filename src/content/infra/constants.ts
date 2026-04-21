@@ -374,10 +374,14 @@ export const SELL_FORM_FIELDS: readonly SellFormFieldSpec[] = [
  * いずれも SPA 内遷移で document は維持され、入力値・画像も保持されます。
  */
 export const SELL_FORM_SELECTOR = {
-  /** 出品（確定）ボタン。編集フォームでは EDIT_BUTTON 側になる */
-  SUBMIT_BUTTON: ['[data-testid="list-item-button"]'],
-  /** 編集フォームの「変更する」ボタン */
-  EDIT_BUTTON: ['[data-testid="edit-button"]'],
+  /**
+   * 下書き保存ボタン。**再出品の自動処理が押すのはこれだけ。**
+   *
+   * 「出品する」（`[data-testid="list-item-button"]`）は**押さない**。
+   * 流し込みが途中の内容でも世に出てしまい、取り消せないため。
+   * 公開は下書き一覧からの一括出品で、人が見てから行う。
+   */
+  SAVE_DRAFT_BUTTON: ['[data-testid="save-draft"]'],
 
   /** カテゴリー選択ページへの「変更する」リンク */
   CATEGORY_LINK: [

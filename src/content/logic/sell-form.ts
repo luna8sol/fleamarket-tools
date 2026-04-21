@@ -519,18 +519,17 @@ export async function waitForSellFormAttributes(
 }
 
 /**
- * 出品（確定）ボタンを探す
+ * 下書き保存ボタンを探す
  *
- * 出品フォームは `[data-testid="list-item-button"]`（「出品する」）、
- * 編集フォームは `[data-testid="edit-button"]`（「変更する」）です。
+ * **「出品する」へフォールバックしません。** 下書き保存ボタンが見つからないときは
+ * null を返して呼び出し側に中断させます。見つからないのはメルカリ側の変更を
+ * 疑うべき状況であり、そこで公開ボタンを押すのは最も避けたい事故です。
  *
  * @param root 探索対象の Document（省略時は現在のページ）
  * @returns 見つかったボタン。見つからない場合は null
  */
-export function findSubmitButton(root: Document = document): HTMLButtonElement | null {
-  const selectors = [...SELL_FORM_SELECTOR.SUBMIT_BUTTON, ...SELL_FORM_SELECTOR.EDIT_BUTTON];
-
-  for (const selector of selectors) {
+export function findSaveDraftButton(root: Document = document): HTMLButtonElement | null {
+  for (const selector of SELL_FORM_SELECTOR.SAVE_DRAFT_BUTTON) {
     const button = safeQuery<HTMLButtonElement>(selector, root);
     // ここも instanceof ではなく tagName で判定する（iframe 対応）
     if (button && button.tagName === 'BUTTON') return button;
@@ -666,5 +665,5 @@ export function dumpSellFormStructure(root: Document = document): void {
   }));
 
   log('出品フォームの解決状況', report);
-  log('出品ボタンの解決状況', { found: !!findSubmitButton(root) });
+  log('下書き保存ボタンの解決状況', { found: !!findSaveDraftButton(root) });
 }

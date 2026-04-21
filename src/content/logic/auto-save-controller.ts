@@ -7,7 +7,7 @@ import { AutoSaveOutcome, AutoSaveResult, FieldDiff, ItemSnapshot } from '../inf
 import { showToast } from '../ui/notification';
 import {
   dumpSellFormStructure,
-  findSubmitButton,
+  findSaveDraftButton,
   readSellForm,
   readSellFormField,
   waitForSellFormAttributes,
@@ -23,6 +23,10 @@ import { applyFixes, compareValues, formatDiff } from './relist-verifier';
  * 一覧ページで積んだ元商品のスナップショットを取り出し、出品フォームの
  * 内容と比較します。差分があれば元商品の値へ書き戻し、それでも解消できない
  * 差分が残る場合は保存せずに中断してユーザーへ引き継ぎます。
+ *
+ * **押すのは「下書きに保存する」だけで、「出品する」は押しません。**
+ * 流し込みが途中の内容でも世に出てしまい取り消せないためです。
+ * 公開は下書き一覧からの一括出品で、人が見てから行います。
  */
 
 /**
@@ -232,7 +236,7 @@ async function save(
   const summary = fixed.length > 0 ? `${fixed.length}件を修正して検証通過` : '元商品と一致';
 
   if (dryRun) {
-    const message = `[ドライラン] ${summary}。保存ボタンは押していません`;
+    const message = `[ドライラン] ${summary}。下書き保存ボタンは押していません`;
     log(message, { itemId: snapshot.itemId, fixed: fixed.map(formatDiff) });
     showToast(message, 'info', CONFIG.TOAST_DURATION_MS);
     return buildResult(AutoSaveOutcome.DRY_RUN, snapshot.itemId, message, diffs, fixed, unfixed);
@@ -244,22 +248,31 @@ async function save(
   }
 
   // 修正操作でフォームが再描画されている可能性があるため、直前に取り直す
-  const submitButton = findSubmitButton();
-  if (!submitButton) {
-    const message = '出品ボタンが見つからないため保存できませんでした';
+  const saveButton = findSaveDraftButton();
+  if (!saveButton) {
+    const message = '下書き保存ボタンが見つからないため保存できませんでした';
     warn(message, { itemId: snapshot.itemId });
     showToast(message, 'error', CONFIG.TOAST_DURATION_MS);
     return buildResult(AutoSaveOutcome.FAILED, snapshot.itemId, message, diffs, fixed, unfixed);
   }
 
-  if (submitButton.disabled) {
-    return abort(snapshot, '出品ボタンが無効状態のため保存できませんでした', diffs, fixed, unfixed);
+  if (saveButton.disabled) {
+    return abort(
+      snapshot,
+      '下書き保存ボタンが無効状態のため保存できませんでした',
+      diffs,
+      fixed,
+      unfixed
+    );
   }
 
-  submitButton.click();
+  const message = `${summary}。下書きに保存しました`;
 
-  const message = `${summary}。自動保存しました`;
+  // クリックすると遷移して content script ごと破棄されるため、押す前に記録する
   log(message, { itemId: snapshot.itemId, itemName: snapshot.itemName });
   showToast(message, 'success', CONFIG.TOAST_DURATION_MS);
+
+  saveButton.click();
+
   return buildResult(AutoSaveOutcome.SAVED, snapshot.itemId, message, diffs, fixed, unfixed);
 }

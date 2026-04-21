@@ -18,10 +18,10 @@ export interface UserSettings {
  * ストレージに置く必要があるためです。
  */
 export interface AutoSaveSettings {
-  /** 再出品タブでの自動保存を有効にするか */
+  /** 再出品タブでの自動下書き保存を有効にするか */
   autoSaveAfterRelist: boolean;
   /**
-   * ドライラン（比較・差分修正まで行い、最後の保存ボタンは押さない）
+   * ドライラン（比較・差分修正まで行い、最後の下書き保存ボタンは押さない）
    * 出品フォームのセレクタが実環境と一致しているか検証するための安全弁です。
    */
   autoSaveDryRun: boolean;
@@ -111,9 +111,9 @@ export interface FixResult {
 export enum AutoSaveOutcome {
   /** 自動保存が無効、または対象エントリなし */
   SKIPPED = 'skipped',
-  /** 比較・修正の結果、保存まで完了した */
+  /** 比較・修正の結果、下書き保存まで完了した */
   SAVED = 'saved',
-  /** ドライランのため保存はしていないが、検証は通過した */
+  /** ドライランのため下書き保存はしていないが、検証は通過した */
   DRY_RUN = 'dryRun',
   /** 修正できない差分が残ったため中断した */
   ABORTED = 'aborted',
