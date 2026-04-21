@@ -13,7 +13,7 @@
 ```
 mercari-draft-publisher/
 ├── docs/                  # ドキュメント
-├── scripts/               # ビルド後のスクリプト（旧）
+├── dist/                  # ビルド成果物（gitignore 済み。manifest.json が参照する）
 ├── src/
 │   ├── common/            # 共通ユーティリティ（DOM操作・汎用関数）
 │   ├── content/           # Content Script
@@ -40,7 +40,8 @@ mercari-draft-publisher/
 | `constants.ts` | 定数の一元管理（セレクタ・クラス名・ID・待機時間・デフォルト設定） |
 | `types.ts` | 型定義（`Item`・`UserSettings`・`AppState`） |
 | `page-detector.ts` | URL からページタイプ（`DRAFTS` / `LISTINGS` / `UNKNOWN`）を検出 |
-| `storage.ts` | `localStorage` への読み書き（`StorageKey` enum でキー管理） |
+| `ext-storage.ts` | `chrome.storage.local` への読み書き（`ExtStorageKey` enum でキー管理）。ポップアップとコンテンツスクリプトで同じ領域を共有する |
+| `user-settings.ts` | ユーザー設定の読み書き（未保存の項目は `DEFAULT_USER_SETTINGS` で補完） |
 | `logger.ts` | デバッグ用ロガー（ログレベル制御あり） |
 | `debounce.ts` | 連続操作の制御 |
 | `error-handler.ts` | エラー処理 |
@@ -52,10 +53,11 @@ mercari-draft-publisher/
 | ファイル | 役割 |
 |---------|------|
 | `app-initializer.ts` | アプリ初期化・各層の統合・ページタイプに応じたセットアップ |
-| `observer-manager.ts` / `observer.ts` | MutationObserver による DOM 変更の監視と処理 |
-| `selection-manager.ts` / `selection.ts` | 選択商品の追加・削除・順序管理 |
+| `observer-manager.ts` | MutationObserver による DOM 変更の監視と処理。UI の初期描画もここが担う |
+| `selection-manager.ts` | 選択商品の追加・削除・順序管理（**永続化はしない。メモリ上のみ**） |
 | `publisher.ts` | 下書きの自動出品処理 |
 | `relist-manager.ts` | 出品中商品の再出品処理 |
+| `common-processor.ts` | 出品・再出品に共通する逐次処理 |
 | `dom-utils.ts` | DOM 操作のユーティリティ関数 |
 
 ### UI 層（src/content/ui/）
@@ -64,9 +66,11 @@ mercari-draft-publisher/
 
 | ファイル | 役割 |
 |---------|------|
-| `ui-manager.ts` | UI 全体の管理・ページタイプに応じた切り替え |
-| `bulk-bar.ts` | 一括操作バー（出品・再出品ボタン・件数表示） |
+| `ui-manager.ts` / `index.ts` | UI 全体の管理・ページタイプに応じた切り替え |
+| `bulk-bar-core.ts` / `bulk-bar-ui.ts` / `bulk-bar-utils.ts` | 一括操作バー（出品・再出品ボタン・件数表示）。中核・描画・補助に分割されている |
+| `bulk-relist.ts` | 一括再出品バー固有の組み立て |
 | `checkbox-manager.ts` | 商品選択用チェックボックスの生成とイベント処理 |
+| `list.ts` | 商品リスト要素の取得・走査 |
 | `order-display.ts` / `order.ts` | 選択順序のビジュアル表示 |
 | `notification.ts` | 処理結果・エラーの通知表示 |
 
@@ -76,15 +80,14 @@ mercari-draft-publisher/
 
 ```
 content/index.ts
-  └── appInitializer.initialize()
-        ├── ユーザー設定の読み込み（localStorage）
-        ├── observerManager.startObserving()（DOM 監視開始）
-        ├── ページタイプ検出
-        │     ├── LISTINGS → 再出品ボタンのイベント設定
-        │     └── DRAFTS  → （DOMContentLoaded で処理）
-        └── DOMContentLoaded イベント登録
-              └── renderUiComponents()（UI コンポーネントの初期化）
+  ├── appInitializer.initialize()
+  │     ├── applyUserSettings()（chrome.storage.local から設定を読み、デバッグモードを反映）
+  │     ├── observerManager.startObserving()（DOM 監視開始。UI の初期描画もここが担う）
+  │     └── detectCurrentPage()（ページタイプの記録）
+  └── chrome.runtime.onMessage（ポップアップからのデバッグモード切り替えを受信）
 ```
+
+**`DOMContentLoaded` を初期化の起点にしない。** `manifest.json` の `content_scripts` は `"run_at": "document_idle"` で注入されるため、その時点で `document.readyState` は既に `interactive` / `complete` であり、`DOMContentLoaded` は二度と発火しない。SPA 内のクライアントサイド遷移でも再発火しない。初期描画は `observerManager.startObserving()` が担い、要素の遅延読み込みにも追従する。
 
 ### 下書き出品フロー
 

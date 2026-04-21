@@ -15,7 +15,7 @@ npm install
 npm run build
 ```
 
-Chrome の拡張機能管理ページ（`chrome://extensions`）を開き、「デベロッパーモード」をオンにして「パッケージ化されていない拡張機能を読み込む」から `dist` ディレクトリを選択してください。
+Chrome の拡張機能管理ページ（`chrome://extensions`）を開き、「デベロッパーモード」をオンにして「パッケージ化されていない拡張機能を読み込む」から**リポジトリルート**（`manifest.json` があるディレクトリ）を選択してください。`manifest.json` がそこから `dist/content.js` を参照するため、`dist` ディレクトリ自体を選ぶと読み込めません。
 
 ## 開発コマンド
 
