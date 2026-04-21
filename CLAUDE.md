@@ -37,6 +37,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 元商品のスナップショット取得（隠し iframe で編集フォームを読む） | [src/content/logic/item-snapshot.ts](src/content/logic/item-snapshot.ts) |
 | 出品フォームの読み書き・出品ボタン | [src/content/logic/sell-form.ts](src/content/logic/sell-form.ts) |
 | カテゴリー・状態・配送方法の選び直し（遷移操作） | [src/content/logic/sell-form-navigator.ts](src/content/logic/sell-form-navigator.ts) |
+| 下書き保存後のタブを閉じる | [src/content/logic/tab-closer.ts](src/content/logic/tab-closer.ts), [src/background/index.ts](src/background/index.ts) |
 | 元商品との比較・差分の自動修正 | [src/content/logic/relist-verifier.ts](src/content/logic/relist-verifier.ts) |
 | 再出品の待ち行列（FIFO）・自動保存設定 | [src/content/infra/relist-queue.ts](src/content/infra/relist-queue.ts), [auto-save-settings.ts](src/content/infra/auto-save-settings.ts) |
 | 選択状態・選択順の管理 | [src/content/logic/selection-manager.ts](src/content/logic/selection-manager.ts) |

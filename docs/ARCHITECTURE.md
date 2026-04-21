@@ -99,6 +99,7 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 | `item-snapshot.ts` | 元商品の編集フォームを隠し iframe で開き、比較の基準値を読み取る |
 | `sell-form.ts` | 出品フォームのアダプタ（入力欄の解決・値の読み書き）。読み取りは Document を受け取るので iframe にも使える |
 | `sell-form-navigator.ts` | カテゴリー・商品の状態・配送の方法を選択ページへ遷移して選び直す |
+| `tab-closer.ts` | 下書き保存後の再出品タブを background に閉じてもらう |
 | `relist-verifier.ts` | 元商品と出品フォームの比較・差分の自動修正 |
 | `auto-save-controller.ts` | 再出品タブでの自動保存の制御 |
 | `value-normalizer.ts` | 比較用の値の正規化（改行・全角数字・桁区切りの表記ゆれを吸収） |
@@ -338,6 +339,28 @@ name 属性を持つ実コントロールは `name` `description` `price` `shipp
 
 **クリックすると遷移して content script ごと破棄される。** 成否のログとトーストは
 押す**前**に出す。押したあとに出しても読めない。
+
+#### 保存後のタブを閉じる
+
+下書き保存に成功すると、再出品タブは下書き一覧（`/mypage/drafts`）へ遷移して開いたまま残る。
+一括再出品では件数ぶんタブが積み上がるため、拡張機能が保存したタブだけを閉じる。
+
+**content script は自分のタブIDを知らず、`window.close()` もスクリプトが開いた
+ウィンドウでしか確実に動かない。** そのためタブIDを知っている background に依頼する。
+
+```
+/sell/create                          background                    /mypage/drafts
+  save() が保存ボタンを押す直前
+    └── markThisTabForClose()  ──►  sender.tab.id を保存
+        （押すと破棄されるので前に送る）
+                                                                     初期化時
+                                      印と一致したら ◄── closeThisTabIfMarked()
+                                      chrome.tabs.remove()
+```
+
+**印のタブIDと送信元が一致したときだけ閉じる。** ユーザーが自分で開いた下書き一覧の
+タブを巻き添えにしないため。保存に失敗して遷移しなかった場合に備え、印には有効期限
+（`PENDING_TAB_CLOSE_TTL_MS`）を設けている。
 
 ## 設計原則
 

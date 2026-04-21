@@ -16,6 +16,8 @@ export enum ExtStorageKey {
   RELIST_QUEUE = 'relistQueue',
   /** 再出品後の自動保存設定 */
   AUTO_SAVE_SETTINGS = 'autoSaveSettings',
+  /** 下書き保存後に閉じるタブの印。background が持つ */
+  PENDING_TAB_CLOSE = 'pendingTabClose',
 }
 
 /**

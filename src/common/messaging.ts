@@ -28,7 +28,19 @@ export const MESSAGE_ACTION = {
   UPDATE_DEBUG_MODE: 'updateDebugMode',
   /** 商品説明文の生成依頼（content → background） */
   GENERATE_DESCRIPTION: 'generateDescription',
+  /** このタブを「下書き保存後に閉じる」と印を付ける（content → background） */
+  MARK_TAB_FOR_CLOSE: 'markTabForClose',
+  /** 印が付いていればこのタブを閉じる（content → background） */
+  CLOSE_TAB_IF_MARKED: 'closeTabIfMarked',
 } as const;
+
+/**
+ * 「下書き保存後に閉じる」印の有効期限
+ *
+ * 保存に失敗して遷移しなかった場合、印が残り続けます。期限を設けて、
+ * あとから開いた無関係なタブを閉じてしまわないようにします。
+ */
+export const PENDING_TAB_CLOSE_TTL_MS = 5 * 60 * 1000;
 
 /**
  * カテゴリ固有の商品属性（ブランド・サイズ・シリーズなど）
@@ -94,6 +106,39 @@ export interface UpdateDebugModeRequest {
 }
 
 /**
+ * このタブを「下書き保存後に閉じる」と印を付ける依頼
+ *
+ * 再出品タブは下書き保存に成功すると下書き一覧へ遷移し、開いたまま残ります。
+ * content script は自分のタブIDを知らず、`window.close()` も確実ではないため、
+ * タブIDを知っている background に閉じてもらいます。
+ */
+export interface MarkTabForCloseRequest {
+  action: typeof MESSAGE_ACTION.MARK_TAB_FOR_CLOSE;
+}
+
+/**
+ * 印が付いていればこのタブを閉じる依頼
+ *
+ * 下書き一覧ページの読み込み時に送ります。印の付いたタブIDと一致したときだけ閉じるので、
+ * ユーザーが自分で開いた下書き一覧のタブが閉じることはありません。
+ */
+export interface CloseTabIfMarkedRequest {
+  action: typeof MESSAGE_ACTION.CLOSE_TAB_IF_MARKED;
+}
+
+/**
+ * タブ操作の結果
+ */
+export interface TabCloseResponse {
+  /** 印を付けた／タブを閉じたか */
+  ok: boolean;
+}
+
+/**
  * 拡張機能内でやり取りされるメッセージの総称
  */
-export type ExtensionMessage = GenerateDescriptionRequest | UpdateDebugModeRequest;
+export type ExtensionMessage =
+  | GenerateDescriptionRequest
+  | UpdateDebugModeRequest
+  | MarkTabForCloseRequest
+  | CloseTabIfMarkedRequest;

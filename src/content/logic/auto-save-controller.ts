@@ -15,6 +15,7 @@ import {
   waitForSellFormReady,
 } from './sell-form';
 import { isBackOnSellForm } from './sell-form-navigator';
+import { markThisTabForClose } from './tab-closer';
 import { applyFixes, compareValues, formatDiff } from './relist-verifier';
 
 /**
@@ -268,9 +269,11 @@ async function save(
 
   const message = `${summary}。下書きに保存しました`;
 
-  // クリックすると遷移して content script ごと破棄されるため、押す前に記録する
+  // クリックすると遷移して content script ごと破棄されるため、押す前に済ませる。
+  // 保存後は下書き一覧へ遷移してタブが残るので、閉じてもらう印もここで付ける。
   log(message, { itemId: snapshot.itemId, itemName: snapshot.itemName });
   showToast(message, 'success', CONFIG.TOAST_DURATION_MS);
+  await markThisTabForClose();
 
   saveButton.click();
 

@@ -4,6 +4,7 @@ import { detectCurrentPage } from '../infra/page-detector';
 import { loadUserSettings } from '../infra/user-settings';
 import { PageType } from '../infra/constants';
 import { runAutoSaveOnSellPage } from './auto-save-controller';
+import { closeThisTabIfMarked } from './tab-closer';
 
 /**
  * アプリケーション初期化とメインロジックの統合
@@ -23,6 +24,11 @@ export class AppInitializer {
 
     // ページタイプに応じた初期化
     const pageType = detectCurrentPage();
+
+    // 再出品タブは下書き保存後にここへ遷移してくる。印が付いていれば閉じてもらう
+    if (pageType === PageType.DRAFTS) {
+      void closeThisTabIfMarked();
+    }
 
     // 出品フォームでは一覧向けのUI・DOM監視は不要で、自動保存だけを行う
     if (pageType === PageType.SELL) {
