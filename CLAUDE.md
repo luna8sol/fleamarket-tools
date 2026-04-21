@@ -52,6 +52,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Claude API の呼び出し・プロンプト・APIキーの扱い | [src/background/](src/background/)（[claude-client.ts](src/background/claude-client.ts), [prompt.ts](src/background/prompt.ts), [api-error.ts](src/background/api-error.ts)） |
 | AI 説明文生成（編集ページ側） | [edit-entry.ts](src/content/edit-entry.ts), [edit-form.ts](src/content/logic/edit-form.ts), [description-generator.ts](src/content/logic/description-generator.ts), [description-panel.ts](src/content/ui/description-panel.ts) |
 | APIキーの設定画面 | [options.html](options.html), [src/options/index.ts](src/options/index.ts) |
+| ポップアップ・設定画面の共通スタイル | [extension-pages.css](extension-pages.css)（トークンは `theme.ts` と同じ値） |
 | ビルド構成 | [webpack.config.js](webpack.config.js), [tsconfig.json](tsconfig.json) |
 | lint / format 構成 | [eslint.config.js](eslint.config.js), [.prettierrc](.prettierrc) |
 

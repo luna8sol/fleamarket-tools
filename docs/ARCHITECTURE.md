@@ -8,7 +8,7 @@
   - `dist/content.js` … 一覧ページ（`jp.mercari.com/mypage/drafts`・`/mypage/listings`）。一括出品・一括再出品
   - `dist/edit.js` … 出品フォームのあるページ（`jp.mercari.com/sell*`）。AI 説明文生成
 - **Background Script**: service worker（`dist/background.js`）。content script からの依頼を受けて Claude API を呼ぶ
-- **Popup**: ツールバーアイコンから開くポップアップ画面（デバッグモード切り替え）
+- **Popup**: ツールバーアイコンから開くポップアップ画面（再出品後の自動下書き保存・デバッグモードの切り替えと、設定画面への導線）
 - **Options Page**: 拡張機能の設定画面（`options.html`）。Claude API キーの保存
 
 ## ディレクトリ構造
@@ -28,6 +28,7 @@ mercari-draft-publisher/
 │   │   └── ui/            # UI層
 │   ├── options/           # Options Page
 │   └── popup/             # Popup
+├── extension-pages.css   # popup.html / options.html の共通スタイル（トークンは content 側の ui/theme.ts と同じ値）
 ├── manifest.json
 ├── options.html
 ├── popup.html

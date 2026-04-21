@@ -23,7 +23,20 @@ function showStatus(message: string, type: 'success' | 'error'): void {
   if (!status) return;
 
   status.textContent = message;
-  status.className = type;
+  status.className = `status ${type}`;
+}
+
+/**
+ * 見出し横の「設定済み / 未設定」を更新する。
+ *
+ * @param hasKey 保存済みのキーがあるか
+ */
+function showKeyState(hasKey: boolean): void {
+  const state = document.getElementById('key-state');
+  if (!state) return;
+
+  state.textContent = hasKey ? '設定済み' : '未設定';
+  state.dataset.tone = hasKey ? 'success' : 'warning';
 }
 
 /**
@@ -31,7 +44,7 @@ function showStatus(message: string, type: 'success' | 'error'): void {
  */
 async function initializeApiKeyField(): Promise<void> {
   const input = document.getElementById('api-key') as HTMLInputElement | null;
-  const showToggle = document.getElementById('show-api-key') as HTMLInputElement | null;
+  const showToggle = document.getElementById('toggle-api-key');
   const saveButton = document.getElementById('save');
   const clearButton = document.getElementById('clear');
 
@@ -42,9 +55,20 @@ async function initializeApiKeyField(): Promise<void> {
 
   // 保存済みのAPIキーを反映
   input.value = await getExtStorage<string>(ExtStorageKey.CLAUDE_API_KEY, '');
+  showKeyState(input.value !== '');
 
-  showToggle.addEventListener('change', () => {
-    input.type = showToggle.checked ? 'text' : 'password';
+  showToggle.addEventListener('click', () => {
+    const visible = showToggle.getAttribute('aria-pressed') !== 'true';
+    const label = visible ? 'APIキーを隠す' : 'APIキーを表示する';
+    input.type = visible ? 'text' : 'password';
+    showToggle.setAttribute('aria-pressed', visible ? 'true' : 'false');
+    showToggle.setAttribute('aria-label', label);
+    showToggle.title = label;
+  });
+
+  // Enter でも保存できるようにする（貼り付けてそのまま確定する操作が多いため）
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveButton.click();
   });
 
   saveButton.addEventListener('click', () => {
@@ -56,6 +80,7 @@ async function initializeApiKeyField(): Promise<void> {
       }
 
       const saved = await setExtStorage(ExtStorageKey.CLAUDE_API_KEY, apiKey);
+      if (saved) showKeyState(true);
       showStatus(
         saved ? 'APIキーを保存しました。' : 'APIキーの保存に失敗しました。',
         saved ? 'success' : 'error'
@@ -68,6 +93,7 @@ async function initializeApiKeyField(): Promise<void> {
       const removed = await removeExtStorage(ExtStorageKey.CLAUDE_API_KEY);
       if (removed) {
         input.value = '';
+        showKeyState(false);
       }
       showStatus(
         removed ? 'APIキーを削除しました。' : 'APIキーの削除に失敗しました。',

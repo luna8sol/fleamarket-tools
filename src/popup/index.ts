@@ -2,20 +2,55 @@ import { loadUserSettings, saveUserSettings } from '../content/infra/user-settin
 import { loadAutoSaveSettings, saveAutoSaveSettings } from '../content/infra/auto-save-settings';
 import { AutoSaveSettings } from '../content/infra/types';
 
+/** 「保存しました」を出しておく時間 */
+const SAVED_INDICATOR_MS = 1600;
+
+let savedTimer = 0;
+
 /**
- * popup.htmlの「開始」ボタンにクリックイベントを登録し、
- * 拡張機能の動作確認用アラートを表示する。
+ * 設定を保存した結果を見出しの横で短く知らせる
+ *
+ * 切り替えるだけで保存される（保存ボタンが無い）ので、反映されたことを目で確かめられるようにする。
+ * **失敗したときに「保存しました」と出さない。** 失敗は消さずに残す。
+ *
+ * @param saved 保存できたか
  */
-document.getElementById('start')?.addEventListener('click', () => {
-  alert('拡張機能が動作しました！');
-});
+function flashSaved(saved: boolean): void {
+  const indicator = document.getElementById('saved-indicator');
+  if (!indicator) return;
+
+  const label = indicator.querySelector('span');
+  if (label) label.textContent = saved ? '保存しました' : '保存できませんでした';
+  indicator.dataset.tone = saved ? 'success' : 'error';
+  indicator.dataset.visible = 'true';
+  window.clearTimeout(savedTimer);
+  if (!saved) return;
+
+  savedTimer = window.setTimeout(() => {
+    indicator.dataset.visible = 'false';
+  }, SAVED_INDICATOR_MS);
+}
 
 // ページ読み込み時に実行
 document.addEventListener('DOMContentLoaded', () => {
   void initializeDebugToggle();
   void initializeAutoSaveToggles();
-  // 他の初期化処理...
+  initializeFooter();
 });
+
+/**
+ * フッター（設定画面への導線・バージョン表示）の初期化
+ */
+function initializeFooter(): void {
+  document.getElementById('open-options')?.addEventListener('click', () => {
+    void chrome.runtime.openOptionsPage();
+  });
+
+  const version = document.getElementById('version');
+  if (version) {
+    version.textContent = `v${chrome.runtime.getManifest().version}`;
+  }
+}
 
 /**
  * デバッグモード切り替えの初期化
@@ -34,7 +69,7 @@ async function initializeDebugToggle(): Promise<void> {
   debugToggle.addEventListener('change', () => {
     // 設定を更新して保存
     settings.debugMode = debugToggle.checked;
-    void saveUserSettings(settings);
+    void saveUserSettings(settings).then(flashSaved);
 
     // デバッグモードの変更をコンテンツスクリプトに通知
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -71,7 +106,7 @@ async function initializeAutoSaveToggles(): Promise<void> {
       autoSaveDryRun: dryRunToggle.checked
     };
     dryRunToggle.disabled = !next.autoSaveAfterRelist;
-    await saveAutoSaveSettings(next);
+    flashSaved(await saveAutoSaveSettings(next));
   };
 
   enabledToggle.addEventListener('change', () => void persist());

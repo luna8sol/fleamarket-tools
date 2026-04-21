@@ -2,116 +2,96 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mercari Draft Publisher の設定</title>
+  <link rel="stylesheet" href="extension-pages.css">
   <style>
-    body {
-      max-width: 640px;
-      margin: 0 auto;
-      padding: 24px 16px;
-      font-family: sans-serif;
-      line-height: 1.6;
-      color: #333;
-    }
-
-    h1 {
-      font-size: 20px;
-      margin-bottom: 4px;
-    }
-
-    .settings-group {
-      margin-top: 24px;
-      padding-top: 16px;
-      border-top: 1px solid #eee;
-    }
-
-    .settings-group label {
-      display: block;
-      font-weight: bold;
-      margin-bottom: 4px;
-    }
-
-    .description {
-      font-size: 13px;
-      color: #666;
-      margin: 4px 0 8px;
-    }
-
-    input[type="password"],
-    input[type="text"] {
-      width: 100%;
-      padding: 8px;
-      font-family: monospace;
-      font-size: 13px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-
-    .toggle-visibility {
-      display: flex;
-      align-items: center;
-      margin-top: 8px;
-      font-size: 13px;
-    }
-
-    .toggle-visibility label {
-      font-weight: normal;
-      margin: 0 0 0 6px;
-    }
-
-    .buttons {
-      margin-top: 16px;
-    }
-
-    button {
-      padding: 8px 16px;
-      font-size: 14px;
-      cursor: pointer;
-    }
-
-    button + button {
-      margin-left: 8px;
-    }
-
-    #status {
-      margin-top: 12px;
-      font-size: 13px;
-      min-height: 1.6em;
-    }
-
-    #status.success {
-      color: #2e7d32;
-    }
-
-    #status.error {
-      color: #c62828;
+    body { font-size: 14px; }
+    .page { max-width: 640px; margin: 0 auto; padding: 56px 20px 72px; }
+    .hero { display: grid; gap: 18px; margin-bottom: 28px; }
+    .hero h1 { margin: 0; font-size: 26px; font-weight: 800; line-height: 1.3; letter-spacing: -0.01em; }
+    .hero p { margin: 4px 0 0; font-size: 14px; color: var(--mdp-text-muted); }
+    .stack { display: grid; gap: 16px; }
+    .card--key .card__head { padding: 20px 22px 0; justify-content: space-between; }
+    .card--key .card__body { display: grid; gap: 18px; padding: 14px 22px 22px; }
+    .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .actions .status { margin-left: 6px; }
+    .facts { display: grid; gap: 10px; margin: 0; padding: 18px 22px; list-style: none; }
+    .facts li { display: flex; gap: 12px; font-size: 13px; line-height: 1.65; color: var(--mdp-text-muted); }
+    .facts li svg { margin-top: 3px; color: var(--mdp-success); }
+    .facts strong { color: var(--mdp-text); }
+    /* svg.icon（display: block）より強くしないと両方のアイコンが出る */
+    #toggle-api-key svg.icon.eye-off { display: none; }
+    #toggle-api-key[aria-pressed="true"] svg.icon.eye { display: none; }
+    #toggle-api-key[aria-pressed="true"] svg.icon.eye-off { display: block; }
+    @media (max-width: 480px) {
+      .page { padding-top: 32px; }
+      .hero h1 { font-size: 22px; }
     }
   </style>
 </head>
 <body>
-  <h1>Mercari Draft Publisher の設定</h1>
-  <p class="description">AI による商品説明文の生成に利用する設定です。</p>
+  <main class="page">
+    <header class="hero">
+      <div class="brand">
+        <span class="brand__tile" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
+        </span>
+        <div>
+          <p class="brand__name">Draft Publisher</p>
+          <p class="brand__caption">メルカリの下書きをまとめて出品</p>
+        </div>
+      </div>
+      <div>
+        <h1>設定</h1>
+        <p>AI による商品説明文の生成に使う設定です。</p>
+      </div>
+    </header>
 
-  <div class="settings-group">
-    <label for="api-key">Claude APIキー</label>
-    <p class="description">
-      Claude Console（<a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>）で発行した APIキーを入力してください。
-      キーはこのブラウザの拡張機能ストレージにのみ保存され、Claude API 以外には送信されません。
-    </p>
-    <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+    <div class="stack">
+      <section class="card card--key" aria-labelledby="api-key-title">
+        <div class="card__head">
+          <h2 class="card__title" id="api-key-title">CLAUDE API キー</h2>
+          <span class="pill" id="key-state">確認中</span>
+        </div>
+        <div class="card__body">
+          <div class="field">
+            <label class="field__label" for="api-key">APIキー</label>
+            <p class="field__hint">
+              Claude Console（<a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>）で発行したキーを貼り付けてください。
+            </p>
+            <div class="input-wrap">
+              <svg class="icon lead" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.59 18.41A2 2 0 0 0 2 19.83V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.17a2 2 0 0 0 1.42-.59l.81-.81a6.5 6.5 0 1 0-4.24-4.24Z"/><path d="M16.5 7.5h.01"/></svg>
+              <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+              <button type="button" class="btn btn--ghost btn--icon" id="toggle-api-key" aria-pressed="false" aria-controls="api-key" aria-label="APIキーを表示する" title="APIキーを表示する">
+                <svg class="icon eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
+                <svg class="icon eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c4.97 0 8.4 3.76 9.94 6.65a1 1 0 0 1 0 .7 13.16 13.16 0 0 1-1.67 2.68"/><path d="M14.08 14.16a3 3 0 0 1-4.24-4.24"/><path d="M17.48 17.5A10.75 10.75 0 0 1 2.06 12.35a1 1 0 0 1 0-.7 13.36 13.36 0 0 1 4.44-5.14"/><path d="m2 2 20 20"/></svg>
+              </button>
+            </div>
+          </div>
 
-    <div class="toggle-visibility">
-      <input type="checkbox" id="show-api-key">
-      <label for="show-api-key">APIキーを表示する</label>
+          <div class="actions">
+            <button id="save" type="button" class="btn btn--primary">保存</button>
+            <button id="clear" type="button" class="btn btn--danger">削除</button>
+            <p id="status" class="status" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" aria-label="APIキーの扱い">
+        <ul class="facts">
+          <li>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z"/><path d="m9 12 2 2 4-4"/></svg>
+            <span>キーは<strong>このブラウザの拡張機能ストレージにだけ</strong>保存されます。</span>
+          </li>
+          <li>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z"/><path d="m9 12 2 2 4-4"/></svg>
+            <span>送信先は <strong>Claude API（api.anthropic.com）だけ</strong>です。メルカリのページには渡しません。</span>
+          </li>
+        </ul>
+      </section>
     </div>
-
-    <div class="buttons">
-      <button id="save" type="button">保存</button>
-      <button id="clear" type="button">削除</button>
-    </div>
-
-    <p id="status" role="status"></p>
-  </div>
+  </main>
 
   <script src="dist/options.js"></script>
 </body>
