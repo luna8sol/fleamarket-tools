@@ -7,6 +7,8 @@
  * - 新たなDOM操作ラッパーはこのファイルに追加してください。
  */
 
+import { warn } from '../content/infra/logger';
+
 /**
  * セレクタで要素を安全に取得する。
  *
@@ -21,7 +23,7 @@ export function safeQuery<T extends Element = Element>(selector: string, parent:
   try {
     return parent.querySelector(selector) as T | null;
   } catch (e) {
-    console.warn('safeQuery error:', e, selector, parent);
+    warn('safeQuery error:', e, selector, parent);
     return null;
   }
 }
@@ -40,7 +42,7 @@ export function safeQueryAll<T extends Element = Element>(selector: string, pare
   try {
     return Array.from(parent.querySelectorAll(selector)) as T[];
   } catch (e) {
-    console.warn('safeQueryAll error:', e, selector, parent);
+    warn('safeQueryAll error:', e, selector, parent);
     return [];
   }
 }
@@ -54,7 +56,7 @@ export function safePrepend(parent: Node | null, child: Node | null): boolean {
     parent.insertBefore(child, parent.firstChild);
     return true;
   } catch (e) {
-    console.warn('safePrepend error:', e, parent, child);
+    warn('safePrepend error:', e, parent, child);
     return false;
   }
 }
@@ -67,7 +69,7 @@ export function safeGetAttr(el: Element | null, attr: string): string {
   try {
     return el.getAttribute(attr) || '';
   } catch (e) {
-    console.warn('safeGetAttr error:', e, el, attr);
+    warn('safeGetAttr error:', e, el, attr);
     return '';
   }
 }
