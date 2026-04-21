@@ -1,6 +1,6 @@
 import { CLASS_NAME, PageType, SELECTOR } from '../infra/constants';
 import { safeQuery, safeGetAttr } from '../../common/dom';
-import { debug } from '../infra/logger';
+import { debug, warn } from '../infra/logger';
 import { createIcon } from './icons';
 import { ensureTheme } from './theme';
 
@@ -73,8 +73,20 @@ export function addAiDescriptionLink(
   label.textContent = 'AIで説明文を作る';
   link.append(createIcon('sparkles', 12), label);
 
-  // 商品リンク（li全体を覆うaタグ）より前面に出すため、li直下に追加する
-  li.appendChild(link);
+  // 商品名・価格が縦に並ぶ列の末尾に置く（商品の情報の一部として見えるように）。
+  // この列は商品リンクの内側なので、押しても商品ページへ遷移しないよう伝播を止める。
+  // 既定の動作（新しいタブで編集ページを開く）は止めない。
+  const textColumn = safeQuery<HTMLElement>(SELECTOR.ITEM_LABEL, li)?.parentElement;
+  if (textColumn) {
+    for (const type of ['click', 'auxclick']) {
+      link.addEventListener(type, (e) => e.stopPropagation());
+    }
+    textColumn.appendChild(link);
+  } else {
+    // 商品名の要素が見つからない（メルカリ側の構成が変わった）ときは、行の末尾に置く
+    warn('商品名の列が見つからないため、AI説明文リンクを行の末尾に置きます', li);
+    li.appendChild(link);
+  }
 
   debug('AI説明文生成リンクを追加しました', { href: link.href });
   return link;

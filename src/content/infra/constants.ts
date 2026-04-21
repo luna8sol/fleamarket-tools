@@ -209,6 +209,9 @@ export const COMPOSITE_SELECTOR = {
   BULK_CHECKBOX_INPUT: 'input.bulk-checkbox',
   CHECKED_BULK_CHECKBOX: 'li input.bulk-checkbox:checked',
   BULK_CHECKBOX_WITH_ITEM_ID: 'li input.bulk-checkbox[data-item-id="{0}"]',
+  // 拡張機能が行に差し込む部品。メルカリ側の要素を数えるときに除外する
+  // （アイコンが「svg[aria-hidden] + span」なので、いいね・コメント数と取り違えるため）
+  OWN_ROW_UI: '.mdp-row-gutter, .ai-description-link, .bulk-select-up-to-btn',
 };
 
 /**

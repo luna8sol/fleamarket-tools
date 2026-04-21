@@ -335,7 +335,6 @@ button.bulk-select-up-to-btn:active { transform: scale(0.95); }
 button.bulk-select-up-to-btn:focus-visible { outline: 2px solid var(--mdp-ring); outline-offset: 2px; }
 
 a.ai-description-link {
-  position: relative; z-index: 99999;
   display: inline-flex; align-items: center; gap: 5px; flex: none; width: max-content; max-width: 100%;
   margin-top: 6px; padding: 4px 10px 4px 8px;
   border-radius: 999px; text-decoration: none;

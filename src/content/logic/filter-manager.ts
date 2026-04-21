@@ -170,7 +170,10 @@ export class FilterManager {
    */
   private getCountByIndex(li: HTMLLIElement, index: number): number | null {
     try {
-      const spans = Array.from(li.querySelectorAll<HTMLSpanElement>(SELECTOR.ITEM_COUNT_SPAN));
+      // 拡張機能自身の部品（アイコン + 文言が同じ形）は数えない。順番がずれて別の数を読むため
+      const spans = Array.from(
+        li.querySelectorAll<HTMLSpanElement>(SELECTOR.ITEM_COUNT_SPAN)
+      ).filter((span) => !span.closest(COMPOSITE_SELECTOR.OWN_ROW_UI));
       const span = spans[index];
       if (!span) return null;
       const num = parseInt(span.textContent?.trim() ?? '', 10);
