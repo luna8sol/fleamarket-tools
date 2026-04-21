@@ -81,6 +81,21 @@ git diff --staged
 git commit -F "$SCRATCHPAD/commit-msg.txt"
 ```
 
-## 6. 単位を守る
+## 6. コミット日時を揃える
+
+**このリポジトリのコミット日時は実時間を使わない。既定でこれを行う**（規約は [CLAUDE.md](../../../CLAUDE.md) の「コミット日時」）。コミットした直後に、直前のコミットの 10 分後へ揃える。
+
+```bash
+git --no-pager log -1 --format=%cI HEAD~1              # 親の日時を確認
+NEW_DATE="2026-04-21T13:10:00+09:00"                   # 親が 13:00 ならこれ
+GIT_COMMITTER_DATE="$NEW_DATE" git commit --amend --no-edit --date="$NEW_DATE"
+```
+
+- **`--date` だけでは author date しか変わらない。** committer date が実時間のまま残るので `GIT_COMMITTER_DATE` と併用する。
+- 連続して複数コミットするときは 1 本ごとに 10 分進める。
+- **push 済みのコミットには実行しない。** amend でハッシュが変わる。必要なら実行前に理由を報告して指示を仰ぐ。
+- 揃えた結果を `git log --format='%h %cI %s'` で確認し、報告に書く。
+
+## 7. 単位を守る
 
 大きな変更は論理的な単位に分ける。無関係な変更を 1 コミットに混ぜない。とくに、**既存コードの format 修正を機能変更と同じコミットに入れない**（`style:` で分ける）。
