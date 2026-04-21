@@ -1,9 +1,6 @@
 import { debug, log, warn, setDebugMode, debugMethodStart, debugMethodEnd, setLogLevel, LogLevel } from '../infra/logger';
 import { observerManager } from './observer-manager';
-import { renderUiComponents } from '../ui/ui-manager';
 import { detectCurrentPage } from '../infra/page-detector';
-import { PageType, SELECTOR } from '../infra/constants';
-import { safeQuery } from '../../common/dom';
 import { loadUserSettings } from '../infra/user-settings';
 
 /**
@@ -28,8 +25,11 @@ export class AppInitializer {
     // ページタイプに応じた初期化
     const pageType = detectCurrentPage();
 
-    // DOM読み込み完了時の初期化
-    this.setupDomLoadedEvent();
+    // NOTE: ここで DOMContentLoaded を待ってはいけない。
+    // manifest.json の content_scripts は "run_at": "document_idle" のため、
+    // 注入時点で document.readyState は既に 'interactive' / 'complete' であり、
+    // DOMContentLoaded は二度と発火しない。初期描画は上の
+    // observerManager.startObserving() が担う（要素の遅延読み込みにも追従する）。
 
     const duration = Math.round(performance.now() - startTime);
     debugMethodEnd('AppInitializer.initialize', { pageType }, duration);
@@ -69,46 +69,6 @@ export class AppInitializer {
       warn('設定の読み込み中にエラーが発生しました', e);
       debugMethodEnd('AppInitializer.applyUserSettings', { error: e instanceof Error ? e.message : String(e) });
     }
-  }
-
-  /**
-   * DOM読み込み完了イベントのセットアップ
-   */
-  private setupDomLoadedEvent(): void {
-    debugMethodStart('AppInitializer.setupDomLoadedEvent');
-
-    window.addEventListener('DOMContentLoaded', () => {
-      const startTime = performance.now();
-      debugMethodStart('DOMContentLoaded handler');
-      debug('DOMContentLoaded event fired');
-
-      try {
-        // ページタイプに応じてUIを初期化
-        const pageType = detectCurrentPage();
-
-        if (pageType === PageType.DRAFTS) {
-          // 下書きページの処理
-          const ul = safeQuery<HTMLUListElement>(SELECTOR.DRAFT_LIST);
-          if (ul instanceof HTMLUListElement) {
-            renderUiComponents(ul);
-          }
-        } else if (pageType === PageType.LISTINGS) {
-          // 出品中ページの処理
-          const ul = safeQuery<HTMLUListElement>(SELECTOR.ITEMS_LIST);
-          if (ul instanceof HTMLUListElement) {
-            renderUiComponents(ul);
-          }
-        }
-
-        const duration = Math.round(performance.now() - startTime);
-        debugMethodEnd('DOMContentLoaded handler', { pageType }, duration);
-      } catch (e) {
-        warn('初期化処理中にエラーが発生しました', e);
-        debugMethodEnd('DOMContentLoaded handler', { error: e instanceof Error ? e.message : String(e) });
-      }
-    });
-
-    debugMethodEnd('AppInitializer.setupDomLoadedEvent');
   }
 }
 
