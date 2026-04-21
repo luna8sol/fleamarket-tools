@@ -144,9 +144,12 @@ export async function runAutoSaveOnSellPage(): Promise<AutoSaveResult> {
     }
 
     if (!snapshot.captured) {
+      // 取得からの経過時間を添える。古いエントリが残っていて今回の再出品とは
+      // 無関係なものを掴んでいる場合に、それがログだけで分かるようにするため。
+      const ageSeconds = Math.round((Date.now() - snapshot.capturedAt) / 1000);
       return abort(
         snapshot,
-        `元商品の情報を取得できていません: ${snapshot.captureError ?? '理由不明'}`
+        `元商品の情報を取得できていません（${ageSeconds}秒前のエントリ）: ${snapshot.captureError ?? '理由不明'}`
       );
     }
 

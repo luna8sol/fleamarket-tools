@@ -48,13 +48,13 @@ function toItemId(rawId: string): string | null {
  * `textContent` と同じ扱いになり、カテゴリー階層や配送の方法の
  * **改行区切りが失われる**ためです。画面外へ追い出して不可視にします。
  *
- * @param itemId 元商品のID
+ * @param url 読み込む編集フォームのURL
  * @returns 生成したiframe（まだ document には追加していない）
  */
-function createHiddenFrame(itemId: string): HTMLIFrameElement {
+function createHiddenFrame(url: string): HTMLIFrameElement {
   const frame = document.createElement('iframe');
 
-  frame.src = `${window.location.origin}/sell/edit/${encodeURIComponent(itemId)}`;
+  frame.src = url;
   frame.setAttribute('aria-hidden', 'true');
   frame.setAttribute('tabindex', '-1');
   frame.style.cssText = [
@@ -125,7 +125,9 @@ export async function captureItemSnapshot(itemId: string, itemName: string): Pro
     return failedSnapshot(itemId, itemName, `商品IDを解釈できません: "${itemId}"`);
   }
 
-  const frame = createHiddenFrame(resolvedId);
+  // 失敗したときにどのURLを開いたのかが分かるよう、組み立てた結果を残す
+  const frameUrl = `${window.location.origin}/sell/edit/${encodeURIComponent(resolvedId)}`;
+  const frame = createHiddenFrame(frameUrl);
 
   try {
     document.body.appendChild(frame);
@@ -146,7 +148,7 @@ export async function captureItemSnapshot(itemId: string, itemName: string): Pro
       return failedSnapshot(
         itemId,
         itemName,
-        '編集フォームの読み込みがタイムアウトしました（ログイン切れ・iframe のブロックの可能性）'
+        `編集フォームの読み込みがタイムアウトしました: ${frameUrl}（${Math.round(CONFIG.SNAPSHOT_IFRAME_TIMEOUT_MS / 1000)}秒）`
       );
     }
 
