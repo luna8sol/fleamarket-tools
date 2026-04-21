@@ -1,5 +1,5 @@
 import { debug, warn, debugMethodStart, debugMethodEnd } from '../infra/logger';
-import { SELECTOR, PageType } from '../infra/constants';
+import { SELECTOR, PageType, CONFIG } from '../infra/constants';
 import { detectCurrentPage } from '../infra/page-detector';
 import { renderUiComponents } from '../ui/ui-manager';
 
@@ -38,18 +38,6 @@ export class ObserverManager {
    * @type {number | null}
    */
   private waitForElementTimeout: number | null = null;
-
-  /**
-   * 要素検索の最大試行回数
-   * @type {number}
-   */
-  private readonly MAX_RETRY_COUNT = 10;
-
-  /**
-   * 要素検索の試行間隔（ミリ秒）
-   * @type {number}
-   */
-  private readonly RETRY_INTERVAL = 500;
 
   /**
    * 現在の実行状態を追跡するフラグ
@@ -123,7 +111,7 @@ export class ObserverManager {
       this.waitForElementTimeout = window.setTimeout(() => {
         this.waitForElementTimeout = null;
         tryFindElement();
-      }, this.RETRY_INTERVAL);
+      }, CONFIG.OBSERVER_RETRY_INTERVAL);
     };
 
     tryFindElement();
@@ -155,7 +143,7 @@ export class ObserverManager {
       this.waitForElement(
         'main#main',
         document.body,
-        this.MAX_RETRY_COUNT,
+        CONFIG.OBSERVER_MAX_RETRY_COUNT,
         (mainElement) => {
           debug('mainタグが遅延読み込みされました');
           this.startObservingWithRoot(mainElement);
@@ -208,7 +196,7 @@ export class ObserverManager {
       this.waitForElement(
         ulSelector,
         rootDiv,
-        this.MAX_RETRY_COUNT,
+        CONFIG.OBSERVER_MAX_RETRY_COUNT,
         (ulElement) => {
           if (ulElement instanceof HTMLUListElement) {
             debug(`${ulSelector} 要素が遅延読み込みされました`);

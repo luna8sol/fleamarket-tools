@@ -95,6 +95,10 @@ export const CONFIG = {
   RELIST_WAIT_RANDOM: 10000, // ms
   TOAST_DURATION: 3000, // ms
 
+  // DOM要素待機設定
+  OBSERVER_MAX_RETRY_COUNT: 10, // 要素が見つかるまでの最大リトライ回数
+  OBSERVER_RETRY_INTERVAL: 500, // リトライ間隔 (ms)
+
   // UI設定
   ZINDEX: {
     TOAST: 10000,
