@@ -81,10 +81,10 @@ export function findLiByItemId(ul: HTMLUListElement, id: string): HTMLLIElement 
   const startTime = performance.now();
   debugMethodStart('findLiByItemId', { listElement: ul.tagName, itemId: id });
 
-  const items = ul.querySelectorAll('li');
+  const items = ul.querySelectorAll<HTMLLIElement>('li');
   debugMethodStart('findLiByItemId.itemsSearch', { totalItems: items.length });
 
-  const result = Array.from(items).find(li => getItemIdFromLi(li) === id) as HTMLLIElement | undefined;
+  const result = Array.from(items).find(li => getItemIdFromLi(li) === id);
 
   const duration = Math.round(performance.now() - startTime);
   debugMethodEnd('findLiByItemId', {
