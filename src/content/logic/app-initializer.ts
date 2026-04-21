@@ -1,9 +1,6 @@
 import { debug, log, warn, setDebugMode, debugMethodStart, debugMethodEnd, setLogLevel, LogLevel } from '../infra/logger';
-import { selectionManager } from './selection-manager';
 import { observerManager } from './observer-manager';
-import { relistManager } from './relist-manager';
 import { renderUiComponents } from '../ui/ui-manager';
-import { createBulkRelistButton } from '../ui/bulk-relist';
 import { detectCurrentPage } from '../infra/page-detector';
 import { PageType, SELECTOR, DEFAULT_USER_SETTINGS } from '../infra/constants';
 import { safeQuery } from '../../common/dom';
@@ -31,11 +28,6 @@ export class AppInitializer {
 
     // ページタイプに応じた初期化
     const pageType = detectCurrentPage();
-
-    if (pageType === PageType.LISTINGS) {
-      // 再出品ボタンのイベント設定
-      this.setupRelistButton();
-    }
 
     // DOM読み込み完了時の初期化
     this.setupDomLoadedEvent();
@@ -78,34 +70,6 @@ export class AppInitializer {
       warn('設定の読み込み中にエラーが発生しました', e);
       debugMethodEnd('AppInitializer.loadUserSettings', { error: e instanceof Error ? e.message : String(e) });
     }
-  }
-
-  /**
-   * 再出品ボタンのセットアップ
-   */
-  private setupRelistButton(): void {
-    const startTime = performance.now();
-    debugMethodStart('AppInitializer.setupRelistButton');
-
-    const bulkBtn = createBulkRelistButton();
-
-    // ボタンのクリックイベントを手動で設定
-    if (bulkBtn instanceof HTMLButtonElement) {
-      bulkBtn.onclick = async (): Promise<void> => {
-        debugMethodStart('bulkBtn.onclick');
-        const selectedIds = selectionManager.getOrderedSelections().map(item => item.id);
-        try {
-          await relistManager.executeRelist(selectedIds);
-          debugMethodEnd('bulkBtn.onclick', { success: true, count: selectedIds.length });
-        } catch (error) {
-          warn('再出品処理中にエラーが発生しました', error);
-          debugMethodEnd('bulkBtn.onclick', { success: false, error });
-        }
-      };
-    }
-
-    const duration = Math.round(performance.now() - startTime);
-    debugMethodEnd('AppInitializer.setupRelistButton', { buttonCreated: !!bulkBtn }, duration);
   }
 
   /**
