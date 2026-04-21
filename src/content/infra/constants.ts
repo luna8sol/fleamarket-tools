@@ -16,9 +16,9 @@
  * 各種待機時間（秒）
  */
 export const WAIT = {
-  BASE_SECONDS: 60, // 標準待機秒数
-  EXTRA_MIN: 10,   // 追加待機の最小値（秒）
-  EXTRA_MAX: 45,   // 追加待機の最大値（秒）
+  BASE_SECONDS: 60,        // 標準待機秒数
+  EXTRA_MIN_SECONDS: 10,   // 追加待機の最小値（秒）
+  EXTRA_MAX_SECONDS: 45,   // 追加待機の最大値（秒）
 } as const;
 
 /**
@@ -90,14 +90,14 @@ export const COMPOSITE_SELECTOR = {
  */
 export const CONFIG = {
   // タイミング設定
-  DEBOUNCE_INTERVAL: 300, // ms
-  RELIST_WAIT_BASE: 75000, // ms
-  RELIST_WAIT_RANDOM: 10000, // ms
-  TOAST_DURATION: 3000, // ms
+  DEBOUNCE_INTERVAL_MS: 300,
+  RELIST_WAIT_BASE_MS: 75000,
+  RELIST_WAIT_RANDOM_MS: 10000,
+  TOAST_DURATION_MS: 3000,
 
   // DOM要素待機設定
   OBSERVER_MAX_RETRY_COUNT: 10, // 要素が見つかるまでの最大リトライ回数
-  OBSERVER_RETRY_INTERVAL: 500, // リトライ間隔 (ms)
+  OBSERVER_RETRY_INTERVAL_MS: 500,
 
   // UI設定
   ZINDEX: {

@@ -42,9 +42,9 @@ export class RelistManager {
         getWaitConfig(): { baseSeconds: number; minExtraSeconds: number; maxExtraSeconds: number } {
           return {
             // ミリ秒→秒に変換
-            baseSeconds: CONFIG.RELIST_WAIT_BASE / 1000,
+            baseSeconds: CONFIG.RELIST_WAIT_BASE_MS / 1000,
             minExtraSeconds: 0,
-            maxExtraSeconds: CONFIG.RELIST_WAIT_RANDOM / 1000
+            maxExtraSeconds: CONFIG.RELIST_WAIT_RANDOM_MS / 1000
           };
         }
       };

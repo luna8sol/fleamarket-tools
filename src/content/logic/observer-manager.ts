@@ -111,7 +111,7 @@ export class ObserverManager {
       this.waitForElementTimeout = window.setTimeout(() => {
         this.waitForElementTimeout = null;
         tryFindElement();
-      }, CONFIG.OBSERVER_RETRY_INTERVAL);
+      }, CONFIG.OBSERVER_RETRY_INTERVAL_MS);
     };
 
     tryFindElement();

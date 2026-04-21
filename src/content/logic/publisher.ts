@@ -64,8 +64,8 @@ class DraftPublishProcessor implements ItemProcessor {
   getWaitConfig(): { baseSeconds: number; minExtraSeconds: number; maxExtraSeconds: number } {
     return {
       baseSeconds: WAIT.BASE_SECONDS,
-      minExtraSeconds: WAIT.EXTRA_MIN,
-      maxExtraSeconds: WAIT.EXTRA_MAX
+      minExtraSeconds: WAIT.EXTRA_MIN_SECONDS,
+      maxExtraSeconds: WAIT.EXTRA_MAX_SECONDS
     };
   }
 }
