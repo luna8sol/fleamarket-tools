@@ -159,6 +159,20 @@ export const ID_NAME = {
   // リスト読み込み失敗の通知
   LIST_LOAD_ERROR: 'list-load-error',
   LIST_LOAD_RETRY_BTN: 'list-load-retry-btn',
+
+  // 説明文の一括置換
+  DESCRIPTION_REPLACE_BTN: 'description-replace-btn',
+  DESCRIPTION_REPLACE_PANEL: 'description-replace-panel',
+  DESCRIPTION_REPLACE_FIXED_FILE: 'description-replace-fixed-file',
+  DESCRIPTION_REPLACE_ORIGINAL_FILE: 'description-replace-original-file',
+  DESCRIPTION_REPLACE_INTERVAL: 'description-replace-interval',
+  DESCRIPTION_REPLACE_LOAD_BTN: 'description-replace-load-btn',
+  DESCRIPTION_REPLACE_SUMMARY: 'description-replace-summary',
+  DESCRIPTION_REPLACE_START_BTN: 'description-replace-start-btn',
+  DESCRIPTION_REPLACE_ABORT_BTN: 'description-replace-abort-btn',
+  DESCRIPTION_REPLACE_EXPORT_BTN: 'description-replace-export-btn',
+  DESCRIPTION_REPLACE_CLOSE_BTN: 'description-replace-close-btn',
+  DESCRIPTION_REPLACE_STATUS: 'description-replace-status',
 };
 
 /**
@@ -232,6 +246,18 @@ export const CONFIG = {
   SELL_FORM_FIX_SETTLE_MS: 300,      // 差分修正後、再読み取りまでの待機時間
   SNAPSHOT_IFRAME_TIMEOUT_MS: 30000, // 元商品の編集フォームを隠しiframeで読み込む上限
   RELIST_QUEUE_TTL_MS: 30 * 60 * 1000, // キューに残った古いエントリを破棄するまでの時間
+
+  // 説明文の一括置換の設定
+  // 説明欄だけを書き換えて保存する。出品は作らないので再出品ほど間隔は空けないが、
+  // 100件超を連続で保存するため、連続アクセスが目立たない程度の間は置く。
+  // 待機の基準値は画面から変えられる（既定値がこれ）。ランダム分は固定。
+  DESCRIPTION_REPLACE_WAIT_BASE_MS: 8000,
+  DESCRIPTION_REPLACE_WAIT_RANDOM_MS: 7000,
+  DESCRIPTION_REPLACE_PAGE_TIMEOUT_MS: 30000, // 編集ページの説明欄・確定ボタンが現れるのを待つ上限
+  DESCRIPTION_REPLACE_INPUT_SETTLE_MS: 300, // 説明欄へ書き込んでから読み直すまでの待機
+  DESCRIPTION_REPLACE_SAVE_TIMEOUT_MS: 30000, // 保存後に商品ページへ遷移して説明文が出るのを待つ上限
+  // メルカリの説明欄の上限文字数。textarea に maxlength 属性が無いのでこちらで弾く
+  DESCRIPTION_REPLACE_MAX_LENGTH: 1000,
 
   // UI設定
   ZINDEX: {
@@ -396,6 +422,18 @@ export const SELL_FORM_SELECTOR = {
   SAVE_DRAFT_BUTTON: ['[data-testid="save-draft"]'],
 
   /**
+   * 編集ページ（`/sell/edit/{itemId}`）の確定ボタン「変更する」
+   *
+   * **押すのは説明文の一括置換だけ。** 再出品の自動保存では押さない（下書き保存に留める）。
+   * 押すと出品中の商品がその場で更新されるため、押す前に説明欄の値が確定版と
+   * 一字一句一致することと、商品名が変わっていないことを確認する。
+   * 同じページの `[data-testid="delete-button"]`（この商品を削除する）には触れない。
+   */
+  EDIT_SAVE_BUTTON: ['[data-testid="edit-button"]'],
+  /** 編集ページの確定ボタンの文言。data-testid だけで決めず、これも一致してから押す */
+  EDIT_SAVE_TEXT: '変更する',
+
+  /**
    * 編集ページの「この商品を削除する」ボタン
    *
    * 同じページの `[data-testid="suspend-button"]`（出品を一時停止する）と
@@ -435,6 +473,22 @@ export const SELL_FORM_SELECTOR = {
   SHIPPING_METHOD_RADIO: 'input[type="radio"][name="selectedShippingMethod"]',
   /** 配送の方法を確定するボタンの文言。これを押して初めてフォームへ戻る */
   SHIPPING_METHOD_CONFIRM_TEXT: '更新する',
+} as const;
+
+/**
+ * 商品ページ（`/item/{itemId}`）のセレクタ
+ *
+ * 説明文の一括置換が、保存後に商品ページ側の本文を読み直して照合するために使う。
+ */
+export const ITEM_PAGE_SELECTOR = {
+  /**
+   * 商品説明の表示要素
+   *
+   * `innerText` で読むと行頭の全角スペースも保持される（2026-09-22 実地確認）。
+   * `textContent` は使わない。また表示されていない要素の `innerText` は
+   * `textContent` と同じ扱いになるため、読み込む隠し iframe は `display: none` にしない。
+   */
+  DESCRIPTION: ['[data-testid="description"]'],
 } as const;
 
 /**

@@ -126,6 +126,7 @@ export function safeQueryAllFirst<T extends Element = Element>(
  * - React は value プロパティを自前のセッターで管理しているため、単に `el.value = x` としても
  *   React の state が更新されず、フォーム送信時に値が反映されません。
  *   ネイティブの value セッターを直接呼び出したうえで input イベントを発火させる必要があります。
+ * - 現在のページの要素だけでなく、同一オリジンの隠し iframe 内の要素にも使えます。
  *
  * @param el 値を設定する input または textarea
  * @param value 設定する値
@@ -140,8 +141,10 @@ export function setReactInputValue(
   if (!el) return false;
 
   try {
-    const prototype =
-      el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    // 要素自身のプロトタイプから setter を取る。`instanceof HTMLTextAreaElement` で
+    // 選ぶと、隠し iframe 内の要素（別レルム）では判定が必ず false になり、
+    // textarea に HTMLInputElement の setter を呼んで "Illegal invocation" になる。
+    const prototype = Object.getPrototypeOf(el) as object;
     const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
 
     if (setter) {

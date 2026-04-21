@@ -1,5 +1,5 @@
 import { CONFIG } from '../infra/constants';
-import { debug } from '../infra/logger';
+import { debug, warn } from '../infra/logger';
 import { waitFor } from '../../common/utils';
 
 /**
@@ -56,6 +56,48 @@ export function readableDocument(frame: HTMLIFrameElement): Document | null {
   }
 }
 
+/** 表示状態を書き換え済みの Document（差し替わるたびに新しい Document が来る） */
+const visibilityPatched = new WeakSet<Document>();
+
+/**
+ * iframe の Document を「表示中」として扱わせる
+ *
+ * メルカリは `document.hidden` / `visibilityState` が非表示だとデータ取得を保留します。
+ * 親タブが裏に回っていると iframe 内のページも非表示扱いになり、編集フォームや商品ページが
+ * スケルトンのまま止まります（2026-09-22 実地確認）。同一オリジンなので iframe の Document に
+ * 直接 getter を定義して上書きし、`visibilitychange` を 1 度だけ発火させます。
+ *
+ * ページ遷移で Document が差し替わると上書きも消えるため、ポーリングのたびに呼びます。
+ * 同じ Document に 2 度は適用しません。
+ *
+ * @param doc 対象の Document
+ */
+export function forceDocumentVisible(doc: Document): void {
+  if (visibilityPatched.has(doc)) return;
+  visibilityPatched.add(doc);
+
+  try {
+    Object.defineProperty(doc, 'hidden', { configurable: true, get: () => false });
+    Object.defineProperty(doc, 'visibilityState', { configurable: true, get: () => 'visible' });
+    doc.dispatchEvent(new Event('visibilitychange'));
+    debug('隠しiframeの表示状態を visible に固定しました', { url: doc.location?.href });
+  } catch (e) {
+    // 固定できなくても親タブが前面にあれば読み込まれる。止めずに知らせるだけにする
+    warn('隠しiframeの表示状態を固定できませんでした', e);
+  }
+}
+
+/**
+ * {@link waitForFrameDocument} の挙動を変えるオプション
+ */
+export interface WaitForFrameDocumentOptions {
+  /**
+   * ポーリングのたびに {@link forceDocumentVisible} を適用する。
+   * 親タブが裏に回っていても iframe 内のページを読み込ませたいときに使う。
+   */
+  forceVisible?: boolean;
+}
+
 /**
  * iframe の Document が条件を満たすまで待つ
  *
@@ -66,17 +108,21 @@ export function readableDocument(frame: HTMLIFrameElement): Document | null {
  * @param frame 対象のiframe
  * @param isReady 準備完了かどうかの判定
  * @param timeoutMs 待機の上限（ミリ秒）
+ * @param options 挙動の切り替え（省略時は従来どおり）
  * @returns 条件を満たした Document。時間切れなら null
  */
 export async function waitForFrameDocument(
   frame: HTMLIFrameElement,
   isReady: (doc: Document) => boolean,
-  timeoutMs: number
+  timeoutMs: number,
+  options: WaitForFrameDocumentOptions = {}
 ): Promise<Document | null> {
   return waitFor(
     () => {
       const candidate = readableDocument(frame);
-      return candidate && isReady(candidate) ? candidate : null;
+      if (!candidate) return null;
+      if (options.forceVisible) forceDocumentVisible(candidate);
+      return isReady(candidate) ? candidate : null;
     },
     timeoutMs,
     CONFIG.SELL_FORM_POLL_INTERVAL_MS

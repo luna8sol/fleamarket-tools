@@ -62,3 +62,26 @@ export async function waitFor<T>(
     await sleep(intervalMs / 1000);
   }
 }
+
+/**
+ * FNV-1a（32bit）ハッシュを 10 進文字列で返す。
+ *
+ * - 説明文の一括置換で、原本・確定版・保存後の本文が**一字一句同じか**を照合するために使います。
+ *   文字数だけでは並び替えや置換の取りこぼしを見分けられないため、文字数と併せて比較します。
+ * - `charCodeAt` 単位（UTF-16 コードユニット）で畳み込みます。サロゲートペアも 2 単位として
+ *   一貫して扱われるので、同じ実装同士で比べる限り結果は一致します。
+ * - 暗号用途ではありません。改ざん検知ではなく「取得後に変わっていないか」の判定に使います。
+ *
+ * @param value ハッシュを取る文字列
+ * @returns 32bit 符号なし整数を 10 進表記した文字列
+ * @example
+ *   fnv1a32('abc'); // '440920331'
+ */
+export function fnv1a32(value: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return String(hash);
+}

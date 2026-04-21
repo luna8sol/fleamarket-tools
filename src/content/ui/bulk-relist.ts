@@ -10,6 +10,7 @@ import { applyFixedStyles, renderProcessingSpan } from './bulk-bar-ui';
 import { getOrCreateElement } from './bulk-bar-core';
 import { removeItemPrefix } from './bulk-bar-utils';
 import { showToast } from './notification';
+import { createDescriptionReplaceButton } from './description-replace-panel';
 
 /**
  * 確認ダイアログに商品名を並べる上限
@@ -261,9 +262,10 @@ export function createBulkRelistContainer(count: number): HTMLDivElement {
   // 要素をコンテナに追加
   container.appendChild(bulkBtn);
 
-  // 出品中一覧だけ、削除ボタンも並べる
+  // 出品中一覧だけ、削除ボタンと説明文の一括置換ボタンも並べる
   if (pageType === PageType.LISTINGS) {
     container.appendChild(createBulkDeleteButton());
+    container.appendChild(createDescriptionReplaceButton());
   }
   container.appendChild(countSpan);
 

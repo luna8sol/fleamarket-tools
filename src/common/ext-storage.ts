@@ -18,6 +18,8 @@ export enum ExtStorageKey {
   AUTO_SAVE_SETTINGS = 'autoSaveSettings',
   /** 下書き保存後に閉じるタブの印。background が持つ */
   PENDING_TAB_CLOSE = 'pendingTabClose',
+  /** 説明文の一括置換の処理記録（商品IDごとの最新結果）。中断・再開時に適用済みを除外するために持つ */
+  DESCRIPTION_REPLACE_RECORDS = 'descriptionReplaceRecords',
 }
 
 /**

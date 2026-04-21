@@ -9,3 +9,4 @@ export * from './list';
 export * from './ai-description-link';
 export * from './description-panel';
 export * from './select-up-to';
+export * from './description-replace-panel';

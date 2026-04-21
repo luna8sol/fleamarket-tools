@@ -169,6 +169,130 @@ export interface AutoSaveResult {
 }
 
 /**
+ * 説明文の一括置換に渡す商品 1 件分
+ *
+ * 確定版（置き換え後の本文）も原本（取得時点の本文）も同じ形の JSON
+ * `[{ id, name, desc }]` で読み込む。
+ */
+export interface DescriptionEntry {
+  /** 商品ID（`m` + 数字） */
+  id: string;
+  /** 商品名（編集ページの商品名と照合して取り違えを防ぐ） */
+  name: string;
+  /** 商品説明の本文 */
+  desc: string;
+}
+
+/**
+ * 説明文の一括置換の 1 件の結果
+ *
+ * - `applied`: 確定版に置き換えて保存し、商品ページ側の本文も一致した
+ * - `already`: 開いた時点で既に確定版だった（保存していない）
+ * - `skipped`: 照合が通らず保存しなかった（原本と不一致・商品名不一致など）
+ * - `failed`: 処理が途中で失敗し保存しなかった（要素が見つからない・書き込みが反映されない）
+ * - `unverified`: 確定ボタンは押したが、保存後の商品ページで本文を確認できなかった
+ *
+ * 次の実行で除外するのは `applied` と `already` だけ。他は再度対象に入るが、
+ * 開いた時点の本文で改めて判定するので二重に保存されることはない。
+ */
+export type DescriptionReplaceOutcome = 'applied' | 'already' | 'skipped' | 'failed' | 'unverified';
+
+/**
+ * 説明文の一括置換の処理記録（`chrome.storage.local` に商品IDごとの最新 1 件を持つ）
+ */
+export interface DescriptionReplaceRecord {
+  id: string;
+  name: string;
+  outcome: DescriptionReplaceOutcome;
+  /** スキップ・失敗・未確認の理由 */
+  reason?: string;
+  /** 確定ボタンを押したか（押したあとの結果が不明でも true） */
+  saved: boolean;
+  /** 開いた時点の説明欄の文字数（読めなかったときは null） */
+  currentLength: number | null;
+  /** 開いた時点の説明欄の FNV-1a ハッシュ（読めなかったときは null） */
+  currentHash: string | null;
+  /** 確定版の文字数 */
+  expectedLength: number;
+  /** 確定版の FNV-1a ハッシュ */
+  expectedHash: string;
+  /** 保存後に商品ページで読んだ本文の文字数（読めなかったときは null） */
+  liveLength?: number | null;
+  /** 保存後に商品ページで読んだ本文の FNV-1a ハッシュ（読めなかったときは null） */
+  liveHash?: string | null;
+  /** 記録時刻（ISO 8601） */
+  at: string;
+}
+
+/**
+ * 説明文の一括置換で処理する 1 件（確定版と、照合に使う原本の組）
+ */
+export interface DescriptionReplaceTarget {
+  entry: DescriptionEntry;
+  original: DescriptionEntry;
+}
+
+/**
+ * 説明文の一括置換の対象から外れた商品と、その理由
+ */
+export interface DescriptionReplaceExclusion {
+  id: string;
+  name: string;
+  reason: string;
+}
+
+/**
+ * 説明文の一括置換の実行計画
+ *
+ * 確認ダイアログに出す件数の元になる。**この計画に無い商品は処理しない。**
+ */
+export interface DescriptionReplacePlan {
+  /** 確定版ファイルの件数 */
+  total: number;
+  /** これから処理する商品 */
+  targets: DescriptionReplaceTarget[];
+  /** 記録上すでに適用済みで、今回は処理しない商品 */
+  alreadyDone: DescriptionReplaceRecord[];
+  /** 原本が無い・上限文字数超えなどで処理できない商品 */
+  excluded: DescriptionReplaceExclusion[];
+}
+
+/**
+ * 説明文の一括置換の結果種別ごとの件数
+ */
+export type DescriptionReplaceCounts = Record<DescriptionReplaceOutcome, number>;
+
+/**
+ * 説明文の一括置換の状態
+ *
+ * - `processing`: 1 件を処理している
+ * - `waiting`: 次の 1 件まで待機している
+ * - `done`: 全件終了
+ * - `aborted`: 利用者が中断した
+ * - `halted`: ページ構造が想定と違うなど、続けるべきでない理由で止めた
+ */
+export type DescriptionReplacePhase = 'processing' | 'waiting' | 'done' | 'aborted' | 'halted';
+
+/**
+ * 説明文の一括置換の進捗
+ */
+export interface DescriptionReplaceProgress {
+  phase: DescriptionReplacePhase;
+  /** 何件目か（1 始まり） */
+  current: number;
+  /** 今回処理する総件数 */
+  total: number;
+  /** 処理中・待機中の商品名 */
+  itemName?: string;
+  /** `waiting` のときの残り秒数 */
+  remainingSeconds?: number;
+  /** 結果種別ごとの件数 */
+  counts: DescriptionReplaceCounts;
+  /** `halted` の理由など、利用者に見せる補足 */
+  message?: string;
+}
+
+/**
  * 出品フォームの値の読み取り方
  *
  * - `control`: input / textarea / select の value を読む

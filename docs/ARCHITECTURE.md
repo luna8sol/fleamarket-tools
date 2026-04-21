@@ -45,8 +45,8 @@ content script・background・popup・options page のどこからでも import 
 |---------|------|
 | `ext-storage.ts` | `chrome.storage.local` への読み書き（`ExtStorageKey` enum でキー管理）。ポップアップ・content script・background・options page が同じ領域を共有する。再出品キューと自動保存設定もここに入る |
 | `messaging.ts` | content script ⇔ background のメッセージ型と `MESSAGE_ACTION` 定数 |
-| `dom.ts` | 例外安全な DOM 操作ラッパー。React 制御下の input へ値を入れる `setReactInputValue` もここ |
-| `utils.ts` | 非同期待機・乱数などの汎用関数。条件が満たされるまでポーリングする `waitFor` もここ |
+| `dom.ts` | 例外安全な DOM 操作ラッパー。React 制御下の input へ値を入れる `setReactInputValue` もここ（隠し iframe 内の要素にも使える） |
+| `utils.ts` | 非同期待機・乱数などの汎用関数。条件が満たされるまでポーリングする `waitFor`、本文の照合に使う `fnv1a32` もここ |
 
 ## Background（src/background/）
 
@@ -77,6 +77,7 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 | `user-settings.ts` | ユーザー設定の読み書き（未保存の項目は `DEFAULT_USER_SETTINGS` で補完）。保存先は [`src/common/ext-storage.ts`](../src/common/ext-storage.ts) |
 | `relist-queue.ts` | 再出品の待ち行列。一覧ページで積んだ元商品スナップショットを出品フォーム側が FIFO で取り出す |
 | `auto-save-settings.ts` | 再出品後の自動保存設定の読み書き |
+| `description-replace-store.ts` | 説明文の一括置換の処理記録（商品IDごとの最新結果）の読み書き。中断・再開時に適用済みを外す |
 | `logger.ts` | デバッグ用ロガー（ログレベル制御あり） |
 | `debounce.ts` | 連続操作の制御 |
 | `error-handler.ts` | エラー処理 |
@@ -100,9 +101,12 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 | `sell-form.ts` | 出品フォームのアダプタ（入力欄の解決・値の読み書き）。読み取りは Document を受け取るので iframe にも使える |
 | `sell-form-navigator.ts` | カテゴリー・商品の状態・配送の方法を選択ページへ遷移して選び直す |
 | `tab-closer.ts` | 下書き保存後の再出品タブを background に閉じてもらう |
-| `hidden-frame.ts` | 同一オリジンの隠し iframe を開く共通処理。スナップショット取得と削除が使う |
+| `hidden-frame.ts` | 同一オリジンの隠し iframe を開く共通処理。スナップショット取得・削除・説明文の一括置換が使う。iframe 内のページを「表示中」として扱わせる `forceDocumentVisible` もここ |
 | `delete-manager.ts` | 出品中商品の一括削除の制御 |
 | `item-deleter.ts` | 編集ページを隠し iframe で開いて1件削除する |
+| `description-replace-data.ts` | 説明文の一括置換の入力 JSON（確定版・原本）の読み込みと、処理対象・適用済み・対象外への振り分け |
+| `description-replacer.ts` | 編集ページを隠し iframe で開き、説明欄だけを確定版へ書き換えて「変更する」を押す 1 件処理。保存前に 4 段の照合を通す |
+| `description-replace-manager.ts` | 説明文の一括置換の全体制御（逐次処理・待機・中断・記録・結果の出力） |
 | `relist-verifier.ts` | 元商品と出品フォームの比較・差分の自動修正 |
 | `auto-save-controller.ts` | 再出品タブでの自動保存の制御 |
 | `value-normalizer.ts` | 比較用の値の正規化（改行・全角数字・桁区切りの表記ゆれを吸収） |
@@ -125,6 +129,7 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 | `list-load-error.ts` | 商品リストを読み込めなかったことを知らせるパネル（再試行ボタン付き） |
 | `filter-bar.ts` | 出品中一覧のフィルターバー（いいね・コメント数の絞り込みトグル） |
 | `description-panel.ts` | 編集ページの説明欄直下に出す「AIで説明文を作る」ボタンと生成結果のプレビューパネル |
+| `description-replace-panel.ts` | 出品中一覧に出す「説明文を一括置換」ボタンと、ファイル読み込み・件数確認・開始・中断・結果出力のパネル |
 | `ai-description-link.ts` | 一覧ページの各商品に、編集ページを開く導線リンクを追加する |
 
 ## 処理フロー
@@ -173,6 +178,66 @@ content/index.ts
 
 **削除後は一覧を読み直す。** 削除しても一覧の行は残り選択も解除されないため、
 消えたはずの商品を選び直せてしまう。
+
+### 説明文の一括置換フロー
+
+出品中の商品の説明文を、あらかじめ用意した確定版の本文へ 1 件ずつ置き換えて保存する。
+表記の統一など、多数の商品の説明欄だけを機械的に直したいときに使う。
+
+```
+一覧ページ（LISTINGS）
+  createDescriptionReplaceButton()  →  パネルを開くだけ（保存には向かわない）
+    ├── parseDescriptionEntries()    確定版 JSON と原本 JSON（どちらも [{ id, name, desc }]）を検証して読む
+    ├── buildReplacePlan()           処理対象 / 記録上の適用済み / 対象外（原本なし・1000字超）に振り分ける
+    ├── confirmStart()               件数と待機秒数を出して確認。ここが唯一の人の止め時
+    └── descriptionReplaceManager.run()
+          └── 1件ずつ・進捗表示つき・1秒ごとに中断要求を確認
+                └── description-replacer.replaceItemDescription()
+                      ├── 隠し iframe で /sell/edit/{itemId} を開く（表示状態を visible に固定）
+                      ├── 商品名をデータと照合（違えばスキップ）
+                      ├── 説明欄の現在値を読み、確定版なら「適用済み」、原本と違えばスキップ
+                      ├── setReactInputValue() で確定版を書き込み、読み直して文字数とハッシュで照合
+                      ├── 商品名が変わっていないことを確認
+                      ├── 文言が「変更する」の [data-testid="edit-button"] をクリック
+                      └── /item/{itemId} の [data-testid="description"] を innerText で読んで再照合
+```
+
+**確定版の JSON だけでは動かない。** 開いた時点の説明欄が**原本**と一致することを確認してから
+書き換える。取得後に人が直した商品を、古い原本から作った確定版で上書きしないため。
+一致しない商品はスキップとして記録し、あとから確認できるようにする。
+
+**保存に向かう前に 4 段の照合を通す。** 商品名の一致（取り違え防止）、現在値と原本の一致、
+書き込み後の値と確定版の一致（React の状態に反映されたか）、書き込み後も商品名が
+変わっていないこと（説明欄以外に触っていないか）。どれか 1 つでも通らなければ保存しない。
+
+**照合は文字数と FNV-1a（32bit）ハッシュの両方で行う**（`common/utils.ts` の `fnv1a32`）。
+文字数だけでは置換の取りこぼしを見分けられない。
+
+**押すのは「変更する」だけ。** `[data-testid="delete-button"]`（この商品を削除する）には一切触れない。
+確定ボタンも data-testid だけで決めず、文言が「変更する」であることを確認してから押す。
+
+**保存後は商品ページで再照合する。** 保存に成功すると iframe 内で `/item/{itemId}` へ遷移する。
+そこに表示された本文を `innerText` で読み（行頭の全角スペースが保持される。`textContent` や
+テキスト抽出系の API は半角化するので使わない）、確定版と一致して初めて成功とする。
+一致しない・確認できないときは「未確認」として記録する（保存自体は済んでいる可能性がある）。
+
+**結果は 5 種類。** 成功（applied）/ 適用済み（already）/ スキップ（skipped）/ 失敗（failed）/
+未確認（unverified）。商品IDごとの最新結果を `chrome.storage.local` に持ち、次の実行では
+成功と適用済みを対象から外す。**記録が無くても二重に保存されることはない**——開いた時点の
+本文が確定版なら「適用済み」、原本でも確定版でもなければスキップになる。
+
+**説明欄や確定ボタンが見つからないときは残りを開かずに止める（halted）。** その商品固有の
+事情ではなくメルカリ側の変更を疑うべき状況なので、1 件ずつ失敗を積み上げない。
+編集ページが開けない・照合が通らないといった商品固有の失敗は記録して次へ進む。
+
+**iframe 内のページには表示状態の固定が要る。** メルカリは `document.hidden` が true だと
+データ取得を保留する。親タブが裏に回ると iframe 内のページも非表示扱いになりスケルトンの
+まま止まるため、`forceDocumentVisible` で iframe の Document の `hidden` / `visibilityState` を
+上書きし `visibilitychange` を発火させる。ページ遷移で Document が差し替わるたびに適用し直す。
+
+1 件ごとの待機は基準秒数（既定 `CONFIG.DESCRIPTION_REPLACE_WAIT_BASE_MS`、パネルから変更可）に
+ランダム分（`CONFIG.DESCRIPTION_REPLACE_WAIT_RANDOM_MS`）を足す。中断はこの待機中でも 1 秒以内に
+効く。処理中の 1 件は、確定ボタンを押す前なら保存せずに打ち切り、押したあとなら照合まで終える。
 
 ### 一括処理の進捗表示
 
@@ -369,9 +434,10 @@ name 属性を持つ実コントロールは `name` `description` `price` `shipp
 を通し、`input` / `change` を発火させる。React 管理下の入力欄で `value` への直接代入が
 内部状態に反映されない問題を避けるため。
 
-下書き保存ボタンは `[data-testid="save-draft"]`。**自動処理が押すのはこれだけ。**
-参考までに同じフォームの「出品する」は `[data-testid="list-item-button"]`、
-編集フォームの確定ボタンは `[data-testid="edit-button"]` だが、どちらも押さない。
+下書き保存ボタンは `[data-testid="save-draft"]`。**再出品の自動保存が押すのはこれだけ。**
+参考までに同じフォームの「出品する」は `[data-testid="list-item-button"]` で、これは押さない。
+編集フォームの確定ボタン `[data-testid="edit-button"]`（変更する）も自動保存では押さない。
+これを押すのは説明文の一括置換だけで、押す前の照合はそちらのフローに書いてある。
 
 **クリックすると遷移して content script ごと破棄される。** 成否のログとトーストは
 押す**前**に出す。押したあとに出しても読めない。
