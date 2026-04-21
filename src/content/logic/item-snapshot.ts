@@ -22,6 +22,25 @@ import { isSellFormReady, readSellForm } from './sell-form';
  * 読み終えたら必ず破棄します。
  */
 
+/** メルカリの商品IDの形式（m + 数字） */
+const ITEM_ID_PATTERN = /^m\d+$/;
+
+/**
+ * 一覧ページが保持する商品IDから、URL に使える商品IDを取り出す
+ *
+ * 出品中一覧のチェックボックスは `data-item-id` に商品リンクの href を
+ * そのまま入れているため、値は `/item/m123...` の形で渡ってきます。
+ * 形式が想定と違う場合は URL を組み立てず null を返します
+ * （存在しない URL を開いてタイムアウトを待つより、その場で失敗させるため）。
+ *
+ * @param rawId 一覧ページから渡された商品ID
+ * @returns `m` + 数字 の商品ID。解釈できない場合は null
+ */
+function toItemId(rawId: string): string | null {
+  const id = rawId.replace(/^\/item\//, '').trim();
+  return ITEM_ID_PATTERN.test(id) ? id : null;
+}
+
 /**
  * スナップショット取得用の隠しiframeを作る
  *
@@ -101,7 +120,12 @@ export async function captureItemSnapshot(itemId: string, itemName: string): Pro
   const startTime = performance.now();
   debugMethodStart('captureItemSnapshot', { itemId, itemName });
 
-  const frame = createHiddenFrame(itemId);
+  const resolvedId = toItemId(itemId);
+  if (!resolvedId) {
+    return failedSnapshot(itemId, itemName, `商品IDを解釈できません: "${itemId}"`);
+  }
+
+  const frame = createHiddenFrame(resolvedId);
 
   try {
     document.body.appendChild(frame);
@@ -139,7 +163,7 @@ export async function captureItemSnapshot(itemId: string, itemName: string): Pro
     }
 
     const snapshot: ItemSnapshot = {
-      itemId,
+      itemId: resolvedId,
       itemName,
       captured: true,
       capturedAt: Date.now(),
