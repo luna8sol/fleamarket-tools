@@ -2,10 +2,9 @@ import { debug, log, warn, setDebugMode, debugMethodStart, debugMethodEnd, setLo
 import { observerManager } from './observer-manager';
 import { renderUiComponents } from '../ui/ui-manager';
 import { detectCurrentPage } from '../infra/page-detector';
-import { PageType, SELECTOR, DEFAULT_USER_SETTINGS } from '../infra/constants';
+import { PageType, SELECTOR } from '../infra/constants';
 import { safeQuery } from '../../common/dom';
-import { StorageKey, loadFromStorage } from '../infra/storage';
-import { UserSettings } from '../infra/types';
+import { loadUserSettings } from '../infra/user-settings';
 
 /**
  * アプリケーション初期化とメインロジックの統合
@@ -14,14 +13,14 @@ export class AppInitializer {
   /**
    * アプリケーションを初期化する
    */
-  initialize(): void {
+  async initialize(): Promise<void> {
     const startTime = performance.now();
     debugMethodStart('AppInitializer.initialize');
 
     debug('アプリケーションを初期化しています');
 
     // ユーザー設定を読み込み、デバッグモードを設定
-    this.loadUserSettings();
+    await this.applyUserSettings();
 
     // DOM監視開始
     observerManager.startObserving();
@@ -39,13 +38,13 @@ export class AppInitializer {
   /**
    * ユーザー設定を読み込み、適用する
    */
-  private loadUserSettings(): void {
+  private async applyUserSettings(): Promise<void> {
     const startTime = performance.now();
-    debugMethodStart('AppInitializer.loadUserSettings');
+    debugMethodStart('AppInitializer.applyUserSettings');
 
     try {
-      // ストレージから設定を読み込む - DEFAULT_USER_SETTINGSを使用
-      const settings = loadFromStorage<UserSettings>(StorageKey.USER_SETTINGS, DEFAULT_USER_SETTINGS);
+      // chrome.storage.localから設定を読み込む（未保存の項目はDEFAULT_USER_SETTINGSで補完）
+      const settings = await loadUserSettings();
 
       // デバッグモードを適用
       if (settings.debugMode) {
@@ -60,7 +59,7 @@ export class AppInitializer {
       }
 
       const duration = Math.round(performance.now() - startTime);
-      debugMethodEnd('AppInitializer.loadUserSettings', {
+      debugMethodEnd('AppInitializer.applyUserSettings', {
         settings,
         debugModeEnabled: settings.debugMode,
         logLevel: settings.debugMode ? 'DEBUG' : 'LOG'
@@ -68,7 +67,7 @@ export class AppInitializer {
 
     } catch (e) {
       warn('設定の読み込み中にエラーが発生しました', e);
-      debugMethodEnd('AppInitializer.loadUserSettings', { error: e instanceof Error ? e.message : String(e) });
+      debugMethodEnd('AppInitializer.applyUserSettings', { error: e instanceof Error ? e.message : String(e) });
     }
   }
 

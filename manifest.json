@@ -3,7 +3,7 @@
   "name": "Mercari Draft Publisher",
   "version": "1.0",
   "description": "メルカリ下書き商品を自動で出品する拡張機能",
-  "permissions": ["tabs", "scripting"],
+  "permissions": ["tabs", "scripting", "storage"],
   "host_permissions": ["https://www.mercari.com/*"],
   "action": {
     "default_popup": "popup.html"

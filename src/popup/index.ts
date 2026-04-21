@@ -1,6 +1,4 @@
-import { StorageKey, loadFromStorage, saveToStorage } from '../content/infra/storage';
-import { UserSettings } from '../content/infra/types';
-import { DEFAULT_USER_SETTINGS } from '../content/infra/constants';
+import { loadUserSettings, saveUserSettings } from '../content/infra/user-settings';
 
 /**
  * popup.htmlの「開始」ボタンにクリックイベントを登録し、
@@ -12,19 +10,19 @@ document.getElementById('start')?.addEventListener('click', () => {
 
 // ページ読み込み時に実行
 document.addEventListener('DOMContentLoaded', () => {
-  initializeDebugToggle();
+  void initializeDebugToggle();
   // 他の初期化処理...
 });
 
 /**
  * デバッグモード切り替えの初期化
  */
-function initializeDebugToggle(): void {
+async function initializeDebugToggle(): Promise<void> {
   const debugToggle = document.getElementById('debug-mode') as HTMLInputElement;
   if (!debugToggle) return;
 
   // 現在の設定を読み込み
-  const settings = loadFromStorage<UserSettings>(StorageKey.USER_SETTINGS, DEFAULT_USER_SETTINGS);
+  const settings = await loadUserSettings();
 
   // チェックボックスの状態を設定に合わせる
   debugToggle.checked = settings.debugMode;
@@ -33,7 +31,7 @@ function initializeDebugToggle(): void {
   debugToggle.addEventListener('change', () => {
     // 設定を更新して保存
     settings.debugMode = debugToggle.checked;
-    saveToStorage(StorageKey.USER_SETTINGS, settings);
+    void saveUserSettings(settings);
 
     // デバッグモードの変更をコンテンツスクリプトに通知
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
