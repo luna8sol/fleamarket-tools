@@ -1,23 +1,9 @@
-import { SELECTOR, ID_NAME, PageType, COMPOSITE_SELECTOR } from '../infra/constants';
-import { log, warn } from '../infra/logger';
+import { ID_NAME, PageType } from '../infra/constants';
+import { warn } from '../infra/logger';
 import { detectCurrentPage } from '../infra/page-detector';
 import { selectionManager } from '../logic/selection-manager';
 import { addCheckboxToLi } from './checkbox-manager';
 import { renderProcessingSpan, renderBulkBar } from './bulk-bar-ui';
-
-/**
- * 商品IDから商品名を取得する関数
- */
-export function getItemNameById(itemId: string): string {
-  // itemIdから対応するli要素を見つける
-  const selector = COMPOSITE_SELECTOR.BULK_CHECKBOX_WITH_ITEM_ID.replace('{0}', itemId);
-  const li = document.querySelector(selector)?.closest('li');
-  if (!li) return '';
-
-  // li要素から商品名を取得
-  const labelElem = li.querySelector(SELECTOR.ITEM_LABEL);
-  return labelElem instanceof HTMLElement ? (labelElem.textContent?.trim() ?? '') : '';
-}
 
 /**
  * 商品IDから/item/プレフィックスを取り除く
@@ -40,9 +26,6 @@ export function initializePageUI(ul: HTMLUListElement): void {
     // 出品中ページ: 初期は非表示にしておく
     renderProcessingSpan('');
 
-    // 選択マネージャーをクリア（ページ読み込み時に必ず初期化）
-    selectionManager.clearSelections();
-
     // li にチェックボックス付与して selection を更新
     Array.from(ul.querySelectorAll('li')).forEach((li) => {
       const aTag = li.querySelector('a[data-testid="listed-item"]') as HTMLAnchorElement;
@@ -56,49 +39,16 @@ export function initializePageUI(ul: HTMLUListElement): void {
       addCheckboxToLi(
         li as HTMLLIElement,
         (id, checked) => {
-          if (!id) {
-            warn('ID is empty in checkbox onChange');
-            return;
-          }
-
-          log(`チェック変更: ID=${id}, checked=${checked}`);
-
           if (checked) {
             selectionManager.addSelection(id);
           } else {
             selectionManager.removeSelection(id);
           }
-
-          // デバッグ: 現在の選択状況
-          const count = selectionManager.getSelectionCount();
-          const ids = selectionManager.getOrderedSelections().map(item => item.id);
-          log(`現在の選択: count=${count}, ids=[${ids.map(removeItemPrefix).join(' -> ')}]`);
-
-          // 件数表示を更新
-          renderBulkBar(count);
+          renderBulkBar(selectionManager.getSelectionCount());
         },
         { type: 'listings', itemId: itemId }
       );
     });
-
-    // 既存のチェック済みボックスを検出して選択に追加（この部分が実行されていない可能性がある）
-    const checkedBoxes = document.querySelectorAll(COMPOSITE_SELECTOR.CHECKED_BULK_CHECKBOX);
-    log(`初期化時に${checkedBoxes.length}件のチェック済みボックスを検出`);
-    if (checkedBoxes.length > 0) {
-      Array.from(checkedBoxes).forEach(cb => {
-        const itemId = (cb as HTMLInputElement).dataset.itemId;
-        if (itemId) {
-          const cleanId = removeItemPrefix(itemId);
-          const itemName = getItemNameById(itemId);
-          selectionManager.addSelection(itemId);
-          log(`初期化時に選択マネージャーに追加: ${cleanId}${itemName ? ` - ${itemName}` : ''}`);
-        }
-      });
-
-      // 追加情報をログ
-      const ids = selectionManager.getOrderedSelections().map(item => item.id);
-      log(`初期化完了後の選択状態: count=${selectionManager.getSelectionCount()}, ids=[${ids.map(removeItemPrefix).join(' -> ')}]`);
-    }
 
     // 選択件数表示を更新（コンテナを作成・追加）
     renderBulkBar(selectionManager.getSelectionCount());
