@@ -207,7 +207,12 @@ export const CONFIG = {
   // 実測で20秒では足りなかった。再出品の間隔（RELIST_WAIT_BASE_MS）に収まる範囲で長めに取る。
   SELL_FORM_READY_TIMEOUT_MS: 60000,
   SELL_FORM_NAV_TIMEOUT_MS: 15000,   // カテゴリー等の選択ページへの遷移・復帰を待つ上限
-  SELL_FORM_IMAGE_TIMEOUT_MS: 8000,  // 画像サムネイルの描画を待つ上限（商品名より遅れて出る）
+  // 画像サムネイルが出そろうのを待つ上限。
+  // 再出品フォームの画像は外部ツールが1枚ずつアップロードし直すため、
+  // 枚数が時間をかけて増えていく（実測でprefill全体に約31秒）。
+  SELL_FORM_IMAGE_TIMEOUT_MS: 30000,
+  // 枚数がこの時間変わらなければ出そろったとみなす
+  SELL_FORM_IMAGE_SETTLE_MS: 1500,
   SELL_FORM_FIX_SETTLE_MS: 300,      // 差分修正後、再読み取りまでの待機時間
   SNAPSHOT_IFRAME_TIMEOUT_MS: 30000, // 元商品の編集フォームを隠しiframeで読み込む上限
   RELIST_QUEUE_TTL_MS: 30 * 60 * 1000, // キューに残った古いエントリを破棄するまでの時間

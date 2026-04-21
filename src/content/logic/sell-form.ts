@@ -1,5 +1,5 @@
 import { safeQuery, safeQueryAll, setReactInputValue } from '../../common/dom';
-import { waitFor } from '../../common/utils';
+import { sleep, waitFor } from '../../common/utils';
 import {
   CATEGORY_PATH_SEPARATOR,
   CONFIG,
@@ -359,38 +359,59 @@ export async function waitForSellFormReady(
 }
 
 /**
- * 画像サムネイルの描画を待つ
+ * 画像サムネイルが出そろうのを待つ
  *
- * **画像は商品名より遅れて描画されます**（実機で確認）。商品名が入った直後に
- * 読むと、画像が4枚ある商品でも0枚に見え、「画像枚数を確認できない」項目として
- * 自動保存が中断してしまいます。
+ * **1枚現れた時点で読んではいけません。** 再出品フォームの画像は外部ツールが
+ * 1枚ずつアップロードし直すため、枚数は時間をかけて増えていきます。
+ * 途中で読むと「元商品5枚 / フォーム1枚」のような差分になり、画像枚数は
+ * 自動修正できないため自動保存が中断します（実機で確認）。
+ *
+ * 期待枚数が分かっている場合はその枚数に達した時点で、分からない場合は
+ * 枚数が増えなくなった時点で待機を終えます。いずれも上限で打ち切ります。
  *
  * 画像が1枚も無いフォームも正常にありうるため、時間切れでも失敗にはしません。
- * その場合は画像枚数が未解決のまま呼び出し側へ渡ります。
  *
  * @param root 対象の Document（省略時は現在のページ）
+ * @param expectedCount 期待する枚数。不明な場合は null
  * @param timeoutMs 待機の上限（ミリ秒）
- * @returns サムネイルが現れたら true、現れないまま時間切れなら false
+ * @returns 最後に数えた枚数。1枚も見つからなければ null
  */
 export async function waitForSellFormImages(
   root: Document = document,
+  expectedCount: number | null = null,
   timeoutMs: number = CONFIG.SELL_FORM_IMAGE_TIMEOUT_MS
-): Promise<boolean> {
+): Promise<number | null> {
   const spec = SELL_FORM_FIELDS.find((candidate) => candidate.key === 'imageCount');
-  if (!spec) return false;
+  if (!spec) return null;
 
-  const found = await waitFor(
-    () => countMatchingElements(spec, root) !== null,
-    timeoutMs,
-    CONFIG.SELL_FORM_POLL_INTERVAL_MS
-  );
+  const deadline = Date.now() + timeoutMs;
+  let lastCount: number | null = null;
+  let unchangedSince = Date.now();
 
-  if (!found) {
-    debug('画像サムネイルが現れませんでした（画像のない商品の可能性）');
-    return false;
+  for (;;) {
+    const count = countMatchingElements(spec, root);
+
+    // 期待枚数に達したなら、それ以上待つ必要はない
+    if (expectedCount !== null && count !== null && count >= expectedCount) {
+      debug('画像が出そろいました', { count, expectedCount });
+      return count;
+    }
+
+    if (count !== lastCount) {
+      lastCount = count;
+      unchangedSince = Date.now();
+    } else if (count !== null && Date.now() - unchangedSince >= CONFIG.SELL_FORM_IMAGE_SETTLE_MS) {
+      debug('画像の枚数が安定しました', { count, expectedCount });
+      return count;
+    }
+
+    if (Date.now() >= deadline) {
+      debug('画像の待機を打ち切りました', { count, expectedCount });
+      return count;
+    }
+
+    await sleep(CONFIG.SELL_FORM_POLL_INTERVAL_MS / 1000);
   }
-
-  return true;
 }
 
 /**

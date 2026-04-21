@@ -152,7 +152,7 @@ export async function captureItemSnapshot(itemId: string, itemName: string): Pro
       );
     }
 
-    // 画像は商品名より遅れて描画されるため、読み取り前に待つ
+    // 画像は商品名より遅れて描画されるため、枚数が安定するまで待つ
     await waitForSellFormImages(loaded);
 
     const { values, unresolved } = readSellForm(loaded);

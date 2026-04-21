@@ -164,9 +164,10 @@ export async function runAutoSaveOnSellPage(): Promise<AutoSaveResult> {
       return abort(snapshot, mismatch);
     }
 
-    // 画像は商品名より遅れて描画される。読み取り前に待たないと、
-    // 画像のある商品でも「画像枚数を確認できない」差分になって中断してしまう
-    await waitForSellFormImages();
+    // 再出品フォームの画像は外部ツールが1枚ずつ上げ直すため、枚数が徐々に増える。
+    // 元商品の枚数に達するまで待たないと、途中の枚数で差分と判定してしまう。
+    const expectedImages = Number(snapshot.values.imageCount);
+    await waitForSellFormImages(document, Number.isFinite(expectedImages) ? expectedImages : null);
 
     // セレクタ調整用に、解決状況をデバッグログへ出力する
     dumpSellFormStructure();
