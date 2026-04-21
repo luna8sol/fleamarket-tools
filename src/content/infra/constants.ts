@@ -42,6 +42,10 @@ export const SELECTOR = {
   // ボタン・ラベル
   RELIST_BUTTON: '#clone-item',
   ITEM_LABEL: '[data-testid="item-label"]',
+
+  // 出品中商品のカウント表示（いいね・コメント・閲覧数）
+  // li内のSVGアイコン直後のspanが順に いいね・コメント・閲覧数 に対応する
+  ITEM_COUNT_SPAN: 'svg[aria-hidden="true"] + span',
 };
 
 /**
@@ -141,6 +145,11 @@ export const ID_NAME = {
   AI_DESCRIPTION_APPLY_BTN: 'ai-description-apply-btn',
   AI_DESCRIPTION_CANCEL_BTN: 'ai-description-cancel-btn',
   AI_DESCRIPTION_STATUS: 'ai-description-status',
+
+  // フィルターバー
+  FILTER_BAR: 'listing-filter-bar',
+  FILTER_LIKES_BTN: 'filter-likes-btn',
+  FILTER_COMMENTS_BTN: 'filter-comments-btn',
 };
 
 /**

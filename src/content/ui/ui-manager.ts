@@ -4,6 +4,7 @@ import { initializePageUI } from './bulk-bar-utils';
 import { addCheckboxToLi } from './checkbox-manager';
 import { renderOrderNumbers } from './order-display';
 import { addAiDescriptionLink } from './ai-description-link';
+import { renderFilterBar } from './filter-bar';
 import { detectCurrentPage } from '../infra/page-detector';
 import { PageType } from '../infra/constants';
 
@@ -40,6 +41,11 @@ export function renderUiComponents(ul: HTMLUListElement): void {
 
   // ページタイプ別のUI初期化
   initializePageUI(ul);
+
+  // 出品中ページのみフィルターバーを描画
+  if (pageType === PageType.LISTINGS) {
+    renderFilterBar(ul);
+  }
 
   // コントロールバー（選択カウンター）の描画
   renderBulkBar(selectionManager.getSelectionCount());
