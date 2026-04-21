@@ -53,7 +53,7 @@ export function initializePageUI(ul: HTMLUListElement): void {
     // 選択件数表示を更新（コンテナを作成・追加）
     renderBulkBar(selectionManager.getSelectionCount());
   } else {
-    // 念のため UNKNOWN や DRAFTS ではボタン撤去
+    // UNKNOWN ページではコンテナを撤去
     const existing = document.getElementById(ID_NAME.BULK_RELIST_CONTAINER);
     if (existing) existing.remove();
   }
