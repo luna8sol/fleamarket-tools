@@ -5,7 +5,7 @@ description: 作業ブランチを統合ブランチ develop に取り込む。�
 
 # 作業ブランチを develop に取り込む
 
-規約の正本は [CLAUDE.md](../../../CLAUDE.md) の「ブランチ運用の補足」と [CONTRIBUTING.md](../../../CONTRIBUTING.md)。統合ブランチは **`develop`**、方式は **`--no-ff`**。
+規約の正本は [CLAUDE.md](../../../CLAUDE.md) の「ブランチ運用の補足」と [CONTRIBUTING.md](../../../CONTRIBUTING.md)。統合ブランチは **`develop`**、方式は **rebase してから `--ff-only`**（マージコミットを作らず履歴を直線に保つ）。
 
 **マージは指示されたときだけ行う。** 既定の停止点はコミット（`start-task`）。自動でここまで進めない。
 
@@ -17,16 +17,25 @@ description: 作業ブランチを統合ブランチ develop に取り込む。�
 2. **型チェック・ビルド・lint が通っている** — `quality-check` スキル（`npm run format:check` の既存 29 ファイルは対象外）
 3. **セルフレビュー済み** — `self-review` スキルで Must が 0 件
 
-## 2. マージする
+## 2. rebase してから早送りで取り込む
+
+**マージコミットを作らない。** 履歴は直線に保つ。
 
 ```bash
+git fetch origin develop
+git switch <作業ブランチ>
+git rebase develop                       # develop が進んでいれば載せ替える
 git switch develop
 git pull --ff-only                       # ここで失敗したら develop が分岐している（下記参照）
-git merge --no-ff <作業ブランチ> -m 'merge: <何を取り込んだか>'
+git merge --ff-only <作業ブランチ>       # 早送りのみ。マージコミットは作られない
 ```
 
-- **`--no-ff` を省かない。** 早送りされると作業単位が履歴に残らず、何をひとまとまりでやったか後から追えなくなる。
-- `git pull --ff-only` が失敗したら `develop` が分岐している。**勝手にマージや rebase をせず、報告して指示を仰ぐ。**
+- **`--ff-only` を使い、`--no-ff` を付けない。** `--no-ff` は早送りできる場合でもマージコミットを作るオプション。
+- **`git merge --ff-only` が失敗したら、rebase が済んでいないサイン。** その場でマージに切り替えず、`git rebase develop` に戻る。
+- `git pull --ff-only` が失敗したら `develop` が分岐している。**勝手にマージせず、報告して指示を仰ぐ。**
+- **rebase 中にコンフリクトしたら、解消して `git rebase --continue`。** 手に負えなければ `git rebase --abort` で戻して報告する（下記「4. コンフリクトしたとき」と同じ判断）。
+- **rebase はコミットのハッシュを変える。** 作業ブランチを push 済みの場合は実行前に確認を取る（このリポジトリは作業ブランチを push しない運用なので通常は問題にならない）。
+- rebase 後は**コミット日時が実時間に戻る**。[CLAUDE.md](../../../CLAUDE.md) の「コミット日時」に従って 10 分刻みに直してから早送りする。
 
 ### worktree を使っているときの注意
 
@@ -83,12 +92,14 @@ git branch -d <作業ブランチ>
 
 ## やらないこと
 
-- **`develop` で `git reset --hard` / `git push --force` をしない。** 取り消したいときは `git revert`（履歴を書き換えず、何を戻したかが残る）。
+- **マージコミットを作らない。** `--no-ff` を使わない。`git merge` が早送りできないなら、それは rebase が済んでいないサイン。
+- **push 済みの `develop` で `git reset --hard` / `git push --force` をしない。** 取り消したいときは `git revert`（履歴を書き換えず、何を戻したかが残る）。
+  - **例外: まだ push していないローカルコミットだけを巻き戻す場合は `reset --hard` を使ってよい。** `git rev-list --count origin/develop..develop` で先行数を確認し、**戻す先のコミットを `git log` で見てから**実行する。push 済みの範囲に入る巻き戻しは対象外。
 - どうしても force が必要なら `--force-with-lease` を使い、**実行前に理由を報告して指示を仰ぐ**。
 
 ## 報告に入れるもの
 
-- マージ方式（`--no-ff`）とマージコミットのハッシュ
+- 取り込み方式（rebase + `--ff-only`）と、取り込み後の `develop` の先端ハッシュ
 - **マージ後**のテストと型チェックの結果（マージ前の結果と混同しない）
 - コンフリクトの有無と、あったなら解消方針
 - 削除した作業ブランチと worktree

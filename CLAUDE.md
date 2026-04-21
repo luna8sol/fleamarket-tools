@@ -74,7 +74,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   ```
 
 - **作業ブランチは origin に push しない**（ローカル限り）。`develop` は origin と同期する。
-- 統合は **`--no-ff`** で行う。手順は [.claude/skills/merge/SKILL.md](.claude/skills/merge/SKILL.md)。
+- 統合は **rebase してから `--ff-only`** で行う。**マージコミットを作らない**（履歴を直線に保つ）。手順は [.claude/skills/merge/SKILL.md](.claude/skills/merge/SKILL.md)。
 - **マージ後に作業ブランチを削除する**（`git branch -d`）。履歴はマージコミットに残るので情報は失われない。
 - このリポジトリは **worktree を使っている。ブランチ 1 本につき worktree が 1 つ占有される。** ブランチを削除するときは worktree も片付ける（手順は [.claude/skills/local-setup/SKILL.md](.claude/skills/local-setup/SKILL.md)）。
 
