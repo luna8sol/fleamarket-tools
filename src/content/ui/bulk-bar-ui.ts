@@ -1,5 +1,5 @@
-import { CLASS_NAME, ID_NAME, PageType } from '../infra/constants';
-import { log, debug, debugMethodStart, debugMethodEnd } from '../infra/logger';
+import { ID_NAME, PageType } from '../infra/constants';
+import { debug, debugMethodStart, debugMethodEnd } from '../infra/logger';
 import { selectionManager } from '../logic/selection-manager';
 import { getOrCreateElement } from './bulk-bar-core';
 import { createBulkRelistContainer, createBulkRelistButton, createBulkPlaceholderButton } from './bulk-relist';
@@ -10,61 +10,6 @@ import { detectCurrentPage } from '../infra/page-detector';
  */
 export function applyFixedStyles(element: HTMLElement, styles: Record<string, string>): void {
   Object.assign(element.style, styles);
-}
-
-/**
- * アイテム用チェックボックスを作成
- */
-export function createBulkCheckbox(li: HTMLLIElement, onChange: (id: string, checked: boolean) => void): void {
-  if (li.querySelector(`.${CLASS_NAME.BULK_CHECKBOX}`)) return;
-
-  // チェックボックス作成
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.className = CLASS_NAME.BULK_CHECKBOX;
-  checkbox.style.marginRight = '8px';
-
-  // 順番表示用span要素を作成
-  let orderSpan = li.querySelector('.bulk-order-span') as HTMLSpanElement | null;
-  if (!orderSpan) {
-    orderSpan = document.createElement('span');
-    orderSpan.className = 'bulk-order-span';
-    orderSpan.style.marginRight = '4px';
-    orderSpan.style.fontWeight = 'bold';
-    orderSpan.style.color = '#ff0211';
-    orderSpan.style.display = 'inline-block';
-    orderSpan.style.minWidth = '24px';
-    orderSpan.style.textAlign = 'center';
-    li.insertBefore(orderSpan, li.firstChild);
-  }
-
-  const aTag = li.querySelector('a[data-testid="listed-item"]') as HTMLAnchorElement;
-  if (aTag) {
-    const itemId = aTag.getAttribute('href') || '';
-    checkbox.dataset.itemId = itemId;
-  }
-
-  // change イベントハンドラ
-  checkbox.addEventListener('change', () => {
-    const id = checkbox.dataset.itemId!;
-    onChange(id, checkbox.checked);
-
-    // 選択/解除に応じて直接順番表示を更新
-    if (checkbox.checked) {
-      log(`チェックボックス選択: ID=${id}`);
-      // 選択状態の視覚化
-      li.classList.add('selected-item');
-    } else {
-      log(`チェックボックス解除: ID=${id}`);
-      // 選択解除時の視覚化
-      li.classList.remove('selected-item');
-      orderSpan.textContent = '';
-    }
-  });
-
-  // 順番表示spanとチェックボックスを追加
-  li.insertBefore(orderSpan, li.firstChild);
-  li.insertBefore(checkbox, li.firstChild);
 }
 
 /**
