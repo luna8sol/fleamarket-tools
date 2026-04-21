@@ -170,6 +170,7 @@ export const CLASS_NAME = {
   SELECTED_ITEM: 'selected-item',
   DRAFT_ORDER: 'draft-order',
   AI_DESCRIPTION_LINK: 'ai-description-link',
+  SELECT_UP_TO_BTN: 'bulk-select-up-to-btn',
 };
 
 /**

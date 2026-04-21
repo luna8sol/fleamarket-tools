@@ -8,3 +8,4 @@ export * from './bulk-bar-utils';
 export * from './list';
 export * from './ai-description-link';
 export * from './description-panel';
+export * from './select-up-to';

@@ -42,6 +42,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 下書き保存後のタブを閉じる | [src/content/logic/tab-closer.ts](src/content/logic/tab-closer.ts), [src/background/index.ts](src/background/index.ts) |
 | 元商品との比較・差分の自動修正 | [src/content/logic/relist-verifier.ts](src/content/logic/relist-verifier.ts) |
 | 再出品の待ち行列（FIFO）・自動保存設定 | [src/content/infra/relist-queue.ts](src/content/infra/relist-queue.ts), [auto-save-settings.ts](src/content/infra/auto-save-settings.ts) |
+| 一覧の先頭から指定の行までの一括選択 | [src/content/ui/select-up-to.ts](src/content/ui/select-up-to.ts) |
 | 選択状態・選択順の管理 | [src/content/logic/selection-manager.ts](src/content/logic/selection-manager.ts) |
 | DOM 変更の監視 | [src/content/logic/observer-manager.ts](src/content/logic/observer-manager.ts) |
 | UI 全体の組み立て | [src/content/ui/ui-manager.ts](src/content/ui/ui-manager.ts), [ui/index.ts](src/content/ui/index.ts) |

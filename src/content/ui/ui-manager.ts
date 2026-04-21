@@ -32,7 +32,11 @@ export function renderUiComponents(ul: HTMLUListElement): void {
         renderOrderNumbers(ul, selectionManager);
         renderBulkBar(selectionManager.getSelectionCount());
       },
-      { type: pageType === PageType.DRAFTS ? 'drafts' : 'listings' }
+      {
+        type: pageType === PageType.DRAFTS ? 'drafts' : 'listings',
+        // 「ここまで選択」は下書き一覧だけに出す（出品中一覧は削除の対象にもなるため）
+        withSelectUpTo: pageType === PageType.DRAFTS
+      }
     );
   });
 

@@ -6,6 +6,7 @@ import { createOrderSpan } from './order';
 import { getDraftItems, DraftItem } from './list';
 import { updateDraftCount } from './bulk-bar-core';
 import { updateOrderDisplay } from '../ui/order-display';
+import { createSelectUpToButton } from './select-up-to';
 
 // チェックボックスのトグル処理済みフラグを管理する WeakMap
 const toggleHandledMap = new WeakMap<HTMLInputElement, boolean>();
@@ -77,6 +78,26 @@ function createBulkCheckboxElement(
   return checkbox;
 }
 
+/**
+ * 「ここまで選択」ボタンを行に付ける
+ *
+ * すでに付いている行には何もしない。一覧は再描画のたびに同じ li を見に来るため。
+ *
+ * @param li 対象の li
+ * @param checkbox 付与済みのチェックボックス（この直後にボタンを置く）
+ * @param onSelectionChanged まとめて選択したあとの再描画処理
+ */
+function ensureSelectUpToButton(
+  li: HTMLLIElement,
+  checkbox: HTMLInputElement,
+  onSelectionChanged: () => void
+): void {
+  if (safeQuery(`.${CLASS_NAME.SELECT_UP_TO_BTN}`, li)) return;
+  if (!checkbox.parentNode) return;
+
+  checkbox.insertAdjacentElement('afterend', createSelectUpToButton(li, onSelectionChanged));
+}
+
 // 共通のID推定ヘルパー
 function deriveItemIdFromLi(li: HTMLLIElement, type: 'drafts' | 'listings'): string | undefined {
   const aSel = type === 'listings' ? SELECTOR.ITEM_LINK : SELECTOR.DRAFT_ITEM;
@@ -88,7 +109,7 @@ function deriveItemIdFromLi(li: HTMLLIElement, type: 'drafts' | 'listings'): str
 function attachCheckboxInternal(
   li: HTMLLIElement,
   onChange: (id: string, checked: boolean) => void,
-  options: { type: 'drafts' | 'listings'; itemId?: string; withOrder?: boolean }
+  options: { type: 'drafts' | 'listings'; itemId?: string; withOrder?: boolean; withSelectUpTo?: boolean }
 ): HTMLInputElement | null {
   const startTime = performance.now();
   debugMethodStart('attachCheckboxInternal', { liTagName: li?.tagName, options });
@@ -101,8 +122,16 @@ function attachCheckboxInternal(
   // すでにチェックボックスが存在するか確認
   const existingCheckbox = safeQuery(`.${CLASS_NAME.BULK_CHECKBOX}`, li);
   if (existingCheckbox) {
+    const attached = existingCheckbox as HTMLInputElement;
+    const attachedId = attached.dataset.itemId;
+
+    // チェックボックスだけ残ってボタンが失われた行を取りこぼさない
+    if (options.withSelectUpTo && attachedId) {
+      ensureSelectUpToButton(li, attached, () => onChange(attachedId, true));
+    }
+
     debugMethodEnd('attachCheckboxInternal', { result: 'existing checkbox', alreadyAttached: true });
-    return existingCheckbox as HTMLInputElement;
+    return attached;
   }
 
   // ID決定（優先: 引数 -> DOM推定）
@@ -148,12 +177,19 @@ function attachCheckboxInternal(
     }
   }
 
+  // まとめて選択したあとの再描画は、起点の行の変更として1回だけ呼び出し元に伝える
+  // （選んだ行ごとに伝えると、行数分だけ一覧全体の再描画が走る）
+  if (options.withSelectUpTo) {
+    ensureSelectUpToButton(li, checkbox, () => onChange(resolvedId, true));
+  }
+
   const duration = Math.round(performance.now() - startTime);
   debugMethodEnd('attachCheckboxInternal', {
     success: true,
     itemId: resolvedId,
     type: options.type,
-    withOrder: options.withOrder
+    withOrder: options.withOrder,
+    withSelectUpTo: options.withSelectUpTo
   }, duration);
 
   return checkbox;
@@ -189,7 +225,7 @@ export function addCheckboxAndOrderToLi(item: DraftItem, updateOrder: () => void
   const result = attachCheckboxInternal(
     li,
     checkboxChangeHandler,
-    { type: 'drafts', itemId: id, withOrder: true }
+    { type: 'drafts', itemId: id, withOrder: true, withSelectUpTo: true }
   );
 
   const duration = Math.round(performance.now() - startTime);
@@ -203,7 +239,7 @@ export function addCheckboxAndOrderToLi(item: DraftItem, updateOrder: () => void
 export function addCheckboxToLi(
   li: HTMLLIElement,
   onChange: (id: string, checked: boolean) => void,
-  options?: { type?: 'drafts' | 'listings'; itemId?: string }
+  options?: { type?: 'drafts' | 'listings'; itemId?: string; withSelectUpTo?: boolean }
 ): HTMLInputElement | null {
   const startTime = performance.now();
   debugMethodStart('addCheckboxToLi', { liTagName: li?.tagName, options });
@@ -211,7 +247,12 @@ export function addCheckboxToLi(
   const result = attachCheckboxInternal(
     li,
     onChange,
-    { type: options?.type ?? 'listings', itemId: options?.itemId, withOrder: false }
+    {
+      type: options?.type ?? 'listings',
+      itemId: options?.itemId,
+      withOrder: false,
+      withSelectUpTo: options?.withSelectUpTo
+    }
   );
 
   const duration = Math.round(performance.now() - startTime);

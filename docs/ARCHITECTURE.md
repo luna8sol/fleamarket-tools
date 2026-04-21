@@ -120,6 +120,7 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 | `checkbox-manager.ts` | 商品選択用チェックボックスの生成とイベント処理 |
 | `list.ts` | 商品リスト要素の取得・走査 |
 | `order-display.ts` / `order.ts` | 選択順序のビジュアル表示 |
+| `select-up-to.ts` | 下書き一覧の各行に出す「ここまで選択」ボタンと、先頭からその行までの一括選択 |
 | `notification.ts` | 処理結果・エラーの通知表示 |
 | `list-load-error.ts` | 商品リストを読み込めなかったことを知らせるパネル（再試行ボタン付き） |
 | `filter-bar.ts` | 出品中一覧のフィルターバー（いいね・コメント数の絞り込みトグル） |
