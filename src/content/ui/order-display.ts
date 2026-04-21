@@ -5,6 +5,29 @@ import { DraftItem } from './list';
 import { warn } from '../infra/logger';
 
 /**
+ * 選択状態の強調表示に使うCSSをdocument.headに一度だけ注入する
+ */
+function injectOrderStyles(): void {
+  if (document.getElementById('bulk-selection-style')) return;
+  const style = document.createElement('style');
+  style.id = 'bulk-selection-style';
+  style.textContent = `
+    .selected-item {
+      background-color: rgba(255, 2, 17, 0.05);
+      border-left: 3px solid #ff0211;
+    }
+    .${CLASS_NAME.BULK_ORDER_SPAN} {
+      display: inline-block;
+      min-width: 24px;
+      text-align: center;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+injectOrderStyles();
+
+/**
  * SelectionManagerの状態に応じてli内の順番表示を更新する。
  *
  * @param items DraftItem[]
@@ -49,24 +72,6 @@ export function updateOrderDisplay(
       }
     }
   });
-
-  // スタイルを追加
-  if (!document.getElementById('bulk-selection-style')) {
-    const style = document.createElement('style');
-    style.id = 'bulk-selection-style';
-    style.textContent = `
-      .selected-item {
-        background-color: rgba(255, 2, 17, 0.05);
-        border-left: 3px solid #ff0211;
-      }
-      .${CLASS_NAME.BULK_ORDER_SPAN} {
-        display: inline-block;
-        min-width: 24px;
-        text-align: center;
-      }
-    `;
-    document.head.appendChild(style);
-  }
 }
 
 /**
