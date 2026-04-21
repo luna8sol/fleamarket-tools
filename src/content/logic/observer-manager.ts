@@ -2,6 +2,7 @@ import { debug, warn, debugMethodStart, debugMethodEnd } from '../infra/logger';
 import { SELECTOR, PageType, CONFIG } from '../infra/constants';
 import { detectCurrentPage } from '../infra/page-detector';
 import { renderUiComponents } from '../ui/ui-manager';
+import { showListLoadError, hideListLoadError } from '../ui/list-load-error';
 
 /**
  * DOMの変更を監視し、必要なUI更新処理を行う管理クラス
@@ -22,10 +23,10 @@ export class ObserverManager {
   private relistTimeout: number | null = null;
 
   /**
-   * <ul>要素の監視用MutationObserver
+   * リスト要素の出現・差し替えを検知するMutationObserver
    * @type {MutationObserver | null}
    */
-  private ulObserver: MutationObserver | null = null;
+  private rootObserver: MutationObserver | null = null;
 
   /**
    * <li>要素の監視用MutationObserver
@@ -34,10 +35,16 @@ export class ObserverManager {
   private liObserver: MutationObserver | null = null;
 
   /**
-   * 要素待機用のタイマーID
+   * リスト要素の出現を待つ締め切りのタイマーID
    * @type {number | null}
    */
-  private waitForElementTimeout: number | null = null;
+  private listWaitTimeout: number | null = null;
+
+  /**
+   * 監視対象のリスト要素のセレクタ（対応するページでのみ設定される）
+   * @type {string | null}
+   */
+  private listSelector: string | null = null;
 
   /**
    * 現在の実行状態を追跡するフラグ
@@ -46,21 +53,15 @@ export class ObserverManager {
   private isProcessingPage = false;
 
   /**
-   * 最後に処理したページのURL
-   * @type {string | null}
-   */
-  private lastProcessedUrl: string | null = null;
-
-  /**
    * すべてのMutationObserverを解除し、タイマーもクリアする
    * @returns {void}
    */
   disconnectObservers(): void {
     debugMethodStart('ObserverManager.disconnectObservers');
 
-    this.ulObserver?.disconnect();
+    this.rootObserver?.disconnect();
     this.liObserver?.disconnect();
-    this.ulObserver = null;
+    this.rootObserver = null;
     this.liObserver = null;
 
     if (this.relistTimeout) {
@@ -68,118 +69,59 @@ export class ObserverManager {
       this.relistTimeout = null;
     }
 
-    if (this.waitForElementTimeout) {
-      clearTimeout(this.waitForElementTimeout);
-      this.waitForElementTimeout = null;
-    }
+    this.clearListWaitTimeout();
 
     debugMethodEnd('ObserverManager.disconnectObservers', { status: 'completed' });
   }
 
   /**
-   * 指定されたセレクタの要素が見つかるまで待機する
-   * @param {string} selector - 検索するセレクタ
-   * @param {HTMLElement} rootElement - 検索の起点となる要素
-   * @param {number} maxRetryCount - 最大リトライ回数
-   * @param {(element: HTMLElement) => void} onFound - 要素が見つかった時に実行するコールバック
-   * @param {() => void} [onNotFound] - 最大リトライ回数を超えた時に実行するコールバック
-   * @returns {void}
+   * 現在のページタイプに対応するリスト要素のセレクタを返す
+   * @returns {string | null} 対応していないページならnull
    */
-  private waitForElement(
-    selector: string,
-    rootElement: HTMLElement,
-    maxRetryCount: number,
-    onFound: (element: HTMLElement) => void,
-    onNotFound?: () => void
-  ): void {
-    let retryCount = 0;
-
-    const tryFindElement = (): void => {
-      const element = rootElement.querySelector(selector) as HTMLElement;
-      if (element) {
-        onFound(element);
-        return;
-      }
-
-      retryCount++;
-      if (retryCount >= maxRetryCount) {
-        warn(`要素 ${selector} が ${maxRetryCount} 回の試行後も見つかりませんでした`);
-        onNotFound?.();
-        return;
-      }
-
-      this.waitForElementTimeout = window.setTimeout(() => {
-        this.waitForElementTimeout = null;
-        tryFindElement();
-      }, CONFIG.OBSERVER_RETRY_INTERVAL_MS);
-    };
-
-    tryFindElement();
+  private resolveListSelector(pageType: PageType): string | null {
+    if (pageType === PageType.DRAFTS) {
+      return SELECTOR.DRAFT_LIST;
+    }
+    if (pageType === PageType.LISTINGS) {
+      return SELECTOR.ITEMS_LIST;
+    }
+    return null;
   }
 
   /**
-   * #__next要素の監視を開始し、リスト要素の変化に応じてUIを更新する
+   * リスト要素の出現待ちの締め切りタイマーを解除する
+   * @returns {void}
+   */
+  private clearListWaitTimeout(): void {
+    if (this.listWaitTimeout !== null) {
+      clearTimeout(this.listWaitTimeout);
+      this.listWaitTimeout = null;
+    }
+  }
+
+  /**
+   * リスト要素の監視を開始し、リスト要素の変化に応じてUIを更新する
+   *
+   * 監視の起点は`document.body`。メルカリはSPAで`main`要素ごと差し替えうるが、
+   * 起動時に掴んだ要素をMutationObserverに渡すと、差し替えられた時点で
+   * デタッチされたノードを監視し続けて二度と発火しなくなる。`document.body`は
+   * 差し替わらないため、リストの遅延描画にも差し替えにも追従できる。
+   *
    * @returns {void}
    */
   startObserving(): void {
-    const currentUrl = window.location.href;
-
-    if (this.isProcessingPage && this.lastProcessedUrl === currentUrl) {
-      debug(`既に処理中のため、重複実行を防止しました: ${currentUrl}`);
-      return;
-    }
-
-    this.isProcessingPage = true;
-    this.lastProcessedUrl = currentUrl;
-
     debugMethodStart('ObserverManager.startObserving');
 
-    const rootDiv = document.querySelector('main#main') as HTMLElement | null;
-
-    if (!rootDiv) {
-      warn('mainタグが見つかりません');
-      debugMethodEnd('ObserverManager.startObserving', { status: 'failed', reason: 'mainタグが見つからない' });
-
-      this.waitForElement(
-        'main#main',
-        document.body,
-        CONFIG.OBSERVER_MAX_RETRY_COUNT,
-        (mainElement) => {
-          debug('mainタグが遅延読み込みされました');
-          this.startObservingWithRoot(mainElement);
-          this.isProcessingPage = false;
-        },
-        () => {
-          this.isProcessingPage = false;
-        }
-      );
-      return;
-    }
-
-    debug('mainタグ found, start observing');
-    this.startObservingWithRoot(rootDiv);
-    this.isProcessingPage = false;
-  }
-
-  /**
-   * rootDiv要素を起点に監視を開始する
-   * @param {HTMLElement} rootDiv - 監視の起点となるルート要素
-   * @returns {void}
-   */
-  private startObservingWithRoot(rootDiv: HTMLElement): void {
-    debugMethodStart('ObserverManager.startObservingWithRoot', { rootElement: rootDiv.tagName });
-
     this.disconnectObservers();
+    hideListLoadError();
+    this.lastUl = null;
 
     const pageType = detectCurrentPage();
+    const listSelector = this.resolveListSelector(pageType);
 
-    let ulSelector: string;
-    if (pageType === PageType.DRAFTS) {
-      ulSelector = SELECTOR.DRAFT_LIST;
-    } else if (pageType === PageType.LISTINGS) {
-      ulSelector = SELECTOR.ITEMS_LIST;
-    } else {
-      debugMethodEnd('ObserverManager.startObservingWithRoot', {
+    if (!listSelector) {
+      this.listSelector = null;
+      debugMethodEnd('ObserverManager.startObserving', {
         status: 'aborted',
         reason: '対応していないページタイプ',
         pageType
@@ -187,70 +129,76 @@ export class ObserverManager {
       return;
     }
 
-    const ul = rootDiv.querySelector(ulSelector) as HTMLUListElement;
+    this.listSelector = listSelector;
+
+    this.rootObserver = new MutationObserver(() => this.syncListElement());
+    this.rootObserver.observe(document.body, { childList: true, subtree: true });
+
+    const ul = document.querySelector(listSelector);
     if (ul instanceof HTMLUListElement) {
-      debug(`${ulSelector} 要素が見つかりました。UIを更新します`);
+      debug(`${listSelector} 要素が見つかりました。UIを更新します`);
       this.setupObserversForUl(ul);
     } else {
-      debug(`${ulSelector} 要素が見つかりませんでした。読み込みを待機します`);
-      this.waitForElement(
-        ulSelector,
-        rootDiv,
-        CONFIG.OBSERVER_MAX_RETRY_COUNT,
-        (ulElement) => {
-          if (ulElement instanceof HTMLUListElement) {
-            debug(`${ulSelector} 要素が遅延読み込みされました`);
-            this.setupObserversForUl(ulElement as HTMLUListElement);
-          }
-        },
-        () => {
-          warn(`リスト要素 ${ulSelector} が見つからなかったため監視を開始できませんでした`);
-        }
-      );
+      debug(`${listSelector} 要素が見つかりませんでした。読み込みを待機します`);
+      this.startListWaitTimeout(listSelector);
     }
 
-    this.ulObserver = new MutationObserver(() => {
-      if (this.isProcessingPage) return;
-
-      try {
-        const ul = rootDiv?.querySelector(ulSelector);
-        if (!(ul instanceof HTMLUListElement)) {
-          this.waitForElement(
-            ulSelector,
-            rootDiv,
-            3,
-            (ulElement) => {
-              if (ulElement instanceof HTMLUListElement) {
-                debug(`DOM変更後に ${ulSelector} 要素が見つかりました`);
-                this.setupObserversForUl(ulElement as HTMLUListElement);
-              }
-            },
-            () => {
-              warn(`DOM変更後もリスト要素 ${ulSelector} が見つかりませんでした`);
-            }
-          );
-          return;
-        }
-
-        if (ul !== this.lastUl) {
-          this.isProcessingPage = true;
-          this.setupObserversForUl(ul);
-          this.isProcessingPage = false;
-        }
-      } catch (e) {
-        warn('ulObserver コールバックでエラーが発生しました', e);
-        this.isProcessingPage = false;
-      }
-    });
-
-    this.ulObserver.observe(rootDiv, { childList: true, subtree: true });
-
-    debugMethodEnd('ObserverManager.startObservingWithRoot', {
+    debugMethodEnd('ObserverManager.startObserving', {
       status: 'completed',
-      ulObserverAttached: true,
+      rootObserverAttached: true,
       pageType,
-      ulSelector
+      listSelector
     });
+  }
+
+  /**
+   * リスト要素が現れないまま締め切りを迎えたら、ユーザーに見える形で知らせる。
+   *
+   * 締め切り後も`rootObserver`は動き続けるので、あとからリストが描画されれば
+   * 自動で復帰する。それまでの間、何も表示されない状態を放置しないためのもの。
+   *
+   * @param {string} listSelector - 待機中のリスト要素のセレクタ
+   * @returns {void}
+   */
+  private startListWaitTimeout(listSelector: string): void {
+    this.clearListWaitTimeout();
+
+    this.listWaitTimeout = window.setTimeout(() => {
+      this.listWaitTimeout = null;
+
+      if (this.lastUl) return;
+
+      warn(
+        `リスト要素 ${listSelector} が ${CONFIG.LIST_WAIT_TIMEOUT_MS}ms 待っても見つかりませんでした`
+      );
+      showListLoadError(() => this.startObserving());
+    }, CONFIG.LIST_WAIT_TIMEOUT_MS);
+  }
+
+  /**
+   * DOM変更のたびに呼ばれ、監視対象のリスト要素が入れ替わっていれば張り直す
+   * @returns {void}
+   */
+  private syncListElement(): void {
+    if (this.isProcessingPage || !this.listSelector) return;
+
+    // 監視中のリストがDOMに繋がったままなら張り直す必要はない（li側の変更はliObserverが拾う）。
+    // document.body全体を見ているぶんコールバックは頻繁に走るので、
+    // 毎回document.querySelectorを投げないよう、ここで先に打ち切る。
+    if (this.lastUl?.isConnected) return;
+
+    try {
+      const ul = document.querySelector(this.listSelector);
+      if (!(ul instanceof HTMLUListElement) || ul === this.lastUl) return;
+
+      this.isProcessingPage = true;
+      debug(`DOM変更後に ${this.listSelector} 要素が見つかりました`);
+      this.setupObserversForUl(ul);
+    } catch (e) {
+      warn('rootObserver コールバックでエラーが発生しました', e);
+    } finally {
+      this.isProcessingPage = false;
+    }
   }
 
   /**
@@ -262,6 +210,9 @@ export class ObserverManager {
     debugMethodStart('ObserverManager.setupObserversForUl', {
       ulChildCount: ul.children.length
     });
+
+    this.clearListWaitTimeout();
+    hideListLoadError();
 
     this.lastUl = ul;
     try {

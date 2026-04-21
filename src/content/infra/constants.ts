@@ -150,6 +150,10 @@ export const ID_NAME = {
   FILTER_BAR: 'listing-filter-bar',
   FILTER_LIKES_BTN: 'filter-likes-btn',
   FILTER_COMMENTS_BTN: 'filter-comments-btn',
+
+  // リスト読み込み失敗の通知
+  LIST_LOAD_ERROR: 'list-load-error',
+  LIST_LOAD_RETRY_BTN: 'list-load-retry-btn',
 };
 
 /**
@@ -182,9 +186,10 @@ export const CONFIG = {
   RELIST_WAIT_RANDOM_MS: 10000,
   TOAST_DURATION_MS: 3000,
 
-  // DOM要素待機設定
-  OBSERVER_MAX_RETRY_COUNT: 10, // 要素が見つかるまでの最大リトライ回数
-  OBSERVER_RETRY_INTERVAL_MS: 500,
+  // 一覧リスト（ul）の出現を待つ上限時間
+  // メルカリ側はスケルトン表示のまま20秒以上かかることがある（出品中207件のアカウントで実測）。
+  // 出現の検知自体はMutationObserverが担うので、ここは「いつ諦めてユーザーに知らせるか」の締め切り。
+  LIST_WAIT_TIMEOUT_MS: 30000,
 
   // AI説明文生成パネルの描画待ち設定
   // 出品フォームはReactで遅延描画されるため、説明欄が現れるまで待つ必要がある

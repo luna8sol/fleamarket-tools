@@ -86,13 +86,14 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 | ファイル | 役割 |
 |---------|------|
 | `app-initializer.ts` | アプリ初期化・各層の統合・ページタイプに応じたセットアップ |
-| `observer-manager.ts` | MutationObserver による DOM 変更の監視と処理。UI の初期描画もここが担う |
+| `observer-manager.ts` | MutationObserver による DOM 変更の監視と処理。UI の初期描画もここが担う。リストが現れるまでは `document.body` を監視して待ち、`CONFIG.LIST_WAIT_TIMEOUT_MS` を過ぎたら `list-load-error.ts` で知らせる |
 | `selection-manager.ts` | 選択商品の追加・削除・順序管理（**永続化はしない。メモリ上のみ**） |
 | `publisher.ts` | 下書きの自動出品処理 |
 | `relist-manager.ts` | 出品中商品の再出品処理 |
 | `common-processor.ts` | 出品・再出品に共通する逐次処理 |
 | `edit-form.ts` | 出品・編集フォームの読み書き（商品名・カテゴリ・状態・属性・画像の取得と、説明欄への書き戻し） |
 | `description-generator.ts` | background へ説明文の生成を依頼する。例外は投げず、必ず成否を表す結果型で返す |
+| `filter-manager.ts` | 出品中一覧のいいね・コメント数によるフィルター。カウントを読めないときは適用せず解除する |
 | `dom-utils.ts` | DOM 操作のユーティリティ関数 |
 
 ### UI 層（src/content/ui/）
@@ -108,6 +109,8 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 | `list.ts` | 商品リスト要素の取得・走査 |
 | `order-display.ts` / `order.ts` | 選択順序のビジュアル表示 |
 | `notification.ts` | 処理結果・エラーの通知表示 |
+| `list-load-error.ts` | 商品リストを読み込めなかったことを知らせるパネル（再試行ボタン付き） |
+| `filter-bar.ts` | 出品中一覧のフィルターバー（いいね・コメント数の絞り込みトグル） |
 | `description-panel.ts` | 編集ページの説明欄直下に出す「AIで説明文を作る」ボタンと生成結果のプレビューパネル |
 | `ai-description-link.ts` | 一覧ページの各商品に、編集ページを開く導線リンクを追加する |
 
