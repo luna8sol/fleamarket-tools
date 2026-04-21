@@ -261,6 +261,21 @@ button.mdp-btn--sm[data-busy="true"]::before { left: 11px; width: 12px; height: 
 .mdp-progress__head .mdp-spinner { color: var(--mdp-accent-text); }
 
 /* ---------- 一覧の各行 ---------- */
+/* 行の左に余白を取り、そこへチェックボックス列を重ねる（ui/row-gutter.ts） */
+li.mdp-row { position: relative; padding-left: var(--mdp-gutter); --mdp-gutter: 52px; }
+li.mdp-row[data-mdp-gutter="wide"] { --mdp-gutter: 92px; }
+.mdp-row-gutter {
+  position: absolute; top: 0; bottom: 0; left: 0; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  width: var(--mdp-gutter);
+  cursor: default;
+}
+.mdp-row-gutter input.bulk-checkbox,
+.mdp-row-gutter .bulk-order-span,
+.mdp-row-gutter button.bulk-select-up-to-btn { margin: 0; }
+/* 出品順は出ていないときも場所を空けておく（出た瞬間にチェックボックスが動かないように） */
+.mdp-row-gutter .bulk-order-span:empty { display: inline-grid; visibility: hidden; animation: none; }
+
 input.bulk-checkbox {
   -webkit-appearance: none; appearance: none;
   flex: none; display: inline-grid; place-content: center;

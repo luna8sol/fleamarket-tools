@@ -1,5 +1,5 @@
 import { CLASS_NAME, SELECTOR } from '../infra/constants';
-import { safeQuery, safeGetAttr, safePrepend } from '../../common/dom';
+import { safeQuery, safeGetAttr } from '../../common/dom';
 import { warn, debugMethodStart, debugMethodEnd } from '../infra/logger';
 import { selectionManager } from '../logic/selection-manager';
 import { createOrderSpan } from './order';
@@ -8,6 +8,7 @@ import { updateDraftCount } from './bulk-bar-core';
 import { updateOrderDisplay } from '../ui/order-display';
 import { createSelectUpToButton } from './select-up-to';
 import { ensureTheme } from './theme';
+import { ensureRowGutter } from './row-gutter';
 
 // チェックボックスのトグル処理済みフラグを管理する WeakMap
 const toggleHandledMap = new WeakMap<HTMLInputElement, boolean>();
@@ -142,6 +143,12 @@ function attachCheckboxInternal(
     const attached = existingCheckbox as HTMLInputElement;
     const attachedId = attached.dataset.itemId;
 
+    // 列ごと失われた行（再描画で li の先頭が作り直された場合など）は列に戻す
+    const gutter = ensureRowGutter(li, options.withSelectUpTo === true);
+    if (attached.parentElement !== gutter) {
+      gutter.prepend(attached);
+    }
+
     // チェックボックスだけ残ってボタンが失われた行を取りこぼさない
     if (options.withSelectUpTo && attachedId) {
       ensureSelectUpToButton(li, attached, () => onChange(attachedId, true));
@@ -171,27 +178,13 @@ function attachCheckboxInternal(
   // 統一: datasetに必ず設定
   checkbox.dataset.itemId = resolvedId;
 
+  // 行の左端のチェックボックス列に置く（商品リンクの外なので、押し損じても遷移しない）
+  const gutter = ensureRowGutter(li, options.withSelectUpTo === true);
+  gutter.appendChild(checkbox);
+
   // オプション: 並び順表示もここで付与可能
   if (options.withOrder) {
-    const orderSpan = createOrderSpan();
-    const firstDiv = safeQuery<HTMLElement>('div', li);
-
-    if (firstDiv) {
-      safePrepend(firstDiv, orderSpan);
-      safePrepend(firstDiv, checkbox);
-    } else {
-      li.insertBefore(orderSpan, li.firstChild);
-      li.insertBefore(checkbox, li.firstChild);
-    }
-  } else {
-    // 共通の挿入位置ポリシー（可能なら最初のdiv先頭、なければli先頭）
-    const firstDiv = safeQuery<HTMLElement>('div', li);
-
-    if (firstDiv && options.type === 'drafts') {
-      safePrepend(firstDiv, checkbox);
-    } else {
-      li.insertBefore(checkbox, li.firstChild);
-    }
+    gutter.appendChild(createOrderSpan());
   }
 
   // まとめて選択したあとの再描画は、起点の行の変更として1回だけ呼び出し元に伝える

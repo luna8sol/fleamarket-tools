@@ -187,6 +187,10 @@ export const CLASS_NAME = {
   AI_DESCRIPTION_LINK: 'ai-description-link',
   SELECT_UP_TO_BTN: 'bulk-select-up-to-btn',
 
+  // 一覧の行の左端に置くチェックボックス列（ui/row-gutter.ts）
+  ROW: 'mdp-row',
+  ROW_GUTTER: 'mdp-row-gutter',
+
   // 一括操作ドック・共通部品（スタイルは ui/theme.ts）
   DOCK_ACTIONS: 'mdp-dock__actions',
   DOCK_COUNT_NUM: 'mdp-dock__count-num',

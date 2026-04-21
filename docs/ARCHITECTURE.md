@@ -127,6 +127,7 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 | `icons.ts` | 線画アイコン。`innerHTML` を使わず `createElementNS` で組み立てる |
 | `confirm-dialog.ts` | 取り消せない操作の前に出す確認ダイアログ（`<dialog>`）。既定のフォーカスはキャンセル。出せない環境では `window.confirm` に切り替える |
 | `checkbox-manager.ts` | 商品選択用チェックボックスの生成とイベント処理 |
+| `row-gutter.ts` | 一覧の各行の左端に置くチェックボックス列。行（li）の左に余白を取って重ねる。**商品リンクの外に置き**、列の余白で起きたクリックは止める（押し損じで商品ページへ遷移させない） |
 | `list.ts` | 商品リスト要素の取得・走査 |
 | `order-display.ts` / `order.ts` | 選択順序のビジュアル表示 |
 | `select-up-to.ts` | 下書き一覧の各行に出す「ここまで選択」ボタンと、先頭からその行までの一括選択 |
