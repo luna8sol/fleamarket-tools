@@ -7,6 +7,7 @@ import { publishAllDrafts } from '../logic/publisher';
 import { applyFixedStyles, renderProcessingSpan } from './bulk-bar-ui';
 import { getOrCreateElement } from './bulk-bar-core';
 import { removeItemPrefix } from './bulk-bar-utils';
+import { showToast } from './notification';
 
 /**
  * 一括再出品ボタンを生成
@@ -188,7 +189,7 @@ export async function handleBulkAction(
   log(options.logMessage);
 
   if (selectionManager.getSelectionCount() === 0) {
-    alert(options.emptySelectionMessage);
+    showToast(options.emptySelectionMessage, 'warning');
     return;
   }
 
@@ -203,10 +204,10 @@ export async function handleBulkAction(
     log(`${options.actionType === 'relist' ? '再出品' : '出品'}処理を選択順で実行: ${selectedIds.map(removeItemPrefix).join(' -> ')}`);
 
     await options.processingFunction(selectedIds);
-    alert(options.successMessage);
+    showToast(options.successMessage, 'success');
   } catch (e) {
     warn(`${options.actionType === 'relist' ? '再出品' : '出品'}処理中にエラー`, e);
-    alert(options.errorMessage);
+    showToast(options.errorMessage, 'error');
   } finally {
     // 必ず非表示へ戻す
     renderProcessingSpan('');

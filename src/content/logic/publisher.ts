@@ -28,7 +28,6 @@ async function publishDraftItem(id: string): Promise<boolean> {
 
   if (!item) {
     warn(`li not found for id: ${id} 商品名: ${itemName}`);
-    alert(`下書き商品の要素が見つかりません (id: ${id}) 商品名: ${itemName}。ページ構造が変更された可能性があります。`);
     debugMethodEnd('publishDraftItem', { success: false, reason: 'item not found', id });
     return false;
   }
@@ -45,7 +44,6 @@ async function publishDraftItem(id: string): Promise<boolean> {
 
   } else {
     warn(`出品ボタンが見つかりません: ${id} 商品名: ${itemName}`);
-    alert(`出品ボタンが見つかりません (id: ${id}) 商品名: ${itemName}。ページ構造が変更された可能性があります。`);
     debugMethodEnd('publishDraftItem', { success: false, reason: 'submit button not found', id });
     return false;
   }

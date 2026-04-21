@@ -21,7 +21,6 @@ export class RelistManager {
       const itemListElement = document.querySelector<HTMLUListElement>(SELECTOR.ITEMS_LIST);
       if (!itemListElement) {
         warn('商品リストが見つかりません');
-        alert('商品リストが見つかりません。ページを再読み込みしてください。');
         return false;
       }
 
