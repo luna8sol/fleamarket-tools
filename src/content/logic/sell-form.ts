@@ -331,18 +331,30 @@ export async function waitForSellFormReady(
   root: Document = document,
   timeoutMs: number = CONFIG.SELL_FORM_READY_TIMEOUT_MS
 ): Promise<boolean> {
+  const startTime = performance.now();
   const ready = await waitFor(
     () => isSellFormReady(root),
     timeoutMs,
     CONFIG.SELL_FORM_POLL_INTERVAL_MS
   );
+  const elapsedMs = Math.round(performance.now() - startTime);
 
   if (!ready) {
-    warn('出品フォームの準備完了を待機中にタイムアウトしました');
+    const nameSpec = SELL_FORM_FIELDS.find((spec) => spec.key === 'name');
+    // 入力欄が無い＝フォームがまだ描画されていない。
+    // 入力欄はあるが空＝描画は済んでいてコピー内容だけが入っていない。
+    // どちらかで原因が変わるため区別して残す。
+    const nameInputFound = nameSpec !== undefined && resolveFieldControl(nameSpec, root) !== null;
+
+    warn('出品フォームの準備完了を待機中にタイムアウトしました', {
+      elapsedMs,
+      nameInputFound,
+      pathname: root.location.pathname,
+    });
     return false;
   }
 
-  debug('出品フォームの準備が完了しました');
+  debug('出品フォームの準備が完了しました', { elapsedMs });
   return true;
 }
 

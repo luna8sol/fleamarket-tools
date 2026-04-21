@@ -202,7 +202,10 @@ export const CONFIG = {
   // メルカリのフォームは React で遅延描画されるため、いずれも「現れるまで待つ」ためのもの。
   // 待てない場合は黙って先へ進まず、必ずタイムアウトして中断する。
   SELL_FORM_POLL_INTERVAL_MS: 250,   // 要素・ページ遷移待ちのポーリング間隔
-  SELL_FORM_READY_TIMEOUT_MS: 20000, // 出品フォームの初期表示（コピー内容の反映）を待つ上限
+  // 再出品タブでコピー内容が入るのを待つ上限。
+  // 待っている相手は外部ツールによる prefill で、メルカリ側の描画の遅さも重なる。
+  // 実測で20秒では足りなかった。再出品の間隔（RELIST_WAIT_BASE_MS）に収まる範囲で長めに取る。
+  SELL_FORM_READY_TIMEOUT_MS: 60000,
   SELL_FORM_NAV_TIMEOUT_MS: 15000,   // カテゴリー等の選択ページへの遷移・復帰を待つ上限
   SELL_FORM_IMAGE_TIMEOUT_MS: 8000,  // 画像サムネイルの描画を待つ上限（商品名より遅れて出る）
   SELL_FORM_FIX_SETTLE_MS: 300,      // 差分修正後、再読み取りまでの待機時間

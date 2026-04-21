@@ -2,7 +2,7 @@ import { sleep } from '../../common/utils';
 import { loadAutoSaveSettings } from '../infra/auto-save-settings';
 import { CONFIG } from '../infra/constants';
 import { debug, debugMethodEnd, debugMethodStart, log, warn } from '../infra/logger';
-import { dequeueSnapshot, hasPendingSnapshot } from '../infra/relist-queue';
+import { dequeueSnapshot } from '../infra/relist-queue';
 import { AutoSaveOutcome, AutoSaveResult, FieldDiff, ItemSnapshot } from '../infra/types';
 import { showToast } from '../ui/notification';
 import {
@@ -132,23 +132,14 @@ export async function runAutoSaveOnSellPage(): Promise<AutoSaveResult> {
       return buildResult(AutoSaveOutcome.SKIPPED, null, '自動保存は無効です');
     }
 
-    // 再出品由来でないフォームでは待機も通知もしない
-    if (!(await hasPendingSnapshot())) {
-      debug('この出品フォームに対応する再出品エントリがありません');
-      return buildResult(AutoSaveOutcome.SKIPPED, null, '対応する再出品エントリがありません');
-    }
-
-    // 取り違え防止の照合にフォームの商品名が要るため、取り出す前に描画を待つ
-    if (!(await waitForSellFormReady())) {
-      const message = '出品フォームの読み込みを確認できませんでした';
-      showToast(message, 'error', CONFIG.TOAST_DURATION_MS);
-      return buildResult(AutoSaveOutcome.FAILED, null, message);
-    }
-
+    // 先に取り出す。1タブが必ず1エントリを消費する形にして、キューとタブの
+    // 対応（FIFO）がずれないようにする。待ってから取り出すと、待機が時間切れに
+    // なったときにエントリが残り、次の再出品タブがそれを掴んで
+    // 「別商品のフォーム」と誤判定する連鎖が起きる。
+    // 再出品由来でないフォームはここで null になり、待機も通知もせず抜ける。
     const snapshot = await dequeueSnapshot();
     if (!snapshot) {
-      // 待機中に他のタブが取り出した場合（通常は起きない）
-      debug('待機のあいだに再出品エントリが無くなりました');
+      debug('この出品フォームに対応する再出品エントリがありません');
       return buildResult(AutoSaveOutcome.SKIPPED, null, '対応する再出品エントリがありません');
     }
 
@@ -157,6 +148,11 @@ export async function runAutoSaveOnSellPage(): Promise<AutoSaveResult> {
         snapshot,
         `元商品の情報を取得できていません: ${snapshot.captureError ?? '理由不明'}`
       );
+    }
+
+    // 取り違え防止の照合にフォームの商品名が要るため、コピー内容の反映を待つ
+    if (!(await waitForSellFormReady())) {
+      return abort(snapshot, '出品フォームにコピー内容が反映されませんでした');
     }
 
     // 取り違え防止。一致しない場合は比較も修正もしない

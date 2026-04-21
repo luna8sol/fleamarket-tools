@@ -48,18 +48,6 @@ export async function enqueueSnapshot(snapshot: ItemSnapshot): Promise<boolean> 
 }
 
 /**
- * キューに待機中のエントリがあるかを確認する（取り出しはしない）
- *
- * 再出品由来ではない `/sell/create`（ユーザーが自分で開いた新規出品）で
- * フォームの描画を待ってしまわないよう、待機前の足切りに使います。
- *
- * @returns 待機中のエントリがあれば true
- */
-export async function hasPendingSnapshot(): Promise<boolean> {
-  return (await loadRelistQueue()).length > 0;
-}
-
-/**
  * キューの先頭（最も古いエントリ）を取り出す（取り出したエントリは削除される）
  *
  * 再出品ボタンが開く `/sell/create` には**クエリパラメータが付かず、URL から
