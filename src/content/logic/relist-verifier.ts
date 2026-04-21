@@ -97,7 +97,7 @@ export async function applyFixes(diffs: FieldDiff[]): Promise<FixResult> {
     if (spec.fix === 'control') {
       succeeded = writeSellFormControl(spec, diff.expected);
     } else if (spec.fix === 'attributes') {
-      succeeded = writeSellFormAttributes(spec, diff.expected);
+      succeeded = await writeSellFormAttributes(spec, diff.expected);
     } else {
       succeeded = await fixByNavigation(spec, diff.expected);
     }

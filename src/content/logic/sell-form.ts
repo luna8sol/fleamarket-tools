@@ -362,11 +362,19 @@ export function writeSellFormControl(spec: SellFormFieldSpec, value: string): bo
  * 期待値に含まれない欄は「選択してください」へ戻し、フォーム全体が
  * 元商品と同じ状態になるようにします（余分な値が残ると差分が消えないため）。
  *
+ * **カテゴリーを直した直後は欄が作り直されます。** 遷移から戻ってすぐ書こうとすると
+ * まだ描画されておらず「入力欄が見つかりません」になるため、出そろうのを待ってから書きます。
+ *
  * @param spec フィールド定義
  * @param expected `ラベル=値｜ラベル=値` 形式の期待値
  * @returns すべて設定できたか
  */
-export function writeSellFormAttributes(spec: SellFormFieldSpec, expected: string): boolean {
+export async function writeSellFormAttributes(
+  spec: SellFormFieldSpec,
+  expected: string
+): Promise<boolean> {
+  await waitForSellFormAttributes();
+
   const containers = findAttributeContainers(spec, document);
   if (containers.length === 0) {
     warn(`${spec.label} の入力欄が見つかりません`);
