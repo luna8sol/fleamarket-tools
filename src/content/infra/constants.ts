@@ -204,6 +204,7 @@ export const CONFIG = {
   SELL_FORM_POLL_INTERVAL_MS: 250,   // 要素・ページ遷移待ちのポーリング間隔
   SELL_FORM_READY_TIMEOUT_MS: 20000, // 出品フォームの初期表示（コピー内容の反映）を待つ上限
   SELL_FORM_NAV_TIMEOUT_MS: 15000,   // カテゴリー等の選択ページへの遷移・復帰を待つ上限
+  SELL_FORM_IMAGE_TIMEOUT_MS: 8000,  // 画像サムネイルの描画を待つ上限（商品名より遅れて出る）
   SELL_FORM_FIX_SETTLE_MS: 300,      // 差分修正後、再読み取りまでの待機時間
   SNAPSHOT_IFRAME_TIMEOUT_MS: 30000, // 元商品の編集フォームを隠しiframeで読み込む上限
   RELIST_QUEUE_TTL_MS: 30 * 60 * 1000, // キューに残った古いエントリを破棄するまでの時間

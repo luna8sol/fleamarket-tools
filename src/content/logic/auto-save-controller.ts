@@ -10,6 +10,7 @@ import {
   findSubmitButton,
   readSellForm,
   readSellFormField,
+  waitForSellFormImages,
   waitForSellFormReady,
 } from './sell-form';
 import { isBackOnSellForm } from './sell-form-navigator';
@@ -163,6 +164,10 @@ export async function runAutoSaveOnSellPage(): Promise<AutoSaveResult> {
     if (mismatch !== null) {
       return abort(snapshot, mismatch);
     }
+
+    // 画像は商品名より遅れて描画される。読み取り前に待たないと、
+    // 画像のある商品でも「画像枚数を確認できない」差分になって中断してしまう
+    await waitForSellFormImages();
 
     // セレクタ調整用に、解決状況をデバッグログへ出力する
     dumpSellFormStructure();

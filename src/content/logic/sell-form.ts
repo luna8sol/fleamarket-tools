@@ -347,6 +347,41 @@ export async function waitForSellFormReady(
 }
 
 /**
+ * 画像サムネイルの描画を待つ
+ *
+ * **画像は商品名より遅れて描画されます**（実機で確認）。商品名が入った直後に
+ * 読むと、画像が4枚ある商品でも0枚に見え、「画像枚数を確認できない」項目として
+ * 自動保存が中断してしまいます。
+ *
+ * 画像が1枚も無いフォームも正常にありうるため、時間切れでも失敗にはしません。
+ * その場合は画像枚数が未解決のまま呼び出し側へ渡ります。
+ *
+ * @param root 対象の Document（省略時は現在のページ）
+ * @param timeoutMs 待機の上限（ミリ秒）
+ * @returns サムネイルが現れたら true、現れないまま時間切れなら false
+ */
+export async function waitForSellFormImages(
+  root: Document = document,
+  timeoutMs: number = CONFIG.SELL_FORM_IMAGE_TIMEOUT_MS
+): Promise<boolean> {
+  const spec = SELL_FORM_FIELDS.find((candidate) => candidate.key === 'imageCount');
+  if (!spec) return false;
+
+  const found = await waitFor(
+    () => countMatchingElements(spec, root) !== null,
+    timeoutMs,
+    CONFIG.SELL_FORM_POLL_INTERVAL_MS
+  );
+
+  if (!found) {
+    debug('画像サムネイルが現れませんでした（画像のない商品の可能性）');
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * 出品フォームの解決状況をログへ出力する（セレクタ調整用の診断）
  *
  * @param root 対象の Document（省略時は現在のページ）

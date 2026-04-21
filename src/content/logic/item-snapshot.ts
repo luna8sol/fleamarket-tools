@@ -2,7 +2,7 @@ import { waitFor } from '../../common/utils';
 import { CONFIG } from '../infra/constants';
 import { debug, debugMethodEnd, debugMethodStart, warn } from '../infra/logger';
 import { ItemSnapshot } from '../infra/types';
-import { isSellFormReady, readSellForm } from './sell-form';
+import { isSellFormReady, readSellForm, waitForSellFormImages } from './sell-form';
 
 /**
  * 元商品のスナップショット取得。
@@ -149,6 +149,9 @@ export async function captureItemSnapshot(itemId: string, itemName: string): Pro
         '編集フォームの読み込みがタイムアウトしました（ログイン切れ・iframe のブロックの可能性）'
       );
     }
+
+    // 画像は商品名より遅れて描画されるため、読み取り前に待つ
+    await waitForSellFormImages(loaded);
 
     const { values, unresolved } = readSellForm(loaded);
 
