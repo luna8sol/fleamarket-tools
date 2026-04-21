@@ -150,28 +150,39 @@ function renderSummary(plan: DescriptionReplacePlan | null): void {
 }
 
 /**
- * 進捗を 1〜2 行の文言にする
+ * 進捗を 2 行の文言にする
+ *
+ * 1 行目に何件目・何をしているか、2 行目に結果種別ごとの内訳を `[ ]` で囲んで出す。
+ * 商品名が長いと 1 行に収まらず、内訳がどこから始まるのか読み取れなくなるため行を分ける。
+ *
  * @param progress 進捗
- * @returns 表示用の文言
+ * @returns 表示用の文言（改行区切りの 2 行）
  */
 export function formatReplaceProgress(progress: DescriptionReplaceProgress): string {
   const { counts, current, total } = progress;
   const breakdown =
-    `成功 ${counts.applied} / 適用済み ${counts.already} / スキップ ${counts.skipped}` +
-    ` / 失敗 ${counts.failed} / 未確認 ${counts.unverified}`;
+    `[成功 ${counts.applied} / 適用済み ${counts.already} / スキップ ${counts.skipped}` +
+    ` / 失敗 ${counts.failed} / 未確認 ${counts.unverified}]`;
 
+  let headline: string;
   switch (progress.phase) {
     case 'done':
-      return `置換完了: ${total}件（${breakdown}）`;
+      headline = `置換完了: ${total}件`;
+      break;
     case 'aborted':
-      return `中断しました: ${current}/${total}件まで処理（${breakdown}）`;
+      headline = `中断しました: ${current}/${total}件まで処理`;
+      break;
     case 'halted':
-      return `停止しました: ${progress.message ?? '理由不明'}（${current}/${total}件、${breakdown}）`;
+      headline = `停止しました: ${progress.message ?? '理由不明'}（${current}/${total}件）`;
+      break;
     case 'waiting':
-      return `${current}/${total}件 完了 — 次まで ${progress.remainingSeconds ?? 0}秒（${breakdown}）`;
+      headline = `${current}/${total}件 完了 — 次まで ${progress.remainingSeconds ?? 0}秒`;
+      break;
     default:
-      return `置換中 ${current}/${total}件 ${progress.itemName ?? ''}（${breakdown}）`;
+      headline = `置換中 ${current}/${total}件 ${progress.itemName ?? ''}`.trimEnd();
   }
+
+  return `${headline}\n${breakdown}`;
 }
 
 /**
@@ -484,7 +495,14 @@ function createPanel(): HTMLDivElement {
 
   // 進捗表示
   const status = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_STATUS, 'div');
-  applyFixedStyles(status, { minHeight: '1.5em', color: '#333', fontWeight: 'bold' });
+  // 進捗は 2 行（状態と内訳）で出すので、textContent の改行をそのまま表示させる
+  applyFixedStyles(status, {
+    minHeight: '3em',
+    color: '#333',
+    fontWeight: 'bold',
+    whiteSpace: 'pre-line',
+    lineHeight: '1.5',
+  });
   panel.appendChild(status);
 
   return panel;
