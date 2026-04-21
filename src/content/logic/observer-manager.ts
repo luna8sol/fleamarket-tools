@@ -93,27 +93,30 @@ export class ObserverManager {
    * @param {string} selector - 検索するセレクタ
    * @param {HTMLElement} rootElement - 検索の起点となる要素
    * @param {number} maxRetryCount - 最大リトライ回数
-   * @param {(element: HTMLElement) => void} callback - 要素が見つかった時に実行するコールバック
+   * @param {(element: HTMLElement) => void} onFound - 要素が見つかった時に実行するコールバック
+   * @param {() => void} [onNotFound] - 最大リトライ回数を超えた時に実行するコールバック
    * @returns {void}
    */
   private waitForElement(
     selector: string,
     rootElement: HTMLElement,
     maxRetryCount: number,
-    callback: (element: HTMLElement) => void
+    onFound: (element: HTMLElement) => void,
+    onNotFound?: () => void
   ): void {
     let retryCount = 0;
 
     const tryFindElement = (): void => {
       const element = rootElement.querySelector(selector) as HTMLElement;
       if (element) {
-        callback(element);
+        onFound(element);
         return;
       }
 
       retryCount++;
       if (retryCount >= maxRetryCount) {
         warn(`要素 ${selector} が ${maxRetryCount} 回の試行後も見つかりませんでした`);
+        onNotFound?.();
         return;
       }
 
@@ -156,6 +159,9 @@ export class ObserverManager {
         (mainElement) => {
           debug('mainタグが遅延読み込みされました');
           this.startObservingWithRoot(mainElement);
+          this.isProcessingPage = false;
+        },
+        () => {
           this.isProcessingPage = false;
         }
       );
@@ -208,6 +214,9 @@ export class ObserverManager {
             debug(`${ulSelector} 要素が遅延読み込みされました`);
             this.setupObserversForUl(ulElement as HTMLUListElement);
           }
+        },
+        () => {
+          warn(`リスト要素 ${ulSelector} が見つからなかったため監視を開始できませんでした`);
         }
       );
     }
@@ -227,6 +236,9 @@ export class ObserverManager {
                 debug(`DOM変更後に ${ulSelector} 要素が見つかりました`);
                 this.setupObserversForUl(ulElement as HTMLUListElement);
               }
+            },
+            () => {
+              warn(`DOM変更後もリスト要素 ${ulSelector} が見つかりませんでした`);
             }
           );
           return;
