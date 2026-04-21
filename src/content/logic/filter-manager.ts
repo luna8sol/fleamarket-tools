@@ -41,10 +41,12 @@ export class FilterManager {
 
   /**
    * 指定フィルターのON/OFFを切り替え、即座に適用する
+   *
+   * @returns 適用できた場合はtrue。カウントを読めずフィルターを解除した場合はfalse
    */
-  toggle(filter: FilterType): void {
+  toggle(filter: FilterType): boolean {
     this.state[filter] = !this.state[filter];
-    this.apply();
+    return this.apply();
   }
 
   /**
@@ -61,11 +63,26 @@ export class FilterManager {
    * data-filter-hidden 属性を持たないもの）には一切触れない。
    * このフィルターが非表示にしたliには data-filter-hidden="true" を付与し、
    * 表示に戻す際はその属性を持つliだけを対象とする。
+   *
+   * どのliからもカウントを読み取れない場合はメルカリ側のDOMが変わった可能性が高い。
+   * 全件を0件扱いで隠してしまう前にフィルターを解除し、警告を出して呼び出し元に知らせる。
+   *
+   * @returns 適用できた場合はtrue。カウントを読めずフィルターを解除した場合はfalse
    */
-  apply(): void {
-    if (!this.currentUl) return;
+  apply(): boolean {
+    if (!this.currentUl) return true;
 
     const items = Array.from(this.currentUl.querySelectorAll<HTMLLIElement>('li'));
+    let applied = true;
+
+    if (this.hasActiveFilter() && items.length > 0 && !this.hasReadableCounts(items)) {
+      warn(
+        'FilterManager: いいね・コメント数を読み取れないためフィルターを解除します',
+        SELECTOR.ITEM_COUNT_SPAN
+      );
+      this.state = { likes: false, comments: false };
+      applied = false;
+    }
 
     for (const li of items) {
       const shouldShow = this.isVisible(li);
@@ -87,6 +104,8 @@ export class FilterManager {
         this.deselectItem(li);
       }
     }
+
+    return applied;
   }
 
   /**
@@ -116,13 +135,34 @@ export class FilterManager {
   }
 
   /**
+   * いずれかのフィルターが有効かどうかを返す
+   */
+  private hasActiveFilter(): boolean {
+    return this.state.likes || this.state.comments;
+  }
+
+  /**
+   * カウントを読み取れるli要素が1件でも存在するかを返す。
+   *
+   * 広告枠など商品以外のliが混ざることがあるため、1件でも読めれば構造は生きていると見なす。
+   * 1件も読めない場合はセレクタが当たらなくなった（メルカリ側のDOM変更）と判断する。
+   */
+  private hasReadableCounts(items: HTMLLIElement[]): boolean {
+    return items.some(
+      (li) =>
+        this.getCountByIndex(li, COUNT_INDEX.LIKES) !== null ||
+        this.getCountByIndex(li, COUNT_INDEX.COMMENTS) !== null
+    );
+  }
+
+  /**
    * li要素が現在のフィルター条件を満たすかどうかを判定する
    */
   private isVisible(li: HTMLLIElement): boolean {
-    if (this.state.likes && this.getCountByIndex(li, COUNT_INDEX.LIKES) < 1) {
+    if (this.state.likes && (this.getCountByIndex(li, COUNT_INDEX.LIKES) ?? 0) < 1) {
       return false;
     }
-    if (this.state.comments && this.getCountByIndex(li, COUNT_INDEX.COMMENTS) < 1) {
+    if (this.state.comments && (this.getCountByIndex(li, COUNT_INDEX.COMMENTS) ?? 0) < 1) {
       return false;
     }
     return true;
@@ -133,20 +173,19 @@ export class FilterManager {
    *
    * Mercariの商品カードはSVGアイコン＋数値spanが
    * 「いいね(0) → コメント(1) → 閲覧数(2)」の順で並ぶ。
-   * 要素が見つからない・数値でない場合は 0 を返す。
+   *
+   * @returns 読み取れた件数。要素が見つからない・数値でない場合はnull（判定不能）
    */
-  private getCountByIndex(li: HTMLLIElement, index: number): number {
+  private getCountByIndex(li: HTMLLIElement, index: number): number | null {
     try {
-      const spans = Array.from(
-        li.querySelectorAll<HTMLSpanElement>(SELECTOR.ITEM_COUNT_SPAN)
-      );
+      const spans = Array.from(li.querySelectorAll<HTMLSpanElement>(SELECTOR.ITEM_COUNT_SPAN));
       const span = spans[index];
-      if (!span) return 0;
+      if (!span) return null;
       const num = parseInt(span.textContent?.trim() ?? '', 10);
-      return isNaN(num) ? 0 : num;
+      return isNaN(num) ? null : num;
     } catch (e) {
       warn('FilterManager.getCountByIndex error', e, index);
-      return 0;
+      return null;
     }
   }
 }

@@ -1,6 +1,20 @@
 import { ID_NAME } from '../infra/constants';
 import { filterManager, FilterType } from '../logic/filter-manager';
 import { applyFixedStyles } from './bulk-bar-ui';
+import { showToast } from './notification';
+
+/**
+ * カウントを読み取れずフィルターを解除したときの通知文
+ */
+const UNREADABLE_COUNT_MESSAGE = 'いいね・コメント数を読み取れないため、フィルターを解除しました';
+
+/**
+ * フィルターボタンのIDと対応するフィルター種別
+ */
+const FILTER_BUTTONS: { id: string; filter: FilterType }[] = [
+  { id: ID_NAME.FILTER_LIKES_BTN, filter: 'likes' },
+  { id: ID_NAME.FILTER_COMMENTS_BTN, filter: 'comments' },
+];
 
 /**
  * フィルターボタンのスタイルをアクティブ状態に応じて切り替える
@@ -19,6 +33,33 @@ function applyFilterButtonStyles(btn: HTMLButtonElement, isActive: boolean): voi
 }
 
 /**
+ * 全フィルターボタンの見た目を現在の状態に合わせ直す。
+ *
+ * カウントが読めないときは押していない側のフィルターも解除されるため、
+ * クリックされたボタンだけを塗り直すと、もう片方の見た目が実際の状態とズレる。
+ */
+function syncFilterButtonStyles(): void {
+  for (const { id, filter } of FILTER_BUTTONS) {
+    const btn = document.getElementById(id);
+    if (btn instanceof HTMLButtonElement) {
+      applyFilterButtonStyles(btn, filterManager.isActive(filter));
+    }
+  }
+}
+
+/**
+ * フィルター適用後の後始末。ボタンの見た目を合わせ、解除された場合は理由を知らせる。
+ *
+ * @param applied - FilterManagerがフィルターを適用できたかどうか
+ */
+function handleApplyResult(applied: boolean): void {
+  syncFilterButtonStyles();
+  if (!applied) {
+    showToast(UNREADABLE_COUNT_MESSAGE, 'warning');
+  }
+}
+
+/**
  * フィルタートグルボタンを生成する
  */
 function createFilterButton(id: string, label: string, filter: FilterType): HTMLButtonElement {
@@ -28,8 +69,7 @@ function createFilterButton(id: string, label: string, filter: FilterType): HTML
   applyFilterButtonStyles(btn, filterManager.isActive(filter));
 
   btn.addEventListener('click', () => {
-    filterManager.toggle(filter);
-    applyFilterButtonStyles(btn, filterManager.isActive(filter));
+    handleApplyResult(filterManager.toggle(filter));
   });
 
   return btn;
@@ -49,7 +89,7 @@ export function renderFilterBar(ul: HTMLUListElement): void {
   const existing = document.getElementById(ID_NAME.FILTER_BAR);
   if (existing?.isConnected) {
     // バーは健在 → 現在のフィルター状態を新しい li 群に再適用するだけ
-    filterManager.apply();
+    handleApplyResult(filterManager.apply());
     return;
   }
   existing?.remove();
@@ -97,5 +137,5 @@ export function renderFilterBar(ul: HTMLUListElement): void {
   ul.parentElement?.insertBefore(bar, ul);
 
   // 現在のフィルター状態をすぐに適用
-  filterManager.apply();
+  handleApplyResult(filterManager.apply());
 }
