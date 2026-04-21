@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Mercari Draft Publisher の設定</title>
+  <style>
+    body {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 24px 16px;
+      font-family: sans-serif;
+      line-height: 1.6;
+      color: #333;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 4px;
+    }
+
+    .settings-group {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #eee;
+    }
+
+    .settings-group label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .description {
+      font-size: 13px;
+      color: #666;
+      margin: 4px 0 8px;
+    }
+
+    input[type="password"],
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      font-family: monospace;
+      font-size: 13px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    .toggle-visibility {
+      display: flex;
+      align-items: center;
+      margin-top: 8px;
+      font-size: 13px;
+    }
+
+    .toggle-visibility label {
+      font-weight: normal;
+      margin: 0 0 0 6px;
+    }
+
+    .buttons {
+      margin-top: 16px;
+    }
+
+    button {
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button + button {
+      margin-left: 8px;
+    }
+
+    #status {
+      margin-top: 12px;
+      font-size: 13px;
+      min-height: 1.6em;
+    }
+
+    #status.success {
+      color: #2e7d32;
+    }
+
+    #status.error {
+      color: #c62828;
+    }
+  </style>
+</head>
+<body>
+  <h1>Mercari Draft Publisher の設定</h1>
+  <p class="description">AI による商品説明文の生成に利用する設定です。</p>
+
+  <div class="settings-group">
+    <label for="api-key">Claude APIキー</label>
+    <p class="description">
+      Claude Console（<a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>）で発行した APIキーを入力してください。
+      キーはこのブラウザの拡張機能ストレージにのみ保存され、Claude API 以外には送信されません。
+    </p>
+    <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+
+    <div class="toggle-visibility">
+      <input type="checkbox" id="show-api-key">
+      <label for="show-api-key">APIキーを表示する</label>
+    </div>
+
+    <div class="buttons">
+      <button id="save" type="button">保存</button>
+      <button id="clear" type="button">削除</button>
+    </div>
+
+    <p id="status" role="status"></p>
+  </div>
+
+  <script src="dist/options.js"></script>
+</body>
+</html>

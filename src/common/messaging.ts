@@ -1,0 +1,99 @@
+/**
+ * content script / background / popup 間でやり取りするメッセージの型定義。
+ *
+ * - `chrome.runtime.sendMessage` / `chrome.tabs.sendMessage` の payload をここで一元管理します。
+ * - 新たなメッセージを追加する場合は MESSAGE_ACTION と型定義の両方を更新してください。
+ *
+ * @example
+ *   const res = await chrome.runtime.sendMessage<GenerateDescriptionRequest, GenerateDescriptionResponse>({
+ *     action: MESSAGE_ACTION.GENERATE_DESCRIPTION,
+ *     payload: context,
+ *   });
+ */
+
+/**
+ * 説明文生成で Claude に渡す画像の最大枚数
+ *
+ * - メルカリの出品画像は最大10枚だが、トークン量と応答速度のバランスから上限を設けています。
+ * - content script 側の収集数と background 側の送信数を揃えるため、
+ *   メッセージの契約としてここに定義しています（content script 専用の CONFIG とは別）。
+ */
+export const MAX_IMAGE_COUNT = 6;
+
+/**
+ * メッセージ種別定数
+ */
+export const MESSAGE_ACTION = {
+  /** デバッグモードの変更通知（popup → content） */
+  UPDATE_DEBUG_MODE: 'updateDebugMode',
+  /** 商品説明文の生成依頼（content → background） */
+  GENERATE_DESCRIPTION: 'generateDescription',
+} as const;
+
+/**
+ * カテゴリ固有の商品属性（ブランド・サイズ・シリーズなど）
+ *
+ * - メルカリの出品フォームはカテゴリによって入力項目が変わるため、
+ *   決め打ちの項目ではなくラベルと値の組で受け渡します。
+ */
+export interface ItemAttribute {
+  /** 属性名（例: ブランド、サイズ、シリーズ） */
+  label: string;
+  /** 選択されている値 */
+  value: string;
+}
+
+/**
+ * 商品説明文の生成に必要な商品情報
+ */
+export interface DescriptionContext {
+  /** 商品名 */
+  name: string;
+  /** カテゴリ（例: レディース > トップス > Tシャツ） */
+  category?: string;
+  /** 商品の状態（例: 目立った傷や汚れなし） */
+  condition?: string;
+  /** 配送方法（例: らくらくメルカリ便） */
+  shippingMethod?: string;
+  /** カテゴリ固有の属性一覧 */
+  attributes: ItemAttribute[];
+  /** 既存の説明文（あれば参考情報として渡す） */
+  currentDescription?: string;
+  /**
+   * 商品画像のソース一覧
+   *
+   * - メルカリの編集ページでは出品画像が data:image/jpeg;base64,... 形式のデータURIで保持されています。
+   *   https のURLも受け付けられるよう、どちらの形式も許容します。
+   */
+  imageSources: string[];
+}
+
+/**
+ * 商品説明文の生成依頼メッセージ
+ */
+export interface GenerateDescriptionRequest {
+  action: typeof MESSAGE_ACTION.GENERATE_DESCRIPTION;
+  payload: DescriptionContext;
+}
+
+/**
+ * 商品説明文の生成結果メッセージ
+ *
+ * - 成功時は `ok: true` と生成された説明文、失敗時は `ok: false` と日本語のエラーメッセージを返します。
+ */
+export type GenerateDescriptionResponse =
+  | { ok: true; description: string }
+  | { ok: false; message: string };
+
+/**
+ * デバッグモード変更通知メッセージ
+ */
+export interface UpdateDebugModeRequest {
+  action: typeof MESSAGE_ACTION.UPDATE_DEBUG_MODE;
+  debugMode: boolean;
+}
+
+/**
+ * 拡張機能内でやり取りされるメッセージの総称
+ */
+export type ExtensionMessage = GenerateDescriptionRequest | UpdateDebugModeRequest;

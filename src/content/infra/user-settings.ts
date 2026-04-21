@@ -1,5 +1,5 @@
 import { DEFAULT_USER_SETTINGS } from './constants';
-import { ExtStorageKey, getExtStorage, setExtStorage } from './ext-storage';
+import { ExtStorageKey, getExtStorage, setExtStorage } from '../../common/ext-storage';
 import { UserSettings } from './types';
 
 /**
