@@ -192,7 +192,8 @@ export interface DescriptionEntry {
  * - `failed`: 処理が途中で失敗し保存しなかった（要素が見つからない・書き込みが反映されない）
  * - `unverified`: 確定ボタンは押したが、保存後の商品ページで本文を確認できなかった
  *
- * 次の実行で除外するのは `applied` と `already` だけ。他は再度対象に入るが、
+ * 次の実行で除外するのは `applied` と `already` のうち、記録の確定版が今回の確定版と
+ * 同じ本文のものだけ（確定版を改訂したら改めて対象になる）。他は再度対象に入るが、
  * 開いた時点の本文で改めて判定するので二重に保存されることはない。
  */
 export type DescriptionReplaceOutcome = 'applied' | 'already' | 'skipped' | 'failed' | 'unverified';

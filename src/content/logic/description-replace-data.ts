@@ -1,3 +1,4 @@
+import { fnv1a32 } from '../../common/utils';
 import { CONFIG } from '../infra/constants';
 import { isReplaceDone, loadReplaceRecords } from '../infra/description-replace-store';
 import { debug } from '../infra/logger';
@@ -82,14 +83,30 @@ export function parseDescriptionEntries(text: string, label: string): Descriptio
 }
 
 /**
+ * 記録に残っている確定版と、今回の確定版が同じ本文かを確かめる
+ *
+ * 文字数とハッシュの両方で比べる（照合の他の箇所と同じ基準）。
+ *
+ * @param record 過去の処理記録
+ * @param entry 今回の確定版
+ * @returns 同じ本文なら true
+ */
+function isSameFixedText(record: DescriptionReplaceRecord, entry: DescriptionEntry): boolean {
+  return record.expectedLength === entry.desc.length && record.expectedHash === fnv1a32(entry.desc);
+}
+
+/**
  * 実行計画を組み立てる
  *
  * 確定版の各商品について、次の順で振り分けます。
  *
  * 1. 原本に同じ商品IDが無い → 対象外（照合の基準が無いので開かない）
  * 2. 確定版が上限文字数を超える → 対象外（textarea に maxlength が無く、切れたまま保存されうる）
- * 3. 記録上すでに適用済み → 今回は処理しない
+ * 3. 記録上すでに適用済みで、かつ記録の確定版が**今回の確定版と同じ本文** → 今回は処理しない
  * 4. それ以外 → 処理対象
+ *
+ * 3 で本文の一致まで見るのは、確定版を改訂して 2 回目以降を流すため。商品IDだけで
+ * 除外すると、改訂した本文が 1 件も適用されない。
  *
  * @param fixed 確定版の一覧
  * @param originals 原本の一覧
@@ -123,7 +140,7 @@ export async function buildReplacePlan(
     }
 
     const record = records[entry.id];
-    if (record && isReplaceDone(record)) {
+    if (record && isReplaceDone(record) && isSameFixedText(record, entry)) {
       alreadyDone.push(record);
       continue;
     }
