@@ -65,6 +65,19 @@ function fingerprint(text: string): TextFingerprint {
 }
 
 /**
+ * 改行コードを LF に揃える（CRLF / CR → LF）
+ *
+ * 商品ページの説明文はサーバーが CRLF で返すため、LF で持っている確定版と
+ * そのまま比べると行数ぶん文字数が増えて一致しない。改行以外は変えない。
+ *
+ * @param text 対象の文字列
+ * @returns 改行を LF に揃えた文字列
+ */
+function normalizeLineBreaks(text: string): string {
+  return text.replace(/\r\n?/g, '\n');
+}
+
+/**
  * 2 つの指紋が一致するか（文字数とハッシュの両方）
  * @param a 比較する指紋
  * @param b 比較する指紋
@@ -354,8 +367,11 @@ export async function replaceItemDescription(
       return { record: record('unverified', true, reason, current, null) };
     }
 
+    // メルカリはブラウザから保存した本文の改行を CRLF で持つ（2026-09-22 実地確認。手作業で
+    // 保存した商品も同じ）。textarea.value は LF に正規化されるが商品ページの innerText は
+    // そのまま \r\n を返すので、改行コードだけ揃えてから照合する。文字自体は一切変えない
     const liveElement = findItemDescription(itemDoc);
-    const live = fingerprint(liveElement?.innerText ?? '');
+    const live = fingerprint(normalizeLineBreaks(liveElement?.innerText ?? ''));
     if (!sameFingerprint(live, expected)) {
       const reason = `商品ページの説明文が確定版と一致しません（${live.length}字 / 期待 ${expected.length}字）`;
       warn(`${reason}: ${itemId}`);

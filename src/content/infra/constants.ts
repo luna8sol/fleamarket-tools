@@ -487,6 +487,10 @@ export const ITEM_PAGE_SELECTOR = {
    * `innerText` で読むと行頭の全角スペースも保持される（2026-09-22 実地確認）。
    * `textContent` は使わない。また表示されていない要素の `innerText` は
    * `textContent` と同じ扱いになるため、読み込む隠し iframe は `display: none` にしない。
+   *
+   * **改行は CRLF（`
+`）で返ってくる**（2026-09-22 実地確認。手作業で保存した商品も
+   * 未変更の商品も同じ）。LF で持っている本文と比べるときは改行コードを揃えること。
    */
   DESCRIPTION: ['[data-testid="description"]'],
 } as const;
