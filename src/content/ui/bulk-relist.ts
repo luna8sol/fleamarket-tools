@@ -107,9 +107,6 @@ export function createBulkRelistContainer(count: number): HTMLDivElement {
     boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
   });
 
-  // applyFixedStylesで反映されないので直接背景色を設定
-  container.style.backgroundColor = '#f8f8f8';
-
   // ページタイプに応じて情報を取得
   const pageType = detectCurrentPage();
 
