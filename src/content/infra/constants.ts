@@ -148,6 +148,9 @@ export const ID_NAME = {
   AI_DESCRIPTION_CANCEL_BTN: 'ai-description-cancel-btn',
   AI_DESCRIPTION_STATUS: 'ai-description-status',
 
+  // 一括削除
+  BULK_DELETE_BTN: 'bulk-delete-btn',
+
   // フィルターバー
   FILTER_BAR: 'listing-filter-bar',
   FILTER_LIKES_BTN: 'filter-likes-btn',
@@ -197,6 +200,14 @@ export const CONFIG = {
   // 出品フォームはReactで遅延描画されるため、説明欄が現れるまで待つ必要がある
   EDIT_PANEL_MAX_RETRY_COUNT: 20,
   EDIT_PANEL_RETRY_INTERVAL_MS: 500,
+
+  // 一括削除の設定
+  // 削除は出品を作らないので再出品ほど間隔を空けないが、連続実行が目立たないよう間は置く
+  DELETE_WAIT_BASE_MS: 5000,
+  DELETE_WAIT_RANDOM_MS: 5000,
+  DELETE_PAGE_TIMEOUT_MS: 30000, // 編集ページが開くのを待つ上限
+  DELETE_DIALOG_TIMEOUT_MS: 10000, // 削除確認ダイアログが出るのを待つ上限
+  DELETE_RESULT_TIMEOUT_MS: 30000, // 削除後にページが切り替わるのを待つ上限
 
   // 再出品タブでの自動保存設定
   // メルカリのフォームは React で遅延描画されるため、いずれも「現れるまで待つ」ためのもの。
@@ -382,6 +393,24 @@ export const SELL_FORM_SELECTOR = {
    * 公開は下書き一覧からの一括出品で、人が見てから行う。
    */
   SAVE_DRAFT_BUTTON: ['[data-testid="save-draft"]'],
+
+  /**
+   * 編集ページの「この商品を削除する」ボタン
+   *
+   * 同じページの `[data-testid="suspend-button"]`（出品を一時停止する）と
+   * 間違えないこと。一時停止は取り消せるが、削除は取り消せない。
+   */
+  DELETE_BUTTON: ['[data-testid="delete-button"]'],
+  /**
+   * 削除確認ダイアログの確定ボタン
+   *
+   * ダイアログには「キャンセル」と「削除する」が並ぶが、
+   * この data-testid を持つのは「削除する」だけ（2026-09-21 実地確認）。
+   * それでも**テキストが一致することも必ず確認してから**押す。
+   */
+  DELETE_CONFIRM_BUTTON: ['[data-testid="dialog-action-button"]'],
+  /** 削除確認ダイアログの確定ボタンの文言 */
+  DELETE_CONFIRM_TEXT: '削除する',
 
   /** カテゴリー選択ページへの「変更する」リンク */
   CATEGORY_LINK: [

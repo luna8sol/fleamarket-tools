@@ -4,7 +4,9 @@ import { BulkProgress } from '../infra/types';
 import { showToast } from './notification';
 import { selectionManager } from '../logic/selection-manager';
 import { getOrCreateElement } from './bulk-bar-core';
-import { createBulkRelistContainer, createButtonForCurrentPage } from './bulk-relist';
+import { createBulkDeleteButton, createBulkRelistContainer, createButtonForCurrentPage } from './bulk-relist';
+import { detectCurrentPage } from '../infra/page-detector';
+import { PageType } from '../infra/constants';
 
 /**
  * スタイルを適用するヘルパー関数
@@ -105,6 +107,12 @@ export function renderBulkBar(selectedCount: number): void {
     }
     if (!existingContainer.querySelector(`#${ID_NAME.BULK_RELIST_BTN}`)) {
       existingContainer.appendChild(createButtonForCurrentPage());
+    }
+    if (
+      detectCurrentPage() === PageType.LISTINGS &&
+      !existingContainer.querySelector(`#${ID_NAME.BULK_DELETE_BTN}`)
+    ) {
+      existingContainer.appendChild(createBulkDeleteButton());
     }
   } else {
     // コンテナが存在しないか壊れている: 旧コンテナを除去して再作成

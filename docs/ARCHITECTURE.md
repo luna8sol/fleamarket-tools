@@ -100,6 +100,9 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 | `sell-form.ts` | 出品フォームのアダプタ（入力欄の解決・値の読み書き）。読み取りは Document を受け取るので iframe にも使える |
 | `sell-form-navigator.ts` | カテゴリー・商品の状態・配送の方法を選択ページへ遷移して選び直す |
 | `tab-closer.ts` | 下書き保存後の再出品タブを background に閉じてもらう |
+| `hidden-frame.ts` | 同一オリジンの隠し iframe を開く共通処理。スナップショット取得と削除が使う |
+| `delete-manager.ts` | 出品中商品の一括削除の制御 |
+| `item-deleter.ts` | 編集ページを隠し iframe で開いて1件削除する |
 | `relist-verifier.ts` | 元商品と出品フォームの比較・差分の自動修正 |
 | `auto-save-controller.ts` | 再出品タブでの自動保存の制御 |
 | `value-normalizer.ts` | 比較用の値の正規化（改行・全角数字・桁区切りの表記ゆれを吸収） |
@@ -137,6 +140,38 @@ content/index.ts
 ```
 
 **`DOMContentLoaded` を初期化の起点にしない。** `manifest.json` の `content_scripts` は `"run_at": "document_idle"` で注入されるため、その時点で `document.readyState` は既に `interactive` / `complete` であり、`DOMContentLoaded` は二度と発火しない。SPA 内のクライアントサイド遷移でも再発火しない。初期描画は `observerManager.startObserving()` が担い、要素の遅延読み込みにも追従する。
+
+### 一括削除フロー
+
+出品中一覧で選んだ商品を、1件ずつ削除する。
+
+```
+一覧ページ（LISTINGS）
+  createBulkDeleteButton()
+    ├── confirmDeletion()      件数と商品名を出して確認。ここが唯一の人の止め時
+    └── deleteManager.executeDelete()
+          └── processItems()   1件ずつ・進捗表示つき
+                └── item-deleter.deleteItem()
+                      ├── 隠し iframe で /sell/edit/{itemId} を開く
+                      ├── 商品名を一覧の値と照合（違えば削除しない）
+                      ├── [data-testid="delete-button"] をクリック
+                      ├── [data-testid="dialog-action-button"]（「削除する」）をクリック
+                      └── 編集ページから離れたことを確認して成功とみなす
+```
+
+**フリマアシストの削除ボタンは使わない。** あちらの確認はブラウザ標準の `confirm()` で、
+別の実行ワールドから呼ばれるため**こちらからは応答できない**（2026-09-21 実地確認）。
+メルカリ自身の削除は React のモーダルなので操作できる。
+
+**確定ボタンは data-testid だけで決めない。** 表示テキストが「削除する」であることも確認してから押す。
+ダイアログには「キャンセル」も並ぶため、取り違えると意図と逆の操作になる。
+
+**照合できない相手は削除しない。** 一覧から商品名を読めない、編集ページの商品名と一致しない、
+編集ページが開かない——いずれも失敗として記録し、次へ進む。1件の失敗で全体を止めると
+「どこまで消えたか」が分からなくなる。
+
+**削除後は一覧を読み直す。** 削除しても一覧の行は残り選択も解除されないため、
+消えたはずの商品を選び直せてしまう。
 
 ### 一括処理の進捗表示
 

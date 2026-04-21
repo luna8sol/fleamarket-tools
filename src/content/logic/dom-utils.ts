@@ -95,3 +95,21 @@ export function findLiByItemId(ul: HTMLUListElement, id: string): HTMLLIElement 
 
   return result;
 }
+
+/** メルカリの商品IDの形式（m + 数字） */
+const ITEM_ID_PATTERN = /^m\d+$/;
+
+/**
+ * 一覧ページが保持する商品IDから、URL に使える商品IDを取り出す
+ *
+ * 出品中一覧のチェックボックスは `data-item-id` に商品リンクの href を
+ * そのまま入れているため、値は `/item/m123...` の形で渡ってきます。
+ * 形式が想定と違う場合は null を返します（存在しないURLを開かないため）。
+ *
+ * @param rawId 一覧ページから渡された商品ID
+ * @returns `m` + 数字 の商品ID。解釈できない場合は null
+ */
+export function toItemId(rawId: string): string | null {
+  const id = rawId.replace(/^\/item\//, '').trim();
+  return ITEM_ID_PATTERN.test(id) ? id : null;
+}

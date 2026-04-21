@@ -1,13 +1,42 @@
-import { ID_NAME, PageType, COMPOSITE_SELECTOR } from '../infra/constants';
+import { CONFIG, ID_NAME, PageType, COMPOSITE_SELECTOR, SELECTOR } from '../infra/constants';
 import { log, warn, debugMethodStart, debugMethodEnd } from '../infra/logger';
 import { detectCurrentPage } from '../infra/page-detector';
 import { relistManager } from '../logic/relist-manager';
+import { deleteManager } from '../logic/delete-manager';
+import { findLiByItemId, getItemName } from '../logic/dom-utils';
 import { selectionManager } from '../logic/selection-manager';
 import { publishAllDrafts } from '../logic/publisher';
 import { applyFixedStyles, renderProcessingSpan } from './bulk-bar-ui';
 import { getOrCreateElement } from './bulk-bar-core';
 import { removeItemPrefix } from './bulk-bar-utils';
 import { showToast } from './notification';
+
+/**
+ * 確認ダイアログに商品名を並べる上限
+ */
+const MAX_CONFIRM_ITEMS = 10;
+
+/**
+ * 一括操作の種別
+ */
+type BulkActionType = 'relist' | 'publish' | 'delete';
+
+/**
+ * 一括操作の種別を表示用の日本語にする
+ *
+ * @param actionType 一括操作の種別
+ * @returns 表示用の文言
+ */
+function describeAction(actionType: BulkActionType): string {
+  switch (actionType) {
+    case 'relist':
+      return '再出品';
+    case 'delete':
+      return '削除';
+    default:
+      return '出品';
+  }
+}
 
 /**
  * 一括再出品ボタンを生成
@@ -27,16 +56,91 @@ export function createBulkRelistButton(): HTMLButtonElement {
     cursor: 'pointer'
   });
 
-  bulkBtn.onclick = (): Promise<void> => handleBulkAction(bulkBtn, {
-    actionType: 'relist',
-    logMessage: '再出品ボタンがクリックされました',
-    emptySelectionMessage: '商品を選択してください',
-    processingFunction: ids => relistManager.executeRelist(ids),
-    successMessage: '再出品が完了しました',
-    errorMessage: '再出品でエラーが発生しました'
-  });
+  bulkBtn.onclick = async (): Promise<void> => {
+    await handleBulkAction(bulkBtn, {
+      actionType: 'relist',
+      logMessage: '再出品ボタンがクリックされました',
+      emptySelectionMessage: '商品を選択してください',
+      processingFunction: (ids) => relistManager.executeRelist(ids),
+      successMessage: '再出品が完了しました',
+      errorMessage: '再出品でエラーが発生しました',
+    });
+  };
 
   return bulkBtn;
+}
+
+/**
+ * 一括削除ボタンを生成（出品中一覧のみ）
+ *
+ * **削除は取り消せません。** 押しただけでは始まらず、件数と対象の商品名を
+ * 出した確認を挟みます。メルカリ側の確認ダイアログは1件ずつ自動で通すため、
+ * 人が止められる機会はここだけになります。
+ */
+export function createBulkDeleteButton(): HTMLButtonElement {
+  const deleteBtn = getOrCreateElement(ID_NAME.BULK_DELETE_BTN, 'button');
+  deleteBtn.textContent = '選択した商品を削除';
+
+  applyFixedStyles(deleteBtn, {
+    padding: '8px 16px',
+    background: '#fff',
+    color: '#d32f2f',
+    border: '1px solid #d32f2f',
+    borderRadius: '4px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+  });
+
+  deleteBtn.onclick = async (): Promise<void> => {
+    const executed = await handleBulkAction(deleteBtn, {
+      actionType: 'delete',
+      logMessage: '削除ボタンがクリックされました',
+      emptySelectionMessage: '削除する商品を選択してください',
+      confirm: confirmDeletion,
+      processingFunction: (ids) => deleteManager.executeDelete(ids),
+      successMessage: '削除処理が完了しました',
+      errorMessage: '削除処理中にエラーが発生しました',
+    });
+
+    // 削除しても一覧の行は残ったままで、選択も解除されない。
+    // そのまま放置すると、消えたはずの商品を選び直せてしまい紛らわしいので読み直す。
+    if (executed) {
+      setTimeout(() => window.location.reload(), CONFIG.TOAST_DURATION_MS);
+    }
+  };
+
+  return deleteBtn;
+}
+
+/**
+ * 削除してよいかを利用者に確認する
+ *
+ * 件数だけでなく**商品名も並べます**。件数だけでは、選んだつもりのものと
+ * 実際の対象がずれていても気づけないためです。
+ *
+ * @param ids 削除対象の商品ID
+ * @returns 実行してよければ true
+ */
+function confirmDeletion(ids: string[]): boolean {
+  const itemListElement = document.querySelector<HTMLUListElement>(SELECTOR.ITEMS_LIST);
+
+  const names = ids.map((id) => {
+    const li = itemListElement ? findLiByItemId(itemListElement, id) : null;
+    return `・${(li ? getItemName(li) : '') || removeItemPrefix(id)}`;
+  });
+
+  const shown = names.slice(0, MAX_CONFIRM_ITEMS).join('\n');
+  const rest = names.length > MAX_CONFIRM_ITEMS ? `
+…ほか${names.length - MAX_CONFIRM_ITEMS}件` : '';
+
+  return window.confirm(
+    `出品中の商品を${ids.length}件削除します。
+削除すると元に戻せません。
+
+${shown}${rest}
+
+実行しますか？`
+  );
 }
 
 /**
@@ -156,6 +260,11 @@ export function createBulkRelistContainer(count: number): HTMLDivElement {
 
   // 要素をコンテナに追加
   container.appendChild(bulkBtn);
+
+  // 出品中一覧だけ、削除ボタンも並べる
+  if (pageType === PageType.LISTINGS) {
+    container.appendChild(createBulkDeleteButton());
+  }
   container.appendChild(countSpan);
 
   // 下書き一覧ページの場合のみ全体数を表示
@@ -175,39 +284,49 @@ export function createBulkRelistContainer(count: number): HTMLDivElement {
 export async function handleBulkAction(
   bulkBtn: HTMLButtonElement,
   options: {
-    actionType: 'relist' | 'publish';
+    actionType: BulkActionType;
     logMessage: string;
     emptySelectionMessage: string;
+    /** 実行前の確認。false を返したら何もしない（省略時は確認しない） */
+    confirm?: (ids: string[]) => boolean;
     processingFunction: (ids: string[]) => Promise<unknown>;
     successMessage: string;
     errorMessage: string;
   }
-): Promise<void> {
+): Promise<boolean> {
   log(options.logMessage);
 
   if (selectionManager.getSelectionCount() === 0) {
     showToast(options.emptySelectionMessage, 'warning');
-    return;
+    return false;
   }
 
   // 選択順序に基づいた処理の実行
+  const orderedIds = selectionManager.getOrderedSelections().map((item) => item.id);
+
+  // 取り消せない操作は、ここで人が止められるようにする
+  if (options.confirm && !options.confirm(orderedIds)) {
+    log('確認で中止されました');
+    return false;
+  }
+
   try {
     bulkBtn.disabled = true;
     // 実行中のみ表示
     renderProcessingSpan('処理中...');
 
-    // 選択順序に基づいて処理を実行
-    const selectedIds = selectionManager.getOrderedSelections().map(item => item.id);
-    log(`${options.actionType === 'relist' ? '再出品' : '出品'}処理を選択順で実行: ${selectedIds.map(removeItemPrefix).join(' -> ')}`);
+    log(`${describeAction(options.actionType)}処理を選択順で実行: ${orderedIds.map(removeItemPrefix).join(' -> ')}`);
 
-    await options.processingFunction(selectedIds);
+    await options.processingFunction(orderedIds);
     showToast(options.successMessage, 'success');
   } catch (e) {
-    warn(`${options.actionType === 'relist' ? '再出品' : '出品'}処理中にエラー`, e);
+    warn(`${describeAction(options.actionType)}処理中にエラー`, e);
     showToast(options.errorMessage, 'error');
   } finally {
     // 必ず非表示へ戻す
     renderProcessingSpan('');
     bulkBtn.disabled = false;
   }
+
+  return true;
 }
