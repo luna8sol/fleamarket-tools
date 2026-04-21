@@ -12,6 +12,10 @@ export enum ExtStorageKey {
   USER_SETTINGS = 'userSettings',
   /** Claude APIキー。background からのみ読み出す */
   CLAUDE_API_KEY = 'claudeApiKey',
+  /** 再出品の待ち行列（元商品スナップショット）。一覧ページと出品フォームのタブで共有する */
+  RELIST_QUEUE = 'relistQueue',
+  /** 再出品後の自動保存設定 */
+  AUTO_SAVE_SETTINGS = 'autoSaveSettings',
 }
 
 /**

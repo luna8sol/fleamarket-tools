@@ -2,10 +2,17 @@ import { sleep } from '../../common/utils';
 import { loadAutoSaveSettings } from '../infra/auto-save-settings';
 import { CONFIG } from '../infra/constants';
 import { debug, debugMethodEnd, debugMethodStart, log, warn } from '../infra/logger';
-import { dequeueSnapshot } from '../infra/relist-queue';
+import { dequeueSnapshot, hasPendingSnapshot } from '../infra/relist-queue';
 import { AutoSaveOutcome, AutoSaveResult, FieldDiff, ItemSnapshot } from '../infra/types';
 import { showToast } from '../ui/notification';
-import { dumpSellFormStructure, findSubmitButton, readSellForm, waitForSellFormReady } from './sell-form';
+import {
+  dumpSellFormStructure,
+  findSubmitButton,
+  readSellForm,
+  readSellFormField,
+  waitForSellFormReady,
+} from './sell-form';
+import { isBackOnSellForm } from './sell-form-navigator';
 import { applyFixes, compareValues, formatDiff } from './relist-verifier';
 
 /**
@@ -16,33 +23,16 @@ import { applyFixes, compareValues, formatDiff } from './relist-verifier';
  * 差分が残る場合は保存せずに中断してユーザーへ引き継ぎます。
  */
 
-/** URLから元商品IDを取り出す際に見るクエリパラメータ名の候補 */
-const ITEM_ID_QUERY_KEYS = ['item_id', 'itemId', 'clone_id', 'cloneId', 'source_item_id', 'id'];
-
-/** メルカリの商品IDの形式（m + 数字） */
-const ITEM_ID_PATTERN = /^m\d+$/;
-
-/**
- * 現在のURLから元商品IDを推定する
- *
- * 取得できない場合は null を返し、呼び出し側はキューの先頭を使います。
- *
- * @returns 元商品ID。推定できない場合は null
- */
-function detectSourceItemId(): string | null {
-  const params = new URLSearchParams(window.location.search);
-
-  for (const key of ITEM_ID_QUERY_KEYS) {
-    const value = params.get(key);
-    if (value && ITEM_ID_PATTERN.test(value)) return value;
-  }
-
-  debug('URLから元商品IDを特定できませんでした', { search: window.location.search });
-  return null;
-}
-
 /**
  * 処理結果を組み立てる
+ *
+ * @param outcome 結果種別
+ * @param itemId 対象の元商品ID
+ * @param message 表示・ログ用のメッセージ
+ * @param diffs 検出した差分
+ * @param fixed 修正できた差分
+ * @param unfixed 修正できなかった差分
+ * @returns 自動保存の処理結果
  */
 function buildResult(
   outcome: AutoSaveOutcome,
@@ -56,16 +46,73 @@ function buildResult(
 }
 
 /**
- * 修正できない差分が残った場合の中断処理
+ * 中断を記録してユーザーへ通知する
+ *
+ * @param snapshot 元商品のスナップショット
+ * @param message 中断理由
+ * @param diffs 検出した差分
+ * @param fixed 修正できた差分
+ * @param unfixed 修正できなかった差分
+ * @returns 中断を表す処理結果
  */
-function abortWithUnfixed(snapshot: ItemSnapshot, diffs: FieldDiff[], fixed: FieldDiff[], unfixed: FieldDiff[]): AutoSaveResult {
-  const details = unfixed.map(formatDiff);
-  const message = `自動保存を中断しました。手動で確認してください:\n${details.join('\n')}`;
-
+function abort(
+  snapshot: ItemSnapshot,
+  message: string,
+  diffs: FieldDiff[] = [],
+  fixed: FieldDiff[] = [],
+  unfixed: FieldDiff[] = []
+): AutoSaveResult {
   warn(message, { itemId: snapshot.itemId, unfixed });
-  showToast(`自動保存を中断: ${details.join(' / ')}`, 'warning', CONFIG.TOAST_DURATION_MS * 2);
-
+  showToast(`自動保存を中断: ${message}`, 'warning', CONFIG.TOAST_DURATION_MS * 2);
   return buildResult(AutoSaveOutcome.ABORTED, snapshot.itemId, message, diffs, fixed, unfixed);
+}
+
+/**
+ * 修正できない差分が残った場合の中断処理
+ *
+ * @param snapshot 元商品のスナップショット
+ * @param diffs 検出した差分
+ * @param fixed 修正できた差分
+ * @param unfixed 修正できなかった差分
+ * @returns 中断を表す処理結果
+ */
+function abortWithUnfixed(
+  snapshot: ItemSnapshot,
+  diffs: FieldDiff[],
+  fixed: FieldDiff[],
+  unfixed: FieldDiff[]
+): AutoSaveResult {
+  const details = unfixed.map(formatDiff);
+  return abort(snapshot, `手動で確認してください: ${details.join(' / ')}`, diffs, fixed, unfixed);
+}
+
+/**
+ * フォームの商品名がスナップショットと同じ商品のものかを確認する
+ *
+ * `/sell/create` の URL には元商品の手がかりが無く、キューとの対応付けは
+ * 投入順（FIFO）に頼っています。順序がずれていた場合に**別商品の値で
+ * 上書き保存してしまう事故**を防ぐため、比較・修正へ進む前に商品名で照合します。
+ *
+ * @param snapshot 元商品のスナップショット
+ * @returns 一致すれば null、一致しなければ不一致の内容を表す文字列
+ */
+function detectItemMismatch(snapshot: ItemSnapshot): string | null {
+  const formName = readSellFormField('name');
+  const expectedName = snapshot.values.name;
+
+  if (formName === null) {
+    return '出品フォームの商品名を読み取れませんでした';
+  }
+
+  if (expectedName === undefined) {
+    return '元商品の商品名を取得できていません';
+  }
+
+  if (formName !== expectedName) {
+    return `別商品のフォームの可能性があります（フォーム: "${formName}" / 元商品: "${expectedName}"）`;
+  }
+
+  return null;
 }
 
 /**
@@ -84,24 +131,37 @@ export async function runAutoSaveOnSellPage(): Promise<AutoSaveResult> {
       return buildResult(AutoSaveOutcome.SKIPPED, null, '自動保存は無効です');
     }
 
-    const sourceItemId = detectSourceItemId();
-    const snapshot = await dequeueSnapshot(sourceItemId);
-    if (!snapshot) {
+    // 再出品由来でないフォームでは待機も通知もしない
+    if (!(await hasPendingSnapshot())) {
       debug('この出品フォームに対応する再出品エントリがありません');
-      return buildResult(AutoSaveOutcome.SKIPPED, sourceItemId, '対応する再出品エントリがありません');
+      return buildResult(AutoSaveOutcome.SKIPPED, null, '対応する再出品エントリがありません');
     }
 
-    if (!snapshot.captured) {
-      const message = `元商品の情報を取得できていないため自動保存しません: ${snapshot.captureError ?? '理由不明'}`;
-      warn(message, { itemId: snapshot.itemId });
-      showToast(message, 'warning', CONFIG.TOAST_DURATION_MS);
-      return buildResult(AutoSaveOutcome.ABORTED, snapshot.itemId, message);
-    }
-
+    // 取り違え防止の照合にフォームの商品名が要るため、取り出す前に描画を待つ
     if (!(await waitForSellFormReady())) {
       const message = '出品フォームの読み込みを確認できませんでした';
       showToast(message, 'error', CONFIG.TOAST_DURATION_MS);
-      return buildResult(AutoSaveOutcome.FAILED, snapshot.itemId, message);
+      return buildResult(AutoSaveOutcome.FAILED, null, message);
+    }
+
+    const snapshot = await dequeueSnapshot();
+    if (!snapshot) {
+      // 待機中に他のタブが取り出した場合（通常は起きない）
+      debug('待機のあいだに再出品エントリが無くなりました');
+      return buildResult(AutoSaveOutcome.SKIPPED, null, '対応する再出品エントリがありません');
+    }
+
+    if (!snapshot.captured) {
+      return abort(
+        snapshot,
+        `元商品の情報を取得できていません: ${snapshot.captureError ?? '理由不明'}`
+      );
+    }
+
+    // 取り違え防止。一致しない場合は比較も修正もしない
+    const mismatch = detectItemMismatch(snapshot);
+    if (mismatch !== null) {
+      return abort(snapshot, mismatch);
     }
 
     // セレクタ調整用に、解決状況をデバッグログへ出力する
@@ -116,7 +176,7 @@ export async function runAutoSaveOnSellPage(): Promise<AutoSaveResult> {
     }
 
     log(`差分を検出しました (${diffs.length}件)`, diffs.map(formatDiff));
-    const { fixed, unfixed } = applyFixes(diffs);
+    const { fixed, unfixed } = await applyFixes(diffs);
 
     if (unfixed.length > 0) {
       return abortWithUnfixed(snapshot, diffs, fixed, unfixed);
@@ -169,6 +229,12 @@ async function save(
     return buildResult(AutoSaveOutcome.DRY_RUN, snapshot.itemId, message, diffs, fixed, unfixed);
   }
 
+  // 遷移操作の途中で選択ページに取り残されていないことを最後に確認する
+  if (!isBackOnSellForm()) {
+    return abort(snapshot, '選択ページから出品フォームへ戻れていません', diffs, fixed, unfixed);
+  }
+
+  // 修正操作でフォームが再描画されている可能性があるため、直前に取り直す
   const submitButton = findSubmitButton();
   if (!submitButton) {
     const message = '出品ボタンが見つからないため保存できませんでした';
@@ -178,10 +244,7 @@ async function save(
   }
 
   if (submitButton.disabled) {
-    const message = '出品ボタンが無効状態のため保存できませんでした';
-    warn(message, { itemId: snapshot.itemId });
-    showToast(message, 'warning', CONFIG.TOAST_DURATION_MS);
-    return buildResult(AutoSaveOutcome.ABORTED, snapshot.itemId, message, diffs, fixed, unfixed);
+    return abort(snapshot, '出品ボタンが無効状態のため保存できませんでした', diffs, fixed, unfixed);
   }
 
   submitButton.click();

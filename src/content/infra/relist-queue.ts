@@ -1,6 +1,6 @@
 import { CONFIG } from './constants';
-import { ExtStorageKey, getExtStorage, setExtStorage } from './ext-storage';
-import { debug, warn } from './logger';
+import { ExtStorageKey, getExtStorage, setExtStorage } from '../../common/ext-storage';
+import { debug } from './logger';
 import { ItemSnapshot } from './types';
 
 /**
@@ -48,35 +48,37 @@ export async function enqueueSnapshot(snapshot: ItemSnapshot): Promise<boolean> 
 }
 
 /**
- * キューからスナップショットを取り出す（取り出したエントリは削除される）
+ * キューに待機中のエントリがあるかを確認する（取り出しはしない）
  *
- * @param itemId 取り出したい商品ID。null の場合は最も古いエントリを取り出す
- * @returns 取り出したスナップショット。該当なしの場合は null
+ * 再出品由来ではない `/sell/create`（ユーザーが自分で開いた新規出品）で
+ * フォームの描画を待ってしまわないよう、待機前の足切りに使います。
+ *
+ * @returns 待機中のエントリがあれば true
  */
-export async function dequeueSnapshot(itemId: string | null): Promise<ItemSnapshot | null> {
+export async function hasPendingSnapshot(): Promise<boolean> {
+  return (await loadRelistQueue()).length > 0;
+}
+
+/**
+ * キューの先頭（最も古いエントリ）を取り出す（取り出したエントリは削除される）
+ *
+ * 再出品ボタンが開く `/sell/create` には**クエリパラメータが付かず、URL から
+ * 元商品を特定できません**（2026-09-17 実地確認）。そのため対応付けは
+ * 投入順（FIFO）で行います。取り違えを防ぐため、**取り出した側は必ず
+ * フォームの商品名とスナップショットの商品名が一致することを確認してください。**
+ *
+ * @returns 取り出したスナップショット。キューが空の場合は null
+ */
+export async function dequeueSnapshot(): Promise<ItemSnapshot | null> {
   const queue = await loadRelistQueue();
   if (queue.length === 0) {
-    debug('再出品キューが空です', { requestedItemId: itemId });
+    debug('再出品キューが空です');
     return null;
   }
 
-  const index = itemId ? queue.findIndex((entry) => entry.itemId === itemId) : 0;
-  if (index < 0) {
-    warn(`再出品キューに商品 ${itemId} のエントリがありません`);
-    return null;
-  }
-
-  const [taken] = queue.splice(index, 1);
+  const [taken] = queue.splice(0, 1);
   await setExtStorage(ExtStorageKey.RELIST_QUEUE, queue);
 
   debug('再出品キューから取り出し', { itemId: taken.itemId, remaining: queue.length });
   return taken;
-}
-
-/**
- * キューを空にする
- * @returns 消去に成功したか
- */
-export async function clearRelistQueue(): Promise<boolean> {
-  return setExtStorage<ItemSnapshot[]>(ExtStorageKey.RELIST_QUEUE, []);
 }

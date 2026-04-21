@@ -12,7 +12,7 @@
 // 定数・設定値 一元管理モジュール
 // =============================
 
-import { CompareFieldKey, SellFormFieldSpec } from './types';
+import { SellFormFieldSpec } from './types';
 
 /**
  * 各種待機時間（秒）
@@ -199,9 +199,13 @@ export const CONFIG = {
   EDIT_PANEL_RETRY_INTERVAL_MS: 500,
 
   // 再出品タブでの自動保存設定
-  SELL_FORM_MAX_RETRY_COUNT: 40,     // 出品フォームの初期表示待ちの最大リトライ回数
-  SELL_FORM_RETRY_INTERVAL_MS: 500,  // 出品フォーム待ちのポーリング間隔
+  // メルカリのフォームは React で遅延描画されるため、いずれも「現れるまで待つ」ためのもの。
+  // 待てない場合は黙って先へ進まず、必ずタイムアウトして中断する。
+  SELL_FORM_POLL_INTERVAL_MS: 250,   // 要素・ページ遷移待ちのポーリング間隔
+  SELL_FORM_READY_TIMEOUT_MS: 20000, // 出品フォームの初期表示（コピー内容の反映）を待つ上限
+  SELL_FORM_NAV_TIMEOUT_MS: 15000,   // カテゴリー等の選択ページへの遷移・復帰を待つ上限
   SELL_FORM_FIX_SETTLE_MS: 300,      // 差分修正後、再読み取りまでの待機時間
+  SNAPSHOT_IFRAME_TIMEOUT_MS: 30000, // 元商品の編集フォームを隠しiframeで読み込む上限
   RELIST_QUEUE_TTL_MS: 30 * 60 * 1000, // キューに残った古いエントリを破棄するまでの時間
 
   // UI設定
@@ -251,178 +255,147 @@ export enum PageType {
 }
 
 /**
- * 出品フォーム（再出品タブ）のセレクタ・比較定義
+ * 出品フォーム（`/sell/create` / `/sell/edit/{itemId}` 共通）のフィールド定義
  *
- * メルカリのDOMは予告なく変わるため、各フィールドは複数の候補セレクタと
- * 画面上のラベル文言によるフォールバック探索を持ちます。
- * 実環境と合わない場合は、まずこのテーブルを修正してください。
+ * 2026-09-17 にログイン状態で実地調査した DOM に合わせています。
+ * name 属性を持つ実コントロールは `name` `description` `price` `shippingPayer`
+ * `shippingFromArea` `shippingDuration` `listingType` の 7 つだけで、
+ * カテゴリー・商品の状態・配送の方法は select ではなく「変更する」リンクで
+ * 別ページへ遷移する方式です。そのため後者は表示テキストとして読み取ります。
+ *
+ * **ラベル文言からのフォールバック探索は持ちません。** セレクタが外れた場合は
+ * 未解決として扱い、自動保存を中断します（別項目を誤って掴んで上書きするより安全なため）。
  */
-export const SELL_FORM_FIELDS: SellFormFieldSpec[] = [
+export const SELL_FORM_FIELDS: readonly SellFormFieldSpec[] = [
   {
     key: 'name',
     label: '商品名',
-    kind: 'text',
-    fixable: true,
-    selectors: ['#name', 'input[name="name"]', '[data-testid="name"] input', 'input[data-testid="name"]'],
-    labelTexts: ['商品名'],
+    read: 'control',
+    fix: 'control',
+    selectors: ['[data-testid="input-name"] input', 'input[name="name"]'],
   },
   {
     key: 'price',
     label: '販売価格',
-    kind: 'number',
-    fixable: true,
-    selectors: ['#price', 'input[name="price"]', '[data-testid="price"] input', 'input[data-testid="price"]'],
-    labelTexts: ['販売価格', '価格'],
+    read: 'control',
+    fix: 'control',
+    // [data-testid="price-text-input"] 配下の input は値が空なので使わない
+    selectors: ['input[name="price"]'],
   },
   {
     key: 'description',
     label: '商品の説明',
-    kind: 'textarea',
-    fixable: true,
-    selectors: [
-      '#description',
-      'textarea[name="description"]',
-      '[data-testid="description"] textarea',
-      'textarea[data-testid="description"]',
-    ],
-    labelTexts: ['商品の説明'],
+    read: 'control',
+    fix: 'control',
+    // 自動リサイズ用の非表示 textarea が併存するため name 属性で特定する
+    selectors: ['textarea[name="description"]'],
   },
   {
-    key: 'categoryId',
+    key: 'category',
     label: 'カテゴリー',
-    kind: 'select',
-    fixable: true,
-    selectors: [
-      '#category',
-      'select[name="categoryId"]',
-      'select[name="category"]',
-      '[data-testid="category"] select',
-      'select[data-testid="category"]',
-    ],
-    labelTexts: ['カテゴリー', 'カテゴリ'],
+    read: 'text',
+    textLine: 'join',
+    fix: 'category',
+    selectors: ['[data-testid="sell-category"]'],
   },
   {
-    key: 'conditionId',
+    key: 'condition',
     label: '商品の状態',
-    kind: 'select',
-    fixable: true,
-    selectors: [
-      '#condition',
-      'select[name="conditionId"]',
-      'select[name="condition"]',
-      '[data-testid="condition"] select',
-      'select[data-testid="condition"]',
-    ],
-    labelTexts: ['商品の状態'],
+    read: 'text',
+    // 1つ目のp要素が状態名、2つ目はその説明文
+    textLine: 'first',
+    fix: 'condition',
+    selectors: ['[data-testid="item-condition"] p'],
   },
   {
-    key: 'shippingPayerId',
+    key: 'shippingPayer',
     label: '配送料の負担',
-    kind: 'select',
-    fixable: true,
-    selectors: [
-      '#shipping-payer',
-      'select[name="shippingPayerId"]',
-      'select[name="shippingPayer"]',
-      '[data-testid="shipping-payer"] select',
-    ],
-    labelTexts: ['配送料の負担'],
+    read: 'control',
+    fix: 'control',
+    selectors: ['select[name="shippingPayer"]'],
   },
   {
-    key: 'shippingMethodId',
+    key: 'shippingMethod',
     label: '配送の方法',
-    kind: 'select',
-    fixable: true,
-    selectors: [
-      '#shipping-method',
-      'select[name="shippingMethodId"]',
-      'select[name="shippingMethod"]',
-      'select[name="shippingClassId"]',
-      '[data-testid="shipping-method"] select',
-    ],
-    labelTexts: ['配送の方法'],
+    read: 'text',
+    // 見出しと「変更する」を含むため最終行が値
+    textLine: 'last',
+    fix: 'shippingMethod',
+    selectors: ['[data-testid="shipping-method-link"]'],
   },
   {
-    key: 'shippingFromAreaId',
+    key: 'shippingFromArea',
     label: '発送元の地域',
-    kind: 'select',
-    fixable: true,
-    selectors: [
-      '#shipping-from-area',
-      'select[name="shippingFromAreaId"]',
-      'select[name="shippingFromArea"]',
-      '[data-testid="shipping-from-area"] select',
-    ],
-    labelTexts: ['発送元の地域'],
+    read: 'control',
+    fix: 'control',
+    selectors: ['select[name="shippingFromArea"]'],
   },
   {
-    key: 'shippingDurationId',
+    key: 'shippingDuration',
     label: '発送までの日数',
-    kind: 'select',
-    fixable: true,
-    selectors: [
-      '#shipping-duration',
-      'select[name="shippingDurationId"]',
-      'select[name="shippingDuration"]',
-      '[data-testid="shipping-duration"] select',
-    ],
-    labelTexts: ['発送までの日数'],
+    read: 'control',
+    fix: 'control',
+    selectors: ['select[name="shippingDuration"]'],
   },
   {
     // 画像はファイル実体を持たないため再アップロードできず、自動修正は不可
     key: 'imageCount',
     label: '画像枚数',
-    kind: 'count',
-    fixable: false,
-    selectors: [
-      '[data-testid="image-preview"]',
-      '[data-testid="sell-image-preview"]',
-      '[data-testid="image-container"] img',
-      'figure[data-testid^="image"]',
-    ],
-    labelTexts: [],
+    read: 'count',
+    fix: 'none',
+    selectors: ['[data-testid="photo-thumbnail"] img', '[data-testid^="image-list-item-"] img'],
   },
 ];
 
 /**
  * 出品フォーム関連のセレクタ
+ *
+ * カテゴリー・商品の状態・配送の方法は「変更する」= `<a>` で別ページへ遷移します。
+ * いずれも SPA 内遷移で document は維持され、入力値・画像も保持されます。
  */
 export const SELL_FORM_SELECTOR = {
-  /** 出品（保存）ボタンの候補セレクタ */
-  SUBMIT_BUTTON: [
-    '#submit-button',
-    'button[data-testid="submit-button"]',
-    'button[data-testid="sell-submit-button"]',
-    'button[type="submit"]',
+  /** 出品（確定）ボタン。編集フォームでは EDIT_BUTTON 側になる */
+  SUBMIT_BUTTON: ['[data-testid="list-item-button"]'],
+  /** 編集フォームの「変更する」ボタン */
+  EDIT_BUTTON: ['[data-testid="edit-button"]'],
+
+  /** カテゴリー選択ページへの「変更する」リンク */
+  CATEGORY_LINK: [
+    'a[href^="/sell/categories"]',
+    '[data-testid="category-link"]',
+    '[data-testid="sell-category"] a',
   ],
-  /** 出品ボタンをテキストで探す場合の文言候補 */
-  SUBMIT_BUTTON_TEXTS: ['出品する', '変更する', '保存する'],
-  /** ラベル文言からフィールドを辿るときに走査する要素 */
-  LABEL_CANDIDATES: 'label, legend, h2, h3, dt, [class*="label"], [class*="Label"]',
-  /** ラベルから入力要素を辿るときに探す入力要素 */
-  FORM_CONTROL: 'input, select, textarea',
-};
+  /** 商品の状態の選択ページへの「変更する」リンク */
+  CONDITION_LINK: ['a[href^="/sell/conditions"]', '[data-testid="item-condition"] a'],
+  /** 配送の方法の選択ページへの「変更する」リンク */
+  SHIPPING_METHOD_LINK: [
+    'a[href^="/sell/shipping_methods"]',
+    '[data-testid="shipping-method-link"] a',
+  ],
+
+  /** カテゴリー選択ページの選択肢。中間階層・最深階層のどちらもリンク */
+  CATEGORY_OPTION: 'a[href^="/sell/"]',
+  /** 商品の状態の選択ページの選択肢 */
+  CONDITION_OPTION: 'a[data-testid^="condition-"]',
+  /** 配送の方法の選択ページのラジオボタン */
+  SHIPPING_METHOD_RADIO: 'input[type="radio"][name="selectedShippingMethod"]',
+  /** 配送の方法を確定するボタンの文言。これを押して初めてフォームへ戻る */
+  SHIPPING_METHOD_CONFIRM_TEXT: '更新する',
+} as const;
 
 /**
- * 元商品のJSONから値を取り出すためのキー候補（ドット区切りパス）
+ * 「変更する」リンクで遷移する選択ページのパス
+ */
+export const SELL_FORM_PATH = {
+  CATEGORIES: '/sell/categories',
+  CONDITIONS: '/sell/conditions',
+  SHIPPING_METHODS: '/sell/shipping_methods',
+} as const;
+
+/**
+ * カテゴリー階層の区切り文字
  *
- * メルカリの商品ページ（__NEXT_DATA__）の構造変化に備え、
- * 1フィールドにつき複数のパスを先頭から順に試します。
+ * `[data-testid="sell-category"]` の innerText は階層が改行区切りで入るため、
+ * 比較しやすいようこの区切りで1行に連結します。
  */
-export const ITEM_JSON_PATHS: Record<CompareFieldKey, string[]> = {
-  name: ['name', 'title'],
-  price: ['price', 'itemPrice'],
-  description: ['description', 'itemDescription'],
-  categoryId: ['itemCategoryId', 'categoryId', 'itemCategory.id', 'category.id'],
-  conditionId: ['itemConditionId', 'conditionId', 'itemCondition.id', 'condition.id'],
-  shippingPayerId: ['shippingPayerId', 'shippingPayer.id'],
-  shippingMethodId: ['shippingMethodId', 'shippingMethod.id', 'shippingClassId', 'shippingClass.id'],
-  shippingFromAreaId: ['shippingFromAreaId', 'shippingFromArea.id'],
-  shippingDurationId: ['shippingDurationId', 'shippingDuration.id'],
-  imageCount: [],
-};
-
-/**
- * 元商品のJSONから画像枚数を数えるための配列プロパティ候補
- */
-export const ITEM_JSON_IMAGE_PATHS = ['photos', 'images', 'thumbnails', 'itemPhotos'];
+export const CATEGORY_PATH_SEPARATOR = ' > ';

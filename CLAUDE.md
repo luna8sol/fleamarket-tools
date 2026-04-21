@@ -33,6 +33,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 出品処理 | [src/content/logic/publisher.ts](src/content/logic/publisher.ts) |
 | 再出品処理 | [src/content/logic/relist-manager.ts](src/content/logic/relist-manager.ts) |
 | 出品・再出品の共通処理 | [src/content/logic/common-processor.ts](src/content/logic/common-processor.ts) |
+| 再出品後の自動保存（全体の制御） | [src/content/logic/auto-save-controller.ts](src/content/logic/auto-save-controller.ts) |
+| 元商品のスナップショット取得（隠し iframe で編集フォームを読む） | [src/content/logic/item-snapshot.ts](src/content/logic/item-snapshot.ts) |
+| 出品フォームの読み書き・出品ボタン | [src/content/logic/sell-form.ts](src/content/logic/sell-form.ts) |
+| カテゴリー・状態・配送方法の選び直し（遷移操作） | [src/content/logic/sell-form-navigator.ts](src/content/logic/sell-form-navigator.ts) |
+| 元商品との比較・差分の自動修正 | [src/content/logic/relist-verifier.ts](src/content/logic/relist-verifier.ts) |
+| 再出品の待ち行列（FIFO）・自動保存設定 | [src/content/infra/relist-queue.ts](src/content/infra/relist-queue.ts), [auto-save-settings.ts](src/content/infra/auto-save-settings.ts) |
 | 選択状態・選択順の管理 | [src/content/logic/selection-manager.ts](src/content/logic/selection-manager.ts) |
 | DOM 変更の監視 | [src/content/logic/observer-manager.ts](src/content/logic/observer-manager.ts) |
 | UI 全体の組み立て | [src/content/ui/ui-manager.ts](src/content/ui/ui-manager.ts), [ui/index.ts](src/content/ui/index.ts) |

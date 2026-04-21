@@ -1,5 +1,5 @@
 import { DEFAULT_AUTO_SAVE_SETTINGS } from './constants';
-import { ExtStorageKey, getExtStorage, setExtStorage } from './ext-storage';
+import { ExtStorageKey, getExtStorage, setExtStorage } from '../../common/ext-storage';
 import { AutoSaveSettings } from './types';
 
 /**
@@ -14,7 +14,10 @@ import { AutoSaveSettings } from './types';
  * @returns 自動保存設定
  */
 export async function loadAutoSaveSettings(): Promise<AutoSaveSettings> {
-  const stored = await getExtStorage<Partial<AutoSaveSettings>>(ExtStorageKey.AUTO_SAVE_SETTINGS, {});
+  const stored = await getExtStorage<Partial<AutoSaveSettings>>(
+    ExtStorageKey.AUTO_SAVE_SETTINGS,
+    {}
+  );
   return { ...DEFAULT_AUTO_SAVE_SETTINGS, ...stored };
 }
 

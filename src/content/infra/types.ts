@@ -29,17 +29,21 @@ export interface AutoSaveSettings {
 
 /**
  * 比較対象となるフィールドのキー
+ *
+ * 出品フォームと編集フォームは同じ部品でできているため、比較はフォーム対フォームで行います。
+ * カテゴリー・商品の状態・配送の方法は select ではなく画面上の表示テキストとして読み取るため、
+ * ID ではなく表示名で保持します。
  */
 export type CompareFieldKey =
   | 'name'
   | 'price'
   | 'description'
-  | 'categoryId'
-  | 'conditionId'
-  | 'shippingPayerId'
-  | 'shippingMethodId'
-  | 'shippingFromAreaId'
-  | 'shippingDurationId'
+  | 'category'
+  | 'condition'
+  | 'shippingPayer'
+  | 'shippingMethod'
+  | 'shippingFromArea'
+  | 'shippingDuration'
   | 'imageCount';
 
 /**
@@ -67,7 +71,7 @@ export interface ItemSnapshot {
 }
 
 /**
- * 出品フォームから読み取った値と、その入力要素
+ * 出品フォームから読み取った値と、その解決状況
  */
 export interface SellFormReadResult {
   values: CompareValues;
@@ -129,26 +133,53 @@ export interface AutoSaveResult {
 }
 
 /**
- * 出品フォームの入力欄の種別
+ * 出品フォームの値の読み取り方
+ *
+ * - `control`: input / textarea / select の value を読む
+ * - `text`: 「変更する」リンク方式の項目。画面上の表示テキストを読む
+ * - `count`: 該当要素の個数を数える（画像枚数）
  */
-export type SellFormFieldKind = 'text' | 'number' | 'textarea' | 'select' | 'count';
+export type SellFormReadKind = 'control' | 'text' | 'count';
+
+/**
+ * `text` 読み取りで innerText のどの行を値とするか
+ *
+ * - `first`: 1行目（商品の状態。2行目以降は説明文）
+ * - `last`: 最終行（配送の方法。見出しと「変更する」を含むため）
+ * - `join`: 全行を ` > ` で連結（カテゴリーの階層）
+ */
+export type SellFormTextLine = 'first' | 'last' | 'join';
+
+/**
+ * 出品フォームの値の直し方
+ *
+ * - `control`: 入力欄へ直接書き込む
+ * - `category` / `condition` / `shippingMethod`: 別ページへ遷移して選び直す
+ * - `none`: 自動修正できない（画像枚数）
+ */
+export type SellFormFixKind = 'control' | 'category' | 'condition' | 'shippingMethod' | 'none';
 
 /**
  * 出品フォーム上の1フィールドの探索・比較定義
  *
- * メルカリ側のDOMは変更されうるため、セレクタは候補を配列で持ち、
+ * メルカリ側の DOM は変更されうるため、セレクタは候補を配列で持ち、
  * 先頭から順に試して最初に見つかったものを採用します。
- * すべて外れた場合は labelTexts（画面上のラベル文言）から要素を辿ります。
+ *
+ * **ラベル文言からのフォールバック探索は行いません。** 実地検証で
+ * 「配送の方法」が近くの shippingPayer の select を掴むことが確認されており、
+ * 別項目を上書きする事故につながるためです。セレクタが全て外れた場合は
+ * 未解決として扱い、自動保存を中断します。
  */
 export interface SellFormFieldSpec {
   key: CompareFieldKey;
   /** 表示用のフィールド名 */
   label: string;
-  kind: SellFormFieldKind;
-  /** 差分が出たときに自動修正できるフィールドか */
-  fixable: boolean;
-  /** 入力要素の候補セレクタ（優先順） */
-  selectors: string[];
-  /** セレクタで見つからない場合に使うラベル文言の候補 */
-  labelTexts: string[];
+  /** 値の読み取り方 */
+  read: SellFormReadKind;
+  /** 値の直し方 */
+  fix: SellFormFixKind;
+  /** 要素の候補セレクタ（優先順） */
+  selectors: readonly string[];
+  /** `read: 'text'` のときに使う行の取り方 */
+  textLine?: SellFormTextLine;
 }

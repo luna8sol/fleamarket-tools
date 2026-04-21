@@ -10,10 +10,15 @@ import { CompareFieldKey } from '../infra/types';
 
 /**
  * 全角英数字を半角へ変換する
+ *
+ * 比較値の正規化と、選択ページで表示名を照合するときの両方で使います。
+ * 片方だけ半角化すると「Ｔシャツ」と「Tシャツ」が一致せず、
+ * 選び直しの選択肢を見つけられなくなるためです。
+ *
  * @param value 変換対象の文字列
  * @returns 半角化した文字列
  */
-function toHalfWidth(value: string): string {
+export function toHalfWidth(value: string): string {
   return value.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (char) =>
     String.fromCharCode(char.charCodeAt(0) - 0xfee0)
   );

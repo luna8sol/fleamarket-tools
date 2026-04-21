@@ -43,10 +43,10 @@ content script・background・popup・options page のどこからでも import 
 
 | ファイル | 役割 |
 |---------|------|
-| `ext-storage.ts` | `chrome.storage.local` への読み書き（`ExtStorageKey` enum でキー管理）。ポップアップ・content script・background・options page が同じ領域を共有する |
+| `ext-storage.ts` | `chrome.storage.local` への読み書き（`ExtStorageKey` enum でキー管理）。ポップアップ・content script・background・options page が同じ領域を共有する。再出品キューと自動保存設定もここに入る |
 | `messaging.ts` | content script ⇔ background のメッセージ型と `MESSAGE_ACTION` 定数 |
 | `dom.ts` | 例外安全な DOM 操作ラッパー。React 制御下の input へ値を入れる `setReactInputValue` もここ |
-| `utils.ts` | 非同期待機・乱数などの汎用関数 |
+| `utils.ts` | 非同期待機・乱数などの汎用関数。条件が満たされるまでポーリングする `waitFor` もここ |
 
 ## Background（src/background/）
 
@@ -97,7 +97,8 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 | `description-generator.ts` | background へ説明文の生成を依頼する。例外は投げず、必ず成否を表す結果型で返す |
 | `filter-manager.ts` | 出品中一覧のいいね・コメント数によるフィルター。カウントを読めないときは適用せず解除する |
 | `item-snapshot.ts` | 元商品の編集フォームを隠し iframe で開き、比較の基準値を読み取る |
-| `sell-form.ts` | 出品フォームのアダプタ（入力欄の解決・値の読み書き） |
+| `sell-form.ts` | 出品フォームのアダプタ（入力欄の解決・値の読み書き）。読み取りは Document を受け取るので iframe にも使える |
+| `sell-form-navigator.ts` | カテゴリー・商品の状態・配送の方法を選択ページへ遷移して選び直す |
 | `relist-verifier.ts` | 元商品と出品フォームの比較・差分の自動修正 |
 | `auto-save-controller.ts` | 再出品タブでの自動保存の制御 |
 | `value-normalizer.ts` | 比較用の値の正規化（改行・全角数字・桁区切りの表記ゆれを吸収） |
@@ -183,9 +184,11 @@ content/edit-entry.ts
 | `/mypage/listings*` | `LISTINGS` | `dist/content.js` |
 | `/sell/draft/{id}` | `EDIT_DRAFT` | `dist/edit.js` |
 | `/sell/edit/{id}` | `EDIT_LISTING` | `dist/edit.js` |
-| `/sell/create` | `SELL` | `dist/edit.js` |
+| `/sell/create` | `SELL` | `dist/content.js`（自動保存）+ `dist/edit.js` |
 
 `/sell*` にマッチする他のページ（`/sell` トップ、`/sell/drafts` 一覧など）にも `dist/edit.js` は注入されるが、`isSellFormPage()` が false になるため UI は出ない。
+
+**`dist/content.js` のマッチは `/sell/create*` に絞っている。** 一覧向けの DOM 監視を編集ページにまで持ち込まないため。`all_frames` は既定の false なので、スナップショット用の隠し iframe には content script は注入されない。
 ### 再出品後の自動保存フロー
 
 再出品ボタンを押すと、コピー内容が入った出品フォームが別タブで開きます。
@@ -195,12 +198,13 @@ content/edit-entry.ts
 一覧ページ（LISTINGS）                     出品フォーム（SELL / 別タブ）
   relist-manager.executeRelist()
     ├── item-snapshot.captureItemSnapshot()
-    │     └── /item/{id} の __NEXT_DATA__ から比較値を抽出
+    │     └── 隠し iframe で /sell/edit/{itemId} を開き sell-form.readSellForm()
     ├── relist-queue.enqueueSnapshot()  ──►  chrome.storage.local
     └── 再出品ボタンをクリック  ─────────►  appInitializer.initialize()
                                               └── auto-save-controller.runAutoSaveOnSellPage()
-                                                    ├── relist-queue.dequeueSnapshot()
                                                     ├── sell-form.waitForSellFormReady()
+                                                    ├── relist-queue.dequeueSnapshot()（FIFO）
+                                                    ├── 商品名の照合（不一致なら中断）
                                                     ├── sell-form.readSellForm()
                                                     ├── relist-verifier.compareValues()
                                                     ├── relist-verifier.applyFixes()（差分があれば）
@@ -221,20 +225,70 @@ content/edit-entry.ts
 | ケース | 理由 |
 |-------|------|
 | 画像枚数の不一致 | 画像ファイルの実体を持たないため再アップロードできない |
-| 入力欄を解決できない | 値を確認できない以上「問題なし」と判断できない |
+| 入力欄・表示要素を解決できない | 値を確認できない以上「問題なし」と判断できない |
 | 選択肢に存在しない値 | 元商品の値をフォームへ設定できない |
+| 選択ページから戻れない | 遷移操作が途中で止まった状態で保存してはいけない |
 | 元商品の情報を取得できなかった | 比較の基準がないため |
+
+#### 比較の基準は「元商品の編集フォーム」
+
+**商品ページの HTML から商品データは取り出せない。** メルカリは Next.js App Router (RSC) に
+移行済みで `#__NEXT_DATA__` は存在せず、`/item/{id}` を fetch しても `loading-skeleton` しか
+返らない（2026-09-17 実地確認）。
+
+そのため `item-snapshot.ts` は、元商品の**編集フォーム** `/sell/edit/{itemId}` を同一オリジンの
+隠し iframe で読み込み、再出品フォームと**同じ読み取りコード**で値を取る。フォーム対フォームなら
+表現が一致するので、表示テキストと ID の変換表を持たずに済む。
+
+- iframe は `display: none` にしない。**表示されていない要素の `innerText` は `textContent` と
+  同じ扱いになり、カテゴリー階層や配送の方法の改行区切りが失われる**ため、画面外へ追い出して
+  不可視にしている
+- 描画完了はポーリングで待ち、上限（`CONFIG.SNAPSHOT_IFRAME_TIMEOUT_MS`）を超えたら
+  `captured: false` で返す。読み終えたら成否によらず `finally` で破棄する
+- **この iframe でフォームを保存することはない**（読み取り専用）
+
+#### 取り違え防止
+
+再出品ボタンが開く `/sell/create` には**クエリパラメータが付かず、URL から元商品を特定できない**
+（2026-09-17 実地確認。再出品ボタン `#clone-item` はこのリポジトリでもメルカリ本体でもない
+外部ツールが生成している）。そのためキューとの対応付けは投入順（FIFO）で行う。
+
+順序がずれたときに**別商品の値で上書き保存する**事故を防ぐため、
+`auto-save-controller` はキューから取り出したあと、**フォームの商品名とスナップショットの
+商品名が一致することを確認してから**でなければ比較にも修正にも進まない。一致しなければ中断する。
 
 #### 出品フォームのセレクタ
 
-出品フォームの入力欄は `constants.ts` の `SELL_FORM_FIELDS` で定義します。
-メルカリの DOM は予告なく変わるため、各フィールドは複数の候補セレクタを持ち、
-すべて外れた場合は画面上のラベル文言（「商品名」「販売価格」など）から
-入力欄を辿るフォールバックが働きます。
+出品フォームの項目は `constants.ts` の `SELL_FORM_FIELDS` で定義する。
+2026-09-17 にログイン状態で実地調査した DOM に基づく。
 
-値の書き込みは `HTMLInputElement.prototype` の setter 経由で行い、
-`input` / `change` / `blur` を発火させます。React 管理下の入力欄で
-`value` への直接代入が内部状態に反映されない問題を避けるためです。
+name 属性を持つ実コントロールは `name` `description` `price` `shippingPayer`
+`shippingFromArea` `shippingDuration` `listingType` の 7 つだけで、
+**カテゴリー・商品の状態・配送の方法は select ではなく「変更する」リンクで別ページへ遷移する**。
+この 3 項目は表示テキストとして読み、直すときは遷移操作で選び直す。
+
+| 項目 | 読み取り | 直し方 |
+|---|---|---|
+| 商品名 / 販売価格 / 商品の説明 | `input[name=...]` / `textarea[name="description"]` | 入力欄へ直接書き込む |
+| 配送料の負担 / 発送元の地域 / 発送までの日数 | `select[name=...]` の値（ID 文字列） | select へ直接書き込む |
+| カテゴリー | `[data-testid="sell-category"]` の innerText を ` > ` で連結 | `/sell/categories` で各階層の表示名を順にクリック。最深階層で自動的に戻る |
+| 商品の状態 | `[data-testid="item-condition"] p` の 1 つ目 | `/sell/conditions` で表示名が一致する行をクリック。自動的に戻る |
+| 配送の方法 | `[data-testid="shipping-method-link"]` の innerText 最終行 | `/sell/shipping_methods` でラジオを選び、**「更新する」ボタンを押して初めて戻る** |
+| 画像枚数 | `[data-testid="photo-thumbnail"] img` の個数 | 自動修正不可 |
+
+遷移はいずれも SPA 内遷移で document が維持され、フォームの入力値・画像も保持される。
+遷移完了・復帰完了はポーリングで待ち、戻らない場合はタイムアウトして中断する。
+
+**ラベル文言から入力欄を辿るフォールバックは持たない。** 実地検証で「配送の方法」の見出しから
+近傍の `select[name="shippingPayer"]` を掴むことが確認されており、**別項目を上書きする事故**に
+つながるため。セレクタが外れた項目は未解決として扱い、自動保存を中断する。
+
+入力欄への書き込みは `common/dom.ts` の `setReactInputValue`（select はプロトタイプの setter）
+を通し、`input` / `change` を発火させる。React 管理下の入力欄で `value` への直接代入が
+内部状態に反映されない問題を避けるため。
+
+出品ボタンは `[data-testid="list-item-button"]`（「出品する」）、
+編集フォームの確定ボタンは `[data-testid="edit-button"]`（「変更する」）。
 
 ## 設計原則
 

@@ -32,3 +32,33 @@ export function randomInt(min: number, max: number): number {
 }
 
 // 今後も共通化したい関数があればここに追加してください
+
+/**
+ * 条件が満たされるまでポーリングで待つ。
+ *
+ * - メルカリのフォームは React で遅延描画されるため「まだ無い」と「もう無い」を
+ *   区別できません。必ず上限時間を設け、待てなかったことを呼び出し側へ返します。
+ * - 判定関数が値を返した場合はその値を返すため、要素の出現待ちと取得を兼ねられます。
+ *
+ * @template T 判定関数が返す値の型
+ * @param probe 条件判定。満たされたら値を、未達なら null / undefined / false を返す
+ * @param timeoutMs 待機の上限（ミリ秒）
+ * @param intervalMs ポーリング間隔（ミリ秒）
+ * @returns 満たされた時点の値。時間内に満たされなければ null
+ * @example
+ *   const input = await waitFor(() => document.querySelector('input[name="name"]'), 20000, 250);
+ */
+export async function waitFor<T>(
+  probe: () => T | null | undefined | false,
+  timeoutMs: number,
+  intervalMs: number
+): Promise<T | null> {
+  const deadline = Date.now() + timeoutMs;
+
+  for (;;) {
+    const value = probe();
+    if (value) return value;
+    if (Date.now() >= deadline) return null;
+    await sleep(intervalMs / 1000);
+  }
+}

@@ -1,12 +1,14 @@
 import { SELL_FORM_FIELDS } from '../infra/constants';
 import { debug } from '../infra/logger';
 import { CompareFieldKey, CompareValues, FieldDiff, FixResult } from '../infra/types';
-import { writeSellFormField } from './sell-form';
+import { writeSellFormControl } from './sell-form';
+import { fixByNavigation } from './sell-form-navigator';
 
 /**
  * 元商品と出品フォームの比較、および差分の自動修正。
  *
- * DOM操作は sell-form.ts に委譲し、ここでは「何が食い違っているか」と
+ * DOM操作は sell-form.ts（入力欄への書き込み）と sell-form-navigator.ts
+ * （カテゴリー等の選び直し）に委譲し、ここでは「何が食い違っているか」と
  * 「それを直せるか」の判断だけを担当します。
  */
 
@@ -14,7 +16,7 @@ import { writeSellFormField } from './sell-form';
  * 元商品のスナップショットと出品フォームの現在値を比較する
  *
  * - 元商品側で取得できなかった項目は、比較の基準がないため対象外とします。
- * - 出品フォーム側で入力欄を解決できなかった項目は、値を確認できない以上
+ * - 出品フォーム側で解決できなかった項目は、値を確認できない以上
  *   「問題なし」と判断してはいけないため、修正不可の差分として扱います。
  *
  * @param expected 元商品のスナップショット値
@@ -55,7 +57,7 @@ export function compareValues(
       label: spec.label,
       expected: expectedValue,
       actual: actualValue,
-      fixable: spec.fixable,
+      fixable: spec.fix !== 'none',
     });
   }
 
@@ -66,13 +68,16 @@ export function compareValues(
 /**
  * 差分を出品フォームへ書き戻す
  *
- * 修正不可のフィールド（画像枚数・入力欄を解決できなかった項目）は
+ * 入力欄を持つ項目は直接書き込み、カテゴリー・商品の状態・配送の方法は
+ * 選択ページへ遷移して選び直します。修正不可の項目（画像枚数・解決できなかった項目）は
  * 書き込みを試みず、そのまま未修正として返します。
+ *
+ * 遷移操作は1件ずつ直列に行います（同時に2つの選択ページへは行けないため）。
  *
  * @param diffs 検出された差分
  * @returns 修正できた差分と、できなかった差分
  */
-export function applyFixes(diffs: FieldDiff[]): FixResult {
+export async function applyFixes(diffs: FieldDiff[]): Promise<FixResult> {
   const fixed: FieldDiff[] = [];
   const unfixed: FieldDiff[] = [];
 
@@ -88,7 +93,12 @@ export function applyFixes(diffs: FieldDiff[]): FixResult {
       continue;
     }
 
-    if (writeSellFormField(spec, diff.expected)) {
+    const succeeded =
+      spec.fix === 'control'
+        ? writeSellFormControl(spec, diff.expected)
+        : await fixByNavigation(spec, diff.expected);
+
+    if (succeeded) {
       fixed.push(diff);
     } else {
       unfixed.push(diff);
