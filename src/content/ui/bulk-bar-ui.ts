@@ -4,7 +4,12 @@ import { BulkProgress } from '../infra/types';
 import { showToast } from './notification';
 import { selectionManager } from '../logic/selection-manager';
 import { getOrCreateElement } from './bulk-bar-core';
-import { createBulkDeleteButton, createBulkRelistContainer, createButtonForCurrentPage } from './bulk-relist';
+import {
+  createBulkDeleteButton,
+  createBulkRelistContainer,
+  createButtonForCurrentPage,
+  createClearSelectionButton,
+} from './bulk-relist';
 import { createDescriptionReplaceButton } from './description-replace-panel';
 import { detectCurrentPage } from '../infra/page-detector';
 import { PageType } from '../infra/constants';
@@ -136,6 +141,11 @@ export function updateDockCount(container: HTMLElement, selectedCount: number): 
   countSpan?.setAttribute('aria-label', `選択中 ${selectedCount}件`);
   container.dataset.empty = selectedCount === 0 ? 'true' : 'false';
 
+  // 0 件のときは「選択を解除」を薄くする（disabled にすると実行中のロック解除と食い違うため属性で示す）
+  container
+    .querySelector(`#${ID_NAME.BULK_CLEAR_BTN}`)
+    ?.setAttribute('aria-disabled', selectedCount === 0 ? 'true' : 'false');
+
   // 下書き一覧は読み込みが進むと行が増えるので、全件数も毎回数え直す
   const total = container.querySelector(`#${ID_NAME.BULK_TOTAL_COUNT}`);
   if (total) {
@@ -159,6 +169,12 @@ export function renderBulkBar(selectedCount: number): void {
   if (isContainerValid && existingContainer) {
     // 正常なコンテナが存在: カウント表示を更新し、ボタンがなければ追加
     updateDockCount(existingContainer, selectedCount);
+
+    if (!existingContainer.querySelector(`#${ID_NAME.BULK_CLEAR_BTN}`)) {
+      existingContainer
+        .querySelector(`.${CLASS_NAME.DOCK_LEAD}`)
+        ?.appendChild(createClearSelectionButton());
+    }
 
     const actions = existingContainer.querySelector(`.${CLASS_NAME.DOCK_ACTIONS}`) ?? existingContainer;
     if (!existingContainer.querySelector(`#${ID_NAME.BULK_RELIST_BTN}`)) {

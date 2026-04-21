@@ -1,4 +1,12 @@
-import { CLASS_NAME, CONFIG, ID_NAME, PageType, SELECTOR, WAIT } from '../infra/constants';
+import {
+  CLASS_NAME,
+  COMPOSITE_SELECTOR,
+  CONFIG,
+  ID_NAME,
+  PageType,
+  SELECTOR,
+  WAIT,
+} from '../infra/constants';
 import { log, warn, debugMethodStart, debugMethodEnd } from '../infra/logger';
 import { detectCurrentPage } from '../infra/page-detector';
 import { relistManager } from '../logic/relist-manager';
@@ -6,7 +14,7 @@ import { deleteManager } from '../logic/delete-manager';
 import { findLiByItemId, getItemName } from '../logic/dom-utils';
 import { selectionManager } from '../logic/selection-manager';
 import { publishAllDrafts } from '../logic/publisher';
-import { renderProcessingSpan, updateDockCount } from './bulk-bar-ui';
+import { renderBulkBar, renderProcessingSpan, updateDockCount } from './bulk-bar-ui';
 import { getOrCreateElement } from './bulk-bar-core';
 import { removeItemPrefix } from './bulk-bar-utils';
 import { showToast } from './notification';
@@ -14,6 +22,7 @@ import { createDescriptionReplaceButton } from './description-replace-panel';
 import { decorateButton, setButtonBusy } from './components';
 import { confirmAction, ConfirmFact } from './confirm-dialog';
 import { createIcon } from './icons';
+import { renderOrderNumbers } from './order-display';
 import { ensureTheme } from './theme';
 
 /**
@@ -266,6 +275,66 @@ export function createButtonForCurrentPage(): HTMLButtonElement {
 }
 
 /**
+ * 「選択を解除」ボタンを生成する
+ *
+ * 全行のチェックを外し、選択順も 1 からやり直せるように空にする。取り消しはできないが
+ * 選び直せば戻るので確認は挟まず、外した件数を通知で知らせる。
+ * 一括処理の実行中は他の操作ボタンと同じく押せない（lockDockActions）。
+ *
+ * @returns 生成したボタン
+ */
+export function createClearSelectionButton(): HTMLButtonElement {
+  const button = decorateButton(getOrCreateElement(ID_NAME.BULK_CLEAR_BTN, 'button'), {
+    label: '選択を解除',
+    variant: 'ghost',
+    icon: 'close',
+    size: 'sm',
+  });
+  // 実行中にまとめて押せなくする対象に含める（lockDockActions はこのクラスの中を見る）
+  button.classList.add(CLASS_NAME.DOCK_LOCKABLE);
+
+  button.onclick = (): void => {
+    const count = clearAllSelections();
+    if (count > 0) {
+      showToast(`選択を解除しました（${count}件）`, 'info');
+    }
+  };
+
+  return button;
+}
+
+/**
+ * 全行のチェックと選択順を初期化する
+ *
+ * 行ごとに change を発火させると、行数分だけ一覧全体の再描画が走る。
+ * チェックを外してから、選択と表示をまとめて 1 回だけ組み直す。
+ *
+ * @returns 解除した件数
+ */
+export function clearAllSelections(): number {
+  const count = selectionManager.getSelectionCount();
+  if (count === 0) return 0;
+
+  document
+    .querySelectorAll<HTMLInputElement>(COMPOSITE_SELECTOR.CHECKED_BULK_CHECKBOX)
+    .forEach((checkbox) => (checkbox.checked = false));
+  selectionManager.clearSelections();
+
+  const list =
+    document.querySelector<HTMLUListElement>(SELECTOR.ITEMS_LIST) ??
+    document.querySelector<HTMLUListElement>(SELECTOR.DRAFT_LIST);
+  if (list) {
+    renderOrderNumbers(list, selectionManager);
+  } else {
+    warn('clearAllSelections: 一覧が見つからないため、順番表示を更新できませんでした');
+  }
+  renderBulkBar(selectionManager.getSelectionCount());
+
+  log(`選択を解除しました: ${count}件`);
+  return count;
+}
+
+/**
  * 一括再出品ボタンを含むコンテナ（画面下の浮遊ドック）を生成
  */
 export function createBulkRelistContainer(count: number): HTMLDivElement {
@@ -282,7 +351,7 @@ export function createBulkRelistContainer(count: number): HTMLDivElement {
 
   // 左側: アイコンと件数
   const lead = document.createElement('div');
-  lead.className = 'mdp-dock__lead';
+  lead.className = CLASS_NAME.DOCK_LEAD;
 
   const tile = document.createElement('span');
   tile.className = 'mdp-icon-tile';
@@ -316,7 +385,7 @@ export function createBulkRelistContainer(count: number): HTMLDivElement {
   }
 
   stats.append(countSpan, meta);
-  lead.append(tile, stats);
+  lead.append(tile, stats, createClearSelectionButton());
 
   const divider = document.createElement('span');
   divider.className = 'mdp-dock__divider';
@@ -371,7 +440,9 @@ function trackDockHeight(container: HTMLElement): void {
 function lockDockActions(): () => void {
   const container = document.getElementById(ID_NAME.BULK_RELIST_CONTAINER);
   const buttons = Array.from(
-    container?.querySelectorAll<HTMLButtonElement>(`.${CLASS_NAME.DOCK_ACTIONS} button`) ?? []
+    container?.querySelectorAll<HTMLButtonElement>(
+      `.${CLASS_NAME.DOCK_ACTIONS} button, button.${CLASS_NAME.DOCK_LOCKABLE}`
+    ) ?? []
   ).filter((button) => !button.disabled);
 
   buttons.forEach((button) => (button.disabled = true));

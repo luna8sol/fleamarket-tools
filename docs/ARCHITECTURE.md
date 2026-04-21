@@ -121,7 +121,7 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 |---------|------|
 | `ui-manager.ts` / `index.ts` | UI 全体の管理・ページタイプに応じた切り替え |
 | `bulk-bar-core.ts` / `bulk-bar-ui.ts` / `bulk-bar-utils.ts` | 一括操作バー（画面下中央に浮かぶドック。件数表示と、処理中の進捗バー）。中核・描画・補助に分割されている |
-| `bulk-relist.ts` | ドックの組み立てと、出品・再出品・削除のボタン。実行前の確認（件数・間隔・待機の目安・処理順の商品名）もここ |
+| `bulk-relist.ts` | ドックの組み立てと、出品・再出品・削除・選択の解除のボタン。実行前の確認（件数・間隔・待機の目安・処理順の商品名）もここ |
 | `theme.ts` | 注入 UI のデザインシステム（色・影・角丸のトークンと部品のスタイル）。ライト / ダークは `prefers-color-scheme` で切り替える。1 度だけ `<style>` として注入する |
 | `components.ts` | 共通部品（ボタンの装飾・処理中表示・進捗バー） |
 | `icons.ts` | 線画アイコン。`innerHTML` を使わず `createElementNS` で組み立てる |

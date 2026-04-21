@@ -152,6 +152,9 @@ export const ID_NAME = {
   // 一括削除
   BULK_DELETE_BTN: 'bulk-delete-btn',
 
+  // 選択の解除
+  BULK_CLEAR_BTN: 'bulk-clear-selection-btn',
+
   // フィルターバー
   FILTER_BAR: 'listing-filter-bar',
   FILTER_LIKES_BTN: 'filter-likes-btn',
@@ -192,7 +195,10 @@ export const CLASS_NAME = {
   ROW_GUTTER: 'mdp-row-gutter',
 
   // 一括操作ドック・共通部品（スタイルは ui/theme.ts）
+  DOCK_LEAD: 'mdp-dock__lead',
   DOCK_ACTIONS: 'mdp-dock__actions',
+  // 一括処理の実行中に押せなくするボタン（操作ボタン群の外に置くもの）
+  DOCK_LOCKABLE: 'mdp-dock__lockable',
   DOCK_COUNT_NUM: 'mdp-dock__count-num',
   DOCK_META: 'mdp-dock__meta',
   BTN_LABEL: 'mdp-btn__label',
