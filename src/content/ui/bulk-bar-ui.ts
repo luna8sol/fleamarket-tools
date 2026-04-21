@@ -1,5 +1,7 @@
-import { ID_NAME } from '../infra/constants';
+import { CONFIG, ID_NAME } from '../infra/constants';
 import { debugMethodStart, debugMethodEnd } from '../infra/logger';
+import { BulkProgress } from '../infra/types';
+import { showToast } from './notification';
 import { selectionManager } from '../logic/selection-manager';
 import { getOrCreateElement } from './bulk-bar-core';
 import { createBulkRelistContainer, createButtonForCurrentPage } from './bulk-relist';
@@ -40,6 +42,46 @@ export function renderProcessingSpan(text: string): HTMLSpanElement {
   processingSpan.textContent = text;
   processingSpan.style.display = text ? 'inline' : 'none';
   return processingSpan;
+}
+
+/**
+ * 進捗を1行の文言に整形する
+ *
+ * @param progress 進捗
+ * @returns 表示用の文言
+ */
+export function formatProgress(progress: BulkProgress): string {
+  const { processName, current, total, succeeded, failed } = progress;
+
+  if (progress.phase === 'done') {
+    const failedPart = failed > 0 ? `（失敗 ${failed}件）` : '';
+    return `${processName}完了: ${succeeded}/${total}件${failedPart}`;
+  }
+
+  const name = progress.itemName ? ` ${progress.itemName}` : '';
+
+  if (progress.phase === 'waiting') {
+    return `${processName} ${current}/${total}件 完了 — 次まで ${progress.remainingSeconds ?? 0}秒`;
+  }
+
+  return `${processName}中 ${current}/${total}件${name}`;
+}
+
+/**
+ * 進捗を一括操作バーへ表示する
+ *
+ * 完了時に失敗が1件でもあれば通知も出します。進捗表示は処理終了後に消えるため、
+ * それだけだと**一部が失敗したことに気づけない**ためです。
+ *
+ * @param progress 進捗
+ */
+export function renderProgress(progress: BulkProgress): void {
+  const text = formatProgress(progress);
+  renderProcessingSpan(text);
+
+  if (progress.phase === 'done' && progress.failed > 0) {
+    showToast(text, 'warning', CONFIG.TOAST_DURATION_MS * 2);
+  }
 }
 
 /**

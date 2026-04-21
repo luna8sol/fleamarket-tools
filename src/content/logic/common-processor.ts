@@ -1,5 +1,6 @@
 import { sleep, randomInt } from '../../common/utils';
 import { warn, debugMethodStart, debugMethodEnd } from '../infra/logger';
+import { BulkProgress } from '../infra/types';
 
 /**
  * アイテムの処理方法を定義するインターフェース
@@ -21,7 +22,21 @@ export interface ItemProcessor {
    * 待機時間の設定を取得
    */
   getWaitConfig(): { baseSeconds: number; minExtraSeconds: number; maxExtraSeconds: number };
+
+  /**
+   * 画面に出す処理名（省略時は getProcessName() を使う）
+   */
+  getDisplayName?(): string;
+
+  /**
+   * 進捗表示に出す商品名を取得する（省略可）
+   * @param id 対象アイテムのID
+   */
+  getItemLabel?(id: string): string;
 }
+
+/** 進捗の通知先 */
+export type BulkProgressReporter = (progress: BulkProgress) => void;
 
 /**
  * 複数アイテムを順次処理するための共通ロジック
@@ -29,9 +44,27 @@ export interface ItemProcessor {
  * @param processor アイテム処理の実装
  * @returns 処理が完了したかどうか
  */
-export async function processItems(ids: string[], processor: ItemProcessor): Promise<boolean> {
+export async function processItems(
+  ids: string[],
+  processor: ItemProcessor,
+  onProgress?: BulkProgressReporter
+): Promise<boolean> {
   const processName = processor.getProcessName();
+  const displayName = processor.getDisplayName?.() ?? processName;
   const startTime = performance.now();
+
+  let succeeded = 0;
+  let failed = 0;
+
+  /** 進捗を通知する（通知先での例外で本処理を止めない） */
+  const report = (progress: Omit<BulkProgress, 'processName' | 'total' | 'succeeded' | 'failed'>): void => {
+    if (!onProgress) return;
+    try {
+      onProgress({ processName: displayName, total: ids.length, succeeded, failed, ...progress });
+    } catch (e) {
+      warn('進捗の通知に失敗しました', e);
+    }
+  };
 
   debugMethodStart(`${processName}.processItems`, {
     idsCount: ids.length,
@@ -49,8 +82,16 @@ export async function processItems(ids: string[], processor: ItemProcessor): Pro
         remaining: ids.length - i
       });
 
+      const itemName = processor.getItemLabel?.(id);
+      report({ current: i + 1, phase: 'processing', itemName });
+
       try {
         const success = await processor.processItem(id);
+        if (success) {
+          succeeded++;
+        } else {
+          failed++;
+        }
 
         const currentItemDuration = Math.round(performance.now() - currentItemStartTime);
         debugMethodEnd(`${processName}.processItems.processItem`, {
@@ -72,7 +113,12 @@ export async function processItems(ids: string[], processor: ItemProcessor): Pro
             extraSeconds: extra
           });
 
-          await sleep(waitTime);
+          // 数十秒の待機なので、残り秒数を1秒ごとに知らせる。
+          // 表示が止まったままだと「固まった」のか「待っている」のか区別できない。
+          for (let remaining = waitTime; remaining > 0; remaining--) {
+            report({ current: i + 1, phase: 'waiting', itemName, remainingSeconds: remaining });
+            await sleep(1);
+          }
 
           debugMethodEnd(`${processName}.processItems.waitBeforeNext`, {
             completed: true,
@@ -81,6 +127,7 @@ export async function processItems(ids: string[], processor: ItemProcessor): Pro
           });
         }
       } catch (error) {
+        failed++;
         warn(`${processName} 処理中にエラーが発生しました: ID=${id}`, error);
 
         debugMethodEnd(`${processName}.processItems.processItem`, {
@@ -91,6 +138,8 @@ export async function processItems(ids: string[], processor: ItemProcessor): Pro
         });
       }
     }
+
+    report({ current: ids.length, phase: 'done' });
 
     const duration = Math.round(performance.now() - startTime);
     debugMethodEnd(`${processName}.processItems`, {

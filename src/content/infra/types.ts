@@ -28,6 +28,41 @@ export interface AutoSaveSettings {
 }
 
 /**
+ * 一括処理の進捗
+ *
+ * 一括出品・一括再出品は1件あたり75〜90秒の待機を挟むため、全体で数十分かかります。
+ * 「止まっているのか待っているのか」が分からないと操作を誤るので、
+ * 何件目か・いま何をしているか・あと何秒待つのかを表示できるようにします。
+ */
+export interface BulkProgress {
+  /** 表示用の処理名（例: 再出品） */
+  processName: string;
+  /** 何件目か（1始まり）。完了時は total と同じ */
+  current: number;
+  /** 総件数 */
+  total: number;
+  /** いまの状態 */
+  phase: BulkProgressPhase;
+  /** 処理中・待機中の対象の商品名（取得できたとき） */
+  itemName?: string;
+  /** `waiting` のときの残り秒数 */
+  remainingSeconds?: number;
+  /** 成功した件数 */
+  succeeded: number;
+  /** 失敗した件数 */
+  failed: number;
+}
+
+/**
+ * 一括処理の状態
+ *
+ * - `processing`: 対象を処理している
+ * - `waiting`: 次の対象まで待機している（メルカリ側への配慮で間隔を空けている）
+ * - `done`: 全件終了
+ */
+export type BulkProgressPhase = 'processing' | 'waiting' | 'done';
+
+/**
  * 比較対象となるフィールドのキー
  *
  * 出品フォームと編集フォームは同じ部品でできているため、比較はフォーム対フォームで行います。

@@ -3,6 +3,7 @@ import { findDraftItemById } from '../ui/list';
 import { safeQuery } from '../../common/dom';
 import { log, warn, debugMethodStart, debugMethodEnd } from '../infra/logger';
 import { processItems, ItemProcessor } from './common-processor';
+import { renderProgress } from '../ui/bulk-bar-ui';
 
 /**
  * 指定idの下書きli要素を探し、出品ボタンをクリックする。
@@ -61,6 +62,16 @@ class DraftPublishProcessor implements ItemProcessor {
     return 'DraftPublisher';
   }
 
+  getDisplayName(): string {
+    return '出品';
+  }
+
+  getItemLabel(id: string): string {
+    const item = findDraftItemById(id);
+    if (!item?.li) return '';
+    return safeQuery<HTMLElement>('[data-testid="item-label"]', item.li)?.textContent?.trim() ?? '';
+  }
+
   getWaitConfig(): { baseSeconds: number; minExtraSeconds: number; maxExtraSeconds: number } {
     return {
       baseSeconds: WAIT.BASE_SECONDS,
@@ -80,6 +91,6 @@ class DraftPublishProcessor implements ItemProcessor {
  */
 export async function publishAllDrafts(ids: string[]): Promise<void> {
   const processor = new DraftPublishProcessor();
-  await processItems(ids, processor);
+  await processItems(ids, processor, renderProgress);
 }
 

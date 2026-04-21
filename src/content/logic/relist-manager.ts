@@ -2,7 +2,7 @@ import { CONFIG, SELECTOR } from '../infra/constants';
 import { log, warn } from '../infra/logger';
 import { loadAutoSaveSettings } from '../infra/auto-save-settings';
 import { enqueueSnapshot } from '../infra/relist-queue';
-import { renderProcessingSpan } from '../ui/bulk-bar-ui';
+import { renderProcessingSpan, renderProgress } from '../ui/bulk-bar-ui';
 import { findLiByItemId, getRelistButton, getItemName } from '../logic/dom-utils';
 import { captureItemSnapshot } from './item-snapshot';
 import { processItems, ItemProcessor } from './common-processor';
@@ -27,8 +27,8 @@ export class RelistManager {
         return false;
       }
 
-      // 処理開始
-      renderProcessingSpan('処理中...');
+      // 処理開始。実際の進捗は processItems からの通知で上書きされる
+      renderProcessingSpan('準備中...');
 
       // 商品リスト要素を含むコンテキストオブジェクトを作成
       const context = { itemListElement };
@@ -42,6 +42,15 @@ export class RelistManager {
           return 'RelistManager';
         },
 
+        getDisplayName(): string {
+          return '再出品';
+        },
+
+        getItemLabel(id: string): string {
+          const li = findLiByItemId(context.itemListElement, id);
+          return li ? getItemName(li) : '';
+        },
+
         getWaitConfig(): { baseSeconds: number; minExtraSeconds: number; maxExtraSeconds: number } {
           return {
             // ミリ秒→秒に変換
@@ -53,7 +62,7 @@ export class RelistManager {
       };
 
       // 共通処理を使用して再出品を実行
-      const result = await processItems(ids, relistProcessor);
+      const result = await processItems(ids, relistProcessor, renderProgress);
 
       // 処理終了の表示を消す
       renderProcessingSpan('');
