@@ -2,6 +2,8 @@ import { debug, log, warn, setDebugMode, debugMethodStart, debugMethodEnd, setLo
 import { observerManager } from './observer-manager';
 import { detectCurrentPage } from '../infra/page-detector';
 import { loadUserSettings } from '../infra/user-settings';
+import { PageType } from '../infra/constants';
+import { runAutoSaveOnSellPage } from './auto-save-controller';
 
 /**
  * アプリケーション初期化とメインロジックの統合
@@ -19,11 +21,20 @@ export class AppInitializer {
     // ユーザー設定を読み込み、デバッグモードを設定
     await this.applyUserSettings();
 
-    // DOM監視開始
-    observerManager.startObserving();
-
     // ページタイプに応じた初期化
     const pageType = detectCurrentPage();
+
+    // 出品フォームでは一覧向けのUI・DOM監視は不要で、自動保存だけを行う
+    if (pageType === PageType.SELL) {
+      this.startSellPageAutoSave();
+
+      const sellDuration = Math.round(performance.now() - startTime);
+      debugMethodEnd('AppInitializer.initialize', { pageType }, sellDuration);
+      return;
+    }
+
+    // DOM監視開始
+    observerManager.startObserving();
 
     // NOTE: ここで DOMContentLoaded を待ってはいけない。
     // manifest.json の content_scripts は "run_at": "document_idle" のため、
@@ -33,6 +44,23 @@ export class AppInitializer {
 
     const duration = Math.round(performance.now() - startTime);
     debugMethodEnd('AppInitializer.initialize', { pageType }, duration);
+  }
+
+  /**
+   * 再出品タブでの自動保存を開始する
+   *
+   * 出品フォームの描画完了を待つ非同期処理のため、初期化は待たずに進めます。
+   */
+  private startSellPageAutoSave(): void {
+    debugMethodStart('AppInitializer.startSellPageAutoSave');
+
+    runAutoSaveOnSellPage()
+      .then((result) => {
+        debugMethodEnd('AppInitializer.startSellPageAutoSave', { outcome: result.outcome });
+      })
+      .catch((e) => {
+        warn('自動保存処理の起動に失敗しました', e);
+      });
   }
 
   /**

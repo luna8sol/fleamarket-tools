@@ -71,10 +71,12 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 
 | ファイル | 役割 |
 |---------|------|
-| `constants.ts` | 定数の一元管理（一覧ページの `SELECTOR`・編集フォームの `EDIT_SELECTOR`・クラス名・ID・待機時間・デフォルト設定） |
-| `types.ts` | 型定義（`UserSettings`） |
+| `constants.ts` | 定数の一元管理（一覧ページの `SELECTOR`・編集フォームの `EDIT_SELECTOR`・出品フォームの `SELL_FORM_FIELDS`・クラス名・ID・待機時間・デフォルト設定） |
+| `types.ts` | 型定義（`UserSettings`・自動保存まわりの各型） |
 | `page-detector.ts` | URL からページタイプ（`DRAFTS` / `LISTINGS` / `EDIT_DRAFT` / `EDIT_LISTING` / `SELL` / `UNKNOWN`）を検出。出品フォームの有無は `isSellFormPage()` で判定する |
 | `user-settings.ts` | ユーザー設定の読み書き（未保存の項目は `DEFAULT_USER_SETTINGS` で補完）。保存先は [`src/common/ext-storage.ts`](../src/common/ext-storage.ts) |
+| `relist-queue.ts` | 再出品の待ち行列。一覧ページで積んだ元商品スナップショットを出品フォーム側が FIFO で取り出す |
+| `auto-save-settings.ts` | 再出品後の自動保存設定の読み書き |
 | `logger.ts` | デバッグ用ロガー（ログレベル制御あり） |
 | `debounce.ts` | 連続操作の制御 |
 | `error-handler.ts` | エラー処理 |
@@ -89,11 +91,16 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 | `observer-manager.ts` | MutationObserver による DOM 変更の監視と処理。UI の初期描画もここが担う。リストが現れるまでは `document.body` を監視して待ち、`CONFIG.LIST_WAIT_TIMEOUT_MS` を過ぎたら `list-load-error.ts` で知らせる |
 | `selection-manager.ts` | 選択商品の追加・削除・順序管理（**永続化はしない。メモリ上のみ**） |
 | `publisher.ts` | 下書きの自動出品処理 |
-| `relist-manager.ts` | 出品中商品の再出品処理 |
+| `relist-manager.ts` | 出品中商品の再出品処理（クリック前に元商品スナップショットを取得） |
 | `common-processor.ts` | 出品・再出品に共通する逐次処理 |
 | `edit-form.ts` | 出品・編集フォームの読み書き（商品名・カテゴリ・状態・属性・画像の取得と、説明欄への書き戻し） |
 | `description-generator.ts` | background へ説明文の生成を依頼する。例外は投げず、必ず成否を表す結果型で返す |
 | `filter-manager.ts` | 出品中一覧のいいね・コメント数によるフィルター。カウントを読めないときは適用せず解除する |
+| `item-snapshot.ts` | 元商品の編集フォームを隠し iframe で開き、比較の基準値を読み取る |
+| `sell-form.ts` | 出品フォームのアダプタ（入力欄の解決・値の読み書き） |
+| `relist-verifier.ts` | 元商品と出品フォームの比較・差分の自動修正 |
+| `auto-save-controller.ts` | 再出品タブでの自動保存の制御 |
+| `value-normalizer.ts` | 比較用の値の正規化（改行・全角数字・桁区切りの表記ゆれを吸収） |
 | `dom-utils.ts` | DOM 操作のユーティリティ関数 |
 
 ### UI 層（src/content/ui/）
@@ -142,7 +149,8 @@ content/index.ts
 1. ユーザーが出品中ページで商品にチェックを入れる
 2. `selection-manager` が選択状態と順序を管理
 3. 「選択した商品を再出品」ボタンをクリック
-4. `relist-manager.ts` の `executeRelist()` が再出品ボタンを順番にクリック
+4. `relist-manager.ts` の `executeRelist()` が、各商品について
+   元商品のスナップショットを取得・キューへ登録してから再出品ボタンをクリック
 5. 完了後、成功通知を表示
 
 ### AI 説明文生成フロー（編集・出品ページ / dist/edit.js）
@@ -178,6 +186,55 @@ content/edit-entry.ts
 | `/sell/create` | `SELL` | `dist/edit.js` |
 
 `/sell*` にマッチする他のページ（`/sell` トップ、`/sell/drafts` 一覧など）にも `dist/edit.js` は注入されるが、`isSellFormPage()` が false になるため UI は出ない。
+### 再出品後の自動保存フロー
+
+再出品ボタンを押すと、コピー内容が入った出品フォームが別タブで開きます。
+その内容が元商品と一致しているかを検証し、問題がなければ自動で保存します。
+
+```
+一覧ページ（LISTINGS）                     出品フォーム（SELL / 別タブ）
+  relist-manager.executeRelist()
+    ├── item-snapshot.captureItemSnapshot()
+    │     └── /item/{id} の __NEXT_DATA__ から比較値を抽出
+    ├── relist-queue.enqueueSnapshot()  ──►  chrome.storage.local
+    └── 再出品ボタンをクリック  ─────────►  appInitializer.initialize()
+                                              └── auto-save-controller.runAutoSaveOnSellPage()
+                                                    ├── relist-queue.dequeueSnapshot()
+                                                    ├── sell-form.waitForSellFormReady()
+                                                    ├── sell-form.readSellForm()
+                                                    ├── relist-verifier.compareValues()
+                                                    ├── relist-verifier.applyFixes()（差分があれば）
+                                                    └── sell-form.findSubmitButton().click()
+```
+
+比較対象は商品名・販売価格・商品の説明・カテゴリー・商品の状態・
+配送料の負担・配送の方法・発送元の地域・発送までの日数・画像枚数です。
+
+判定は次の 3 通りです。
+
+- 差分なし → そのまま保存
+- 差分あり・自動修正可能 → 元商品の値へ書き戻し、再読み取りで解消を確認してから保存
+- 自動修正できない差分が残る → **保存せずに中断**し、内容を通知して手動確認へ引き継ぐ
+
+自動修正できないのは次のケースです。
+
+| ケース | 理由 |
+|-------|------|
+| 画像枚数の不一致 | 画像ファイルの実体を持たないため再アップロードできない |
+| 入力欄を解決できない | 値を確認できない以上「問題なし」と判断できない |
+| 選択肢に存在しない値 | 元商品の値をフォームへ設定できない |
+| 元商品の情報を取得できなかった | 比較の基準がないため |
+
+#### 出品フォームのセレクタ
+
+出品フォームの入力欄は `constants.ts` の `SELL_FORM_FIELDS` で定義します。
+メルカリの DOM は予告なく変わるため、各フィールドは複数の候補セレクタを持ち、
+すべて外れた場合は画面上のラベル文言（「商品名」「販売価格」など）から
+入力欄を辿るフォールバックが働きます。
+
+値の書き込みは `HTMLInputElement.prototype` の setter 経由で行い、
+`input` / `change` / `blur` を発火させます。React 管理下の入力欄で
+`value` への直接代入が内部状態に反映されない問題を避けるためです。
 
 ## 設計原則
 

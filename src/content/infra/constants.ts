@@ -12,6 +12,8 @@
 // 定数・設定値 一元管理モジュール
 // =============================
 
+import { CompareFieldKey, SellFormFieldSpec } from './types';
+
 /**
  * 各種待機時間（秒）
  */
@@ -196,6 +198,12 @@ export const CONFIG = {
   EDIT_PANEL_MAX_RETRY_COUNT: 20,
   EDIT_PANEL_RETRY_INTERVAL_MS: 500,
 
+  // 再出品タブでの自動保存設定
+  SELL_FORM_MAX_RETRY_COUNT: 40,     // 出品フォームの初期表示待ちの最大リトライ回数
+  SELL_FORM_RETRY_INTERVAL_MS: 500,  // 出品フォーム待ちのポーリング間隔
+  SELL_FORM_FIX_SETTLE_MS: 300,      // 差分修正後、再読み取りまでの待機時間
+  RELIST_QUEUE_TTL_MS: 30 * 60 * 1000, // キューに残った古いエントリを破棄するまでの時間
+
   // UI設定
   ZINDEX: {
     TOAST: 10000,
@@ -216,6 +224,18 @@ export const DEFAULT_USER_SETTINGS = {
 };
 
 /**
+ * 再出品後の自動保存のデフォルト設定
+ *
+ * autoSaveDryRun は既定で true です。出品フォームのセレクタは実環境での
+ * 検証が必要なため、まずはドライランで差分検出の妥当性を確認してから
+ * 保存を有効化してください。
+ */
+export const DEFAULT_AUTO_SAVE_SETTINGS = {
+  autoSaveAfterRelist: true,
+  autoSaveDryRun: true,
+};
+
+/**
  * ページタイプ定数
  */
 export enum PageType {
@@ -225,7 +245,184 @@ export enum PageType {
   EDIT_DRAFT = 'editDraft',
   /** 出品中商品の編集ページ */
   EDIT_LISTING = 'editListing',
-  /** 新規出品ページ */
+  /** 新規出品ページ（再出品ボタンから開かれる出品フォーム） */
   SELL = 'sell',
   UNKNOWN = 'unknown',
 }
+
+/**
+ * 出品フォーム（再出品タブ）のセレクタ・比較定義
+ *
+ * メルカリのDOMは予告なく変わるため、各フィールドは複数の候補セレクタと
+ * 画面上のラベル文言によるフォールバック探索を持ちます。
+ * 実環境と合わない場合は、まずこのテーブルを修正してください。
+ */
+export const SELL_FORM_FIELDS: SellFormFieldSpec[] = [
+  {
+    key: 'name',
+    label: '商品名',
+    kind: 'text',
+    fixable: true,
+    selectors: ['#name', 'input[name="name"]', '[data-testid="name"] input', 'input[data-testid="name"]'],
+    labelTexts: ['商品名'],
+  },
+  {
+    key: 'price',
+    label: '販売価格',
+    kind: 'number',
+    fixable: true,
+    selectors: ['#price', 'input[name="price"]', '[data-testid="price"] input', 'input[data-testid="price"]'],
+    labelTexts: ['販売価格', '価格'],
+  },
+  {
+    key: 'description',
+    label: '商品の説明',
+    kind: 'textarea',
+    fixable: true,
+    selectors: [
+      '#description',
+      'textarea[name="description"]',
+      '[data-testid="description"] textarea',
+      'textarea[data-testid="description"]',
+    ],
+    labelTexts: ['商品の説明'],
+  },
+  {
+    key: 'categoryId',
+    label: 'カテゴリー',
+    kind: 'select',
+    fixable: true,
+    selectors: [
+      '#category',
+      'select[name="categoryId"]',
+      'select[name="category"]',
+      '[data-testid="category"] select',
+      'select[data-testid="category"]',
+    ],
+    labelTexts: ['カテゴリー', 'カテゴリ'],
+  },
+  {
+    key: 'conditionId',
+    label: '商品の状態',
+    kind: 'select',
+    fixable: true,
+    selectors: [
+      '#condition',
+      'select[name="conditionId"]',
+      'select[name="condition"]',
+      '[data-testid="condition"] select',
+      'select[data-testid="condition"]',
+    ],
+    labelTexts: ['商品の状態'],
+  },
+  {
+    key: 'shippingPayerId',
+    label: '配送料の負担',
+    kind: 'select',
+    fixable: true,
+    selectors: [
+      '#shipping-payer',
+      'select[name="shippingPayerId"]',
+      'select[name="shippingPayer"]',
+      '[data-testid="shipping-payer"] select',
+    ],
+    labelTexts: ['配送料の負担'],
+  },
+  {
+    key: 'shippingMethodId',
+    label: '配送の方法',
+    kind: 'select',
+    fixable: true,
+    selectors: [
+      '#shipping-method',
+      'select[name="shippingMethodId"]',
+      'select[name="shippingMethod"]',
+      'select[name="shippingClassId"]',
+      '[data-testid="shipping-method"] select',
+    ],
+    labelTexts: ['配送の方法'],
+  },
+  {
+    key: 'shippingFromAreaId',
+    label: '発送元の地域',
+    kind: 'select',
+    fixable: true,
+    selectors: [
+      '#shipping-from-area',
+      'select[name="shippingFromAreaId"]',
+      'select[name="shippingFromArea"]',
+      '[data-testid="shipping-from-area"] select',
+    ],
+    labelTexts: ['発送元の地域'],
+  },
+  {
+    key: 'shippingDurationId',
+    label: '発送までの日数',
+    kind: 'select',
+    fixable: true,
+    selectors: [
+      '#shipping-duration',
+      'select[name="shippingDurationId"]',
+      'select[name="shippingDuration"]',
+      '[data-testid="shipping-duration"] select',
+    ],
+    labelTexts: ['発送までの日数'],
+  },
+  {
+    // 画像はファイル実体を持たないため再アップロードできず、自動修正は不可
+    key: 'imageCount',
+    label: '画像枚数',
+    kind: 'count',
+    fixable: false,
+    selectors: [
+      '[data-testid="image-preview"]',
+      '[data-testid="sell-image-preview"]',
+      '[data-testid="image-container"] img',
+      'figure[data-testid^="image"]',
+    ],
+    labelTexts: [],
+  },
+];
+
+/**
+ * 出品フォーム関連のセレクタ
+ */
+export const SELL_FORM_SELECTOR = {
+  /** 出品（保存）ボタンの候補セレクタ */
+  SUBMIT_BUTTON: [
+    '#submit-button',
+    'button[data-testid="submit-button"]',
+    'button[data-testid="sell-submit-button"]',
+    'button[type="submit"]',
+  ],
+  /** 出品ボタンをテキストで探す場合の文言候補 */
+  SUBMIT_BUTTON_TEXTS: ['出品する', '変更する', '保存する'],
+  /** ラベル文言からフィールドを辿るときに走査する要素 */
+  LABEL_CANDIDATES: 'label, legend, h2, h3, dt, [class*="label"], [class*="Label"]',
+  /** ラベルから入力要素を辿るときに探す入力要素 */
+  FORM_CONTROL: 'input, select, textarea',
+};
+
+/**
+ * 元商品のJSONから値を取り出すためのキー候補（ドット区切りパス）
+ *
+ * メルカリの商品ページ（__NEXT_DATA__）の構造変化に備え、
+ * 1フィールドにつき複数のパスを先頭から順に試します。
+ */
+export const ITEM_JSON_PATHS: Record<CompareFieldKey, string[]> = {
+  name: ['name', 'title'],
+  price: ['price', 'itemPrice'],
+  description: ['description', 'itemDescription'],
+  categoryId: ['itemCategoryId', 'categoryId', 'itemCategory.id', 'category.id'],
+  conditionId: ['itemConditionId', 'conditionId', 'itemCondition.id', 'condition.id'],
+  shippingPayerId: ['shippingPayerId', 'shippingPayer.id'],
+  shippingMethodId: ['shippingMethodId', 'shippingMethod.id', 'shippingClassId', 'shippingClass.id'],
+  shippingFromAreaId: ['shippingFromAreaId', 'shippingFromArea.id'],
+  shippingDurationId: ['shippingDurationId', 'shippingDuration.id'],
+  imageCount: [],
+};
+
+/**
+ * 元商品のJSONから画像枚数を数えるための配列プロパティ候補
+ */
+export const ITEM_JSON_IMAGE_PATHS = ['photos', 'images', 'thumbnails', 'itemPhotos'];

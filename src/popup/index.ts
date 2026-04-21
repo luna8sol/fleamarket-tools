@@ -1,4 +1,6 @@
 import { loadUserSettings, saveUserSettings } from '../content/infra/user-settings';
+import { loadAutoSaveSettings, saveAutoSaveSettings } from '../content/infra/auto-save-settings';
+import { AutoSaveSettings } from '../content/infra/types';
 
 /**
  * popup.htmlの「開始」ボタンにクリックイベントを登録し、
@@ -11,6 +13,7 @@ document.getElementById('start')?.addEventListener('click', () => {
 // ページ読み込み時に実行
 document.addEventListener('DOMContentLoaded', () => {
   void initializeDebugToggle();
+  void initializeAutoSaveToggles();
   // 他の初期化処理...
 });
 
@@ -43,4 +46,34 @@ async function initializeDebugToggle(): Promise<void> {
       }
     });
   });
+}
+
+/**
+ * 再出品後の自動保存トグルの初期化
+ *
+ * 設定は chrome.storage.local に保存するため、出品フォームのタブからも
+ * 同じ値を参照できます。
+ */
+async function initializeAutoSaveToggles(): Promise<void> {
+  const enabledToggle = document.getElementById('auto-save-enabled') as HTMLInputElement | null;
+  const dryRunToggle = document.getElementById('auto-save-dry-run') as HTMLInputElement | null;
+  if (!enabledToggle || !dryRunToggle) return;
+
+  const settings = await loadAutoSaveSettings();
+  enabledToggle.checked = settings.autoSaveAfterRelist;
+  dryRunToggle.checked = settings.autoSaveDryRun;
+  dryRunToggle.disabled = !settings.autoSaveAfterRelist;
+
+  /** 画面の状態を設定へ書き戻す */
+  const persist = async (): Promise<void> => {
+    const next: AutoSaveSettings = {
+      autoSaveAfterRelist: enabledToggle.checked,
+      autoSaveDryRun: dryRunToggle.checked
+    };
+    dryRunToggle.disabled = !next.autoSaveAfterRelist;
+    await saveAutoSaveSettings(next);
+  };
+
+  enabledToggle.addEventListener('change', () => void persist());
+  dryRunToggle.addEventListener('change', () => void persist());
 }

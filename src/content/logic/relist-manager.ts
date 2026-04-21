@@ -1,7 +1,9 @@
 import { CONFIG, SELECTOR } from '../infra/constants';
 import { log, warn } from '../infra/logger';
+import { enqueueSnapshot } from '../infra/relist-queue';
 import { renderProcessingSpan } from '../ui/bulk-bar-ui';
 import { findLiByItemId, getRelistButton, getItemName } from '../logic/dom-utils';
+import { captureItemSnapshot } from './item-snapshot';
 import { processItems, ItemProcessor } from './common-processor';
 
 /**
@@ -66,6 +68,11 @@ export class RelistManager {
 
 /**
  * 単一の商品を再出品する
+ *
+ * 再出品ボタンを押すと別タブで出品フォームが開くため、クリックの前に
+ * 元商品のスナップショットをキューへ積みます。出品フォーム側はこれを
+ * 取り出して、コピー内容が元商品と一致しているかを検証します。
+ *
  * @param itemListElement 商品リスト要素
  * @param id 再出品する商品ID
  * @returns 処理が成功したかどうか
@@ -85,6 +92,10 @@ async function relistSingleItem(itemListElement: HTMLUListElement, id: string): 
 
   const itemName = getItemName(li) || `ID: ${id}`;
   log(`再出品処理: ${id} - ${itemName}`);
+
+  // 比較の基準となる元商品の状態を、出品フォームが開く前に記録する
+  const snapshot = await captureItemSnapshot(id, itemName);
+  await enqueueSnapshot(snapshot);
 
   // 再出品ボタンをクリック
   try {

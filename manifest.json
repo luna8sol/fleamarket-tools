@@ -16,7 +16,8 @@
     {
       "matches": [
         "https://jp.mercari.com/mypage/drafts*",
-        "https://jp.mercari.com/mypage/listings*"
+        "https://jp.mercari.com/mypage/listings*",
+        "https://jp.mercari.com/sell*"
       ],
       "js": ["dist/content.js"],
       "run_at": "document_idle"

@@ -14,16 +14,31 @@
       margin-bottom: 15px;
     }
 
-    .debug-toggle {
+    .toggle-row {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
+      margin-top: 10px;
+    }
+
+    .toggle-row label {
+      margin-left: 8px;
+    }
+
+    .toggle-note {
+      margin: 4px 0 0 24px;
+      font-size: 11px;
+      color: #666;
+    }
+
+    .settings-group.bordered {
       margin-top: 15px;
       padding-top: 10px;
       border-top: 1px solid #eee;
     }
 
-    .debug-toggle label {
-      margin-left: 8px;
+    h2 {
+      margin: 0;
+      font-size: 13px;
     }
   </style>
 </head>
@@ -31,10 +46,31 @@
   <h1>Mercari Draft Publisher</h1>
   <button id="start">出品開始</button>
 
+  <!-- 再出品後の自動保存 -->
+  <div class="settings-group bordered">
+    <h2>再出品後の自動保存</h2>
+
+    <div class="toggle-row">
+      <input type="checkbox" id="auto-save-enabled">
+      <label for="auto-save-enabled">元商品と比較して問題なければ自動保存する</label>
+    </div>
+
+    <div class="toggle-row">
+      <input type="checkbox" id="auto-save-dry-run">
+      <label for="auto-save-dry-run">ドライラン（比較のみ・保存ボタンは押さない）</label>
+    </div>
+    <p class="toggle-note">
+      出品フォームの項目が正しく読み取れているかを確認してから、ドライランを解除してください。
+      結果は出品フォームのコンソールログに出力されます。
+    </p>
+  </div>
+
   <!-- デバッグモード切り替え -->
-  <div class="settings-group debug-toggle">
-    <input type="checkbox" id="debug-mode">
-    <label for="debug-mode">デバッグモードを有効にする</label>
+  <div class="settings-group bordered">
+    <div class="toggle-row">
+      <input type="checkbox" id="debug-mode">
+      <label for="debug-mode">デバッグモードを有効にする</label>
+    </div>
   </div>
 
   <script src="dist/popup.js"></script>
