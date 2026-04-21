@@ -22,7 +22,15 @@ npm run build       # 開発用
 npm run build:prod  # 本番用（最適化・圧縮あり）
 ```
 
-出力先は **`dist/`**（`dist/content.js`, `dist/popup.js`）。`dist/` は gitignore 済み。
+出力先は **`dist/`**。`dist/` は gitignore 済み。エントリーポイントは 5 つあり、**どれか 1 つでも欠けるとその機能だけが黙って動かない**:
+
+| 出力 | 使われる場所 |
+| --- | --- |
+| `dist/content.js` | 一覧ページ（下書き / 出品中）の content script |
+| `dist/edit.js` | 編集・出品フォームページの content script |
+| `dist/background.js` | service worker（Claude API 呼び出し） |
+| `dist/popup.js` | ツールバーのポップアップ |
+| `dist/options.js` | 拡張機能のオプション画面 |
 
 ## 3. Chrome に読み込む
 
@@ -33,14 +41,26 @@ npm run build:prod  # 本番用（最適化・圧縮あり）
 
 **README.md は「`dist` ディレクトリを選択」と書いているが誤り。** `manifest.json` はリポジトリルートにあり、そこから `dist/content.js` を参照している。
 
-## 4. 動作確認する
+## 4. APIキーを設定する（AI 説明文生成を触るときだけ）
 
-content script が動くのは、`manifest.json` の `matches` にある**この 2 つの URL パターンだけ**:
+一括出品・一括再出品はキー無しで動く。AI 説明文生成を確認するときだけ必要:
 
-- `https://jp.mercari.com/mypage/drafts*`（下書き一覧 → 一括出品）
-- `https://jp.mercari.com/mypage/listings*`（出品中一覧 → 一括再出品）
+1. `chrome://extensions` でこの拡張機能の「詳細」→「拡張機能のオプション」
+2. [Claude Console](https://console.anthropic.com/settings/keys) で発行したキーを貼って保存
 
-他のページでは何も起きないのが正常。
+**キーはこの worktree ではなくブラウザのプロファイルに紐づく**（`chrome.storage.local`）。worktree を作り直しても設定し直しは不要だが、Chrome のプロファイルを分けると設定し直しになる。
+
+## 5. 動作確認する
+
+content script が動くのは、`manifest.json` の `matches` にある**この URL パターンだけ**:
+
+| URL パターン | 入るスクリプト | 見えるもの |
+| --- | --- | --- |
+| `https://jp.mercari.com/mypage/drafts*` | `dist/content.js` | 一括出品バー・チェックボックス |
+| `https://jp.mercari.com/mypage/listings*` | `dist/content.js` | 一括再出品バー・チェックボックス |
+| `https://jp.mercari.com/sell*` | `dist/edit.js` | 説明欄の下の「AIで説明文を作る」パネル |
+
+他のページでは何も起きないのが正常。`/sell*` のうち**出品フォームがあるページ（`/sell/draft/{id}`・`/sell/edit/{id}`・`/sell/create`）でしかパネルは出ない。** `/sell` トップや `/sell/drafts` 一覧ではスクリプトは入るが UI は出ない（正常）。
 
 ## 症状 → 原因
 
@@ -53,10 +73,11 @@ content script が動くのは、`manifest.json` の `matches` にある**この
 | 拡張機能は読み込めたが、メルカリの画面に一括操作バーが出ない | `npm run build` をしていない。`dist/content.js` が無いと content script はロードされない（エラーも出ないので「機能が壊れた」ように見える） |
 | ソースを直したのに挙動が変わらない | ①再ビルドしていない（`npm run build`）②ビルド後に `chrome://extensions` で拡張機能の再読み込みをしていない ③ページをリロードしていない。**この 3 つは全部必要** |
 | バーは出るが対象の商品が 1 件も拾えない | メルカリ側の DOM が変わった可能性。`src/content/infra/constants.ts` の `SELECTOR` と、実際のページの DOM を突き合わせる |
-| 設定が前回の値のまま／消えない | 保存先は `chrome.storage.local`（[ext-storage.ts](../../../src/content/infra/ext-storage.ts) の `ExtStorageKey`）。拡張機能を再読み込みしても消えない。**ページの DevTools の Application タブには出ない**（拡張機能の領域で、ポップアップとコンテンツスクリプトが共有する）。消すには `chrome://extensions` でこの拡張機能の Service Worker を開き、コンソールで `chrome.storage.local.clear()` |
+| 設定が前回の値のまま／消えない | 保存先は `chrome.storage.local`（[ext-storage.ts](../../../src/common/ext-storage.ts) の `ExtStorageKey`）。拡張機能を再読み込みしても消えない。**ページの DevTools の Application タブには出ない**（拡張機能の領域で、ポップアップ・content script・background・options page が共有する）。消すには `chrome://extensions` でこの拡張機能の Service Worker を開き、コンソールで `chrome.storage.local.clear()`（**APIキーも消える**） |
 | 選択した商品・選択順がページをまたぐと消える | **選択状態は永続化していない**（メモリ上のみ）。リロードやページ遷移で消えるのが現在の仕様 |
-| `chrome.tabs` / `chrome.scripting` を使う処理が権限エラーになる | `manifest.json` の `host_permissions` は `https://www.mercari.com/*` だが、実際の対象は `jp.mercari.com`。**この不一致が実害を出すかは未検証**。該当したらまずここを疑う |
-| `npm run format:check` が落ちる | **元から落ちている**（既存コード 30 ファイル）。セットアップの失敗ではない。`npm run lint` のほうは通るのが正常。詳細は [CLAUDE.md の「検証」](../../../CLAUDE.md) |
+| 編集ページで「AIで説明文を作る」が出ない | ①`dist/edit.js` が無い（`npm run build` をしていない）②出品フォームのないページを見ている（`/sell` トップ・`/sell/drafts` 一覧では出ないのが正常）③メルカリ側の DOM が変わって説明欄を見つけられない。③なら**ページのコンソールに「説明欄が … 回の試行後も見つかりませんでした」の警告が出る**。出ていれば `src/content/infra/constants.ts` の `EDIT_SELECTOR` を実際の DOM と突き合わせる |
+| 生成を押すと「APIキーが設定されていません」 | オプション画面で未設定（上記 4）。**ページのコンソールではなく `chrome://extensions` の Service Worker のコンソール**に background 側のログが出る。content script 側のログと混同しない |
+| `npm run format:check` が落ちる | **元から落ちている**。セットアップの失敗ではない。`npm run lint` のほうは通るのが正常。**件数は git が触った直後に跳ね上がる**（CRLF）。判定方法と現在の件数は [CLAUDE.md の「検証」](../../../CLAUDE.md) |
 | `npm run build:tsc` を実行したら `dist/` の中身が変わった | `build:tsc` は `tsc`（`--noEmit` なし）で成果物を吐く。型チェックには使わない。`npm run build` で作り直す |
 
 ## worktree を新しく作ったとき

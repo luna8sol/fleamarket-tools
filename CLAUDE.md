@@ -25,9 +25,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 拡張機能の権限・対象ページ・エントリーポイント | [manifest.json](manifest.json) |
 | セレクタ・クラス名・ID・待機時間・既定設定 | [src/content/infra/constants.ts](src/content/infra/constants.ts) |
 | 型定義 | [src/content/infra/types.ts](src/content/infra/types.ts) |
-| ページ種別（下書き / 出品中）の判定 | [src/content/infra/page-detector.ts](src/content/infra/page-detector.ts) |
-| 永続化（`chrome.storage.local`） | [src/content/infra/ext-storage.ts](src/content/infra/ext-storage.ts) |
+| ページ種別（下書き / 出品中 / 編集・出品フォーム）の判定 | [src/content/infra/page-detector.ts](src/content/infra/page-detector.ts) |
+| 永続化（`chrome.storage.local`） | [src/common/ext-storage.ts](src/common/ext-storage.ts) |
 | ユーザー設定の読み書き | [src/content/infra/user-settings.ts](src/content/infra/user-settings.ts) |
+| content script ⇔ background のメッセージ型 | [src/common/messaging.ts](src/common/messaging.ts) |
 | 初期化とページ種別ごとの分岐 | [src/content/logic/app-initializer.ts](src/content/logic/app-initializer.ts) |
 | 出品処理 | [src/content/logic/publisher.ts](src/content/logic/publisher.ts) |
 | 再出品処理 | [src/content/logic/relist-manager.ts](src/content/logic/relist-manager.ts) |
@@ -36,20 +37,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | DOM 変更の監視 | [src/content/logic/observer-manager.ts](src/content/logic/observer-manager.ts) |
 | UI 全体の組み立て | [src/content/ui/ui-manager.ts](src/content/ui/ui-manager.ts), [ui/index.ts](src/content/ui/index.ts) |
 | 一括操作バー | [bulk-bar-core.ts](src/content/ui/bulk-bar-core.ts), [bulk-bar-ui.ts](src/content/ui/bulk-bar-ui.ts), [bulk-bar-utils.ts](src/content/ui/bulk-bar-utils.ts), [bulk-relist.ts](src/content/ui/bulk-relist.ts) |
+| Claude API の呼び出し・プロンプト・APIキーの扱い | [src/background/](src/background/)（[claude-client.ts](src/background/claude-client.ts), [prompt.ts](src/background/prompt.ts), [api-error.ts](src/background/api-error.ts)） |
+| AI 説明文生成（編集ページ側） | [edit-entry.ts](src/content/edit-entry.ts), [edit-form.ts](src/content/logic/edit-form.ts), [description-generator.ts](src/content/logic/description-generator.ts), [description-panel.ts](src/content/ui/description-panel.ts) |
+| APIキーの設定画面 | [options.html](options.html), [src/options/index.ts](src/options/index.ts) |
 | ビルド構成 | [webpack.config.js](webpack.config.js), [tsconfig.json](tsconfig.json) |
 | lint / format 構成 | [eslint.config.js](eslint.config.js), [.prettierrc](.prettierrc) |
 
 ### ドキュメントとコードの既知のズレ
 
-**文書とコードが食い違ったらコードが正。** 2026-09-19 時点（`7f0bf1e`）で確認済み:
+**文書とコードが食い違ったらコードが正。**
 
-- **docs/ARCHITECTURE.md** の表に載っている `src/content/logic/observer.ts` / `src/content/logic/selection.ts` / `src/content/ui/bulk-bar.ts` は**存在しない**。`selection.ts` は `selection-manager.ts` に統合済み、`bulk-bar.ts` は `bulk-bar-core.ts` / `bulk-bar-ui.ts` / `bulk-bar-utils.ts` に分割済み。
-- **docs/ARCHITECTURE.md に未記載のファイル**: `src/content/logic/common-processor.ts`、`src/content/ui/index.ts`、`src/content/ui/list.ts`、`src/content/ui/bulk-relist.ts`。
-- **README.md の「セットアップ」**は Chrome に `dist` ディレクトリを読み込ませると書いているが誤り。`manifest.json` はリポジトリルートにあり、そこから `dist/content.js` を参照している。読み込む対象は**リポジトリルート**。
-- **docs/ARCHITECTURE.md の永続化の記述が古い。** `storage.ts` / `localStorage` / `StorageKey` を挙げているが、永続化は [ext-storage.ts](src/content/infra/ext-storage.ts) の **`chrome.storage.local`** に移っている（`ExtStorageKey`）。ポップアップとコンテンツスクリプトで同じ領域を共有するための変更。
-- **docs/ARCHITECTURE.md のディレクトリ構造に載っている `scripts/` は削除済み。** ビルド出力は `dist/` だけ。
+**2026-09-19 時点（`01e445a`）で既知のズレは無い。** `docs/ARCHITECTURE.md` の 3 つの表・共通層・background・options page の記載は、`src/` 配下の全ファイルと 1 対 1 で突き合わせて確認した。`README.md` のセットアップ手順も現状どおり。
 
-古い記述を見つけたらその場で直す。
+古い記述を見つけたらその場で直す。**ここに列挙して放置しない**（リストが育つとどれが現役の注意書きか分からなくなる）。ファイルを増やす・動かすときは、同じコミットで `docs/ARCHITECTURE.md` の表とこのファイルの索引も直すこと。
 
 ## コーディングルール
 
@@ -59,6 +59,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 未使用 import は自動検出・エラー扱い
 - DOM セレクタ・設定値は必ず `src/content/infra/constants.ts` に追加する
 - 主要なマネージャークラスはファイル末尾でシングルトンとしてエクスポートする（例: `export const appInitializer = new AppInitializer()`）
+- **Claude API キーを読むのは `src/background/` と options page だけ。** content script 側のコードに渡さない（メルカリのページへ注入されるバンドルにキーを載せないため）。生成処理は `chrome.runtime.sendMessage` で background に依頼する
+- **background・options page から使うモジュールは `src/common/` に置く。** `src/content/` 配下は content script のための層。service worker から参照すると層の意味と食い違う
 
 ## ブランチ運用・コミットルール
 
@@ -98,8 +100,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   | `logic` | `src/content/logic/` |
   | `ui` | `src/content/ui/` |
   | `popup` | `src/popup/`, `popup.html` |
+  | `options` | `src/options/`, `options.html` |
+  | `background` | `src/background/` |
   | `common` | `src/common/` |
-  | `manifest` | `manifest.json`, `background.js` |
+  | `manifest` | `manifest.json` |
   | `build` | `webpack.config.js`, `tsconfig.json`, `package.json`, `eslint.config.js`, `.prettierrc` |
   | `docs` | `README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `docs/`, `.claude/` |
 
@@ -149,12 +153,12 @@ update observer-manager.ts
 
 パッケージは**ルート 1 つだけ**（モノレポではない）。すべてリポジトリルートで実行する。
 
-| 項目 | コマンド | 現状（2026-09-19 / `7f0bf1e` 実測） |
+| 項目 | コマンド | 現状（2026-09-19 / `01e445a` 実測） |
 | --- | --- | --- |
-| 型チェック | `npx tsc --noEmit` | **通過**（exit 0）。約 8 秒 |
-| ビルド | `npm run build` | **通過**（exit 0）。約 8 秒 |
+| 型チェック | `npx tsc --noEmit` | **通過**（exit 0）。約 7 秒 |
+| ビルド | `npm run build` | **通過**（exit 0）。約 14 秒 |
 | 静的解析 | `npm run lint` | **通過**（exit 0）。約 6 秒 |
-| フォーマット | `npm run format:check` | **落ちる**（exit 1 / 30 ファイルに差分）。既存コードが未通過 |
+| フォーマット | `npm run format:check` | **落ちる**（exit 1）。既存コードが未通過。**件数は当てにならない**（下記） |
 | テスト | （無し） | テストフレームワーク未導入 |
 
 その他のコマンドは [README.md の「開発コマンド」](README.md) を参照。
@@ -162,11 +166,18 @@ update observer-manager.ts
 ### 落とし穴
 
 - **`npm run lint` は現在通っている。落ちたらそれは自分の変更のせい。** `main` では 17 errors あったが `develop` で解消済み（`refactor/codebase-cleanup` のマージ。`7f80007` で戻り値型を明示）。**通っている状態を壊さないこと。**
-- **`npm run format:check` は元から落ちる**（30 ファイルに差分）。これだけは自分の変更が正しくても落ちる。自分が触ったファイルが指摘に増えていないかで判断する。**リポジトリ全体をここで一括 `npm run format` しない**（差分が膨れて本来の変更が埋もれる）。
+- **`npm run format:check` は元から落ちる。** これだけは自分の変更が正しくても落ちる。自分が触ったファイルが指摘に増えていないかで判断する。**リポジトリ全体をここで一括 `npm run format` しない**（差分が膨れて本来の変更が埋もれる）。
+- **`npm run format:check` の「N ファイル」を信用しない。** `core.autocrlf=true` の Windows チェックアウトでは、git が書き戻したファイルは CRLF・エディタやツールが書いたファイルは LF になる。Prettier の既定は `endOfLine: "lf"` なので、**git が触った直後（checkout / rebase / cherry-pick の後）は件数が跳ね上がる**。実測で 23 → 41 まで動いた。コミットされる内容は git が LF に正規化するので、**判定はコミット済みの内容に対して行う**:
+
+  ```bash
+  git show HEAD:<path> | npx prettier --stdin-filepath <path> --check
+  ```
+
+  `01e445a` 時点でコミット済み内容が未通過なのは `src/` 配下 23 ファイル。増えていなければ自分の変更は白。
 - **型チェックに `npm run build:tsc` を使わない。** これは `tsc`（`--noEmit` なし）なので `dist/` に成果物を吐いてビルド出力を汚す。型チェックは必ず `npx tsc --noEmit`。
 - **ESLint の設定ファイルが 2 つある。** `eslint.config.js`（flat config、ESLint 9 が実際に読むのはこちら）と `.eslintrc.json`（legacy、**無視されている**）。ルールを変えるなら `eslint.config.js` 側。`.eslintrc.json` を直しても何も変わらない。
-- **`lint` スクリプトの `--ext .ts,.js` は flat config では効いていない。** ルート直下の `background.js` は lint 対象外（そもそも対象が `src` のみ）。
-- **`eslint.config.js` が `globals` を import しているが `package.json` の devDependencies に無い。** 現在は ESLint の推移的依存で偶然解決している。依存を更新して lint が `Cannot find package 'globals'` で落ちたら、これが原因。
+- **`lint` スクリプトの `--ext .ts,.js` は flat config では効いていない。** lint の対象は `src` 配下だけで、ルート直下の `webpack.config.js` / `eslint.config.js` は見られていない。
+- **`@anthropic-ai/sdk` は `devDependencies` ではなく `dependencies`。** `src/background/` が実行時に使う唯一のランタイム依存。バンドルに入るので、ここに増やすものは慎重に選ぶ（現状 `dist/background.js` は開発ビルドで約 900KB）。
 
 ### CI
 
