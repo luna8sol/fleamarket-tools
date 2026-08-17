@@ -53,7 +53,7 @@ export async function runAutoSubmit(): Promise<void> {
     log('「確認する」をクリック');
     confirmBtn.click();
 
-    // 確認モーダルの「出品する」。モーダルが開くまでDOMに存在しない。
+    // 「出品する」は確認画面に切り替わってから現れる（モーダルではなくURLも変わらない）。
     const submitBtn = await waitForButton('出品する', {
       timeoutMs: BUTTON_TIMEOUT_MS,
       preferSubmit: true,

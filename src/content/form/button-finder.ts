@@ -9,9 +9,8 @@ export interface FindButtonOptions {
   /**
    * button[type="submit"] を優先する（確認モーダルの「出品する」用）。
    *
-   * NOTE: 「出品する」は確認モーダルが開くまでDOMに存在せず、実機で
-   *       type を確認できていない。type="submit" を必須条件にすると、
-   *       そうでなかった場合に全商品が失敗するため、あくまで優先条件とする。
+   * NOTE: 実機では type="submit" だったが、必須条件にはしない。
+   *       ラクマ側の変更で type が変わっただけで全商品が失敗するのを避けるため。
    */
   preferSubmit?: boolean;
 }

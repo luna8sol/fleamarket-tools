@@ -19,6 +19,18 @@ const CHECK_ATTEMPTS = 3;
 const CHECK_RETRY_MS = 700;
 
 /**
+ * Content Scriptの状態を <html data-rbl-form="..."> に残す。
+ *
+ * Content ScriptとService Workerのconsoleログは拡張の外からは読めず、
+ * 「注入されていないのか」「自動処理対象と判定されなかったのか」を
+ * 切り分ける手段がないため、状態をDOMに出しておく。
+ * 画面の表示には影響しない。
+ */
+function markState(state: 'checking' | 'auto' | 'manual'): void {
+  document.documentElement.dataset.rblForm = state;
+}
+
+/**
  * Backgroundへ自動処理対象か問い合わせる。
  *
  * Backgroundがこのタブを処理対象として確定するのと、このページの
@@ -51,11 +63,15 @@ async function main(): Promise<void> {
     return;
   }
 
+  markState('checking');
+
   if (!(await isAutoTab())) {
+    markState('manual');
     debug('手動で開かれた出品ページのため何もしません');
     return;
   }
 
+  markState('auto');
   log('自動処理対象の出品フォームとして起動');
   await runAutoSubmit();
 }
