@@ -1,8 +1,9 @@
 import {
   AckResponse,
   ClickDeleteMessage,
+  ClickDeleteResponse,
   ClickRelistMessage,
-  ClickResponse,
+  ClickRelistResponse,
   ExtensionMessage,
   MessageType,
   QueueProgressMessage,
@@ -27,13 +28,17 @@ import { delay } from '../wait';
  * 開いたままにするかどうか」を表す。
  */
 
-type ClickSendResponse = (response: ClickResponse) => void;
+type ClickRelistSendResponse = (response: ClickRelistResponse) => void;
+type ClickDeleteSendResponse = (response: ClickDeleteResponse) => void;
 type AckSendResponse = (response: AckResponse) => void;
 
 /**
  * フリマアシストの再出品ボタンをクリックする。
  */
-function handleClickRelist(message: ClickRelistMessage, sendResponse: ClickSendResponse): boolean {
+function handleClickRelist(
+  message: ClickRelistMessage,
+  sendResponse: ClickRelistSendResponse
+): boolean {
   const btn = findRelistButton(message.item.id);
   if (btn) {
     log(`再出品ボタンをクリック: ${message.item.title}`);
@@ -54,12 +59,12 @@ function handleClickRelist(message: ClickRelistMessage, sendResponse: ClickSendR
 function handleClickDelete(
   pageType: PageTypeValue,
   message: ClickDeleteMessage,
-  sendResponse: ClickSendResponse
+  sendResponse: ClickDeleteSendResponse
 ): boolean {
   void (async (): Promise<void> => {
     if (!(await locateDeleteLink(pageType, message.item.id, message.page ?? null))) {
       warn(`削除リンクが見つかりません: ${message.item.title}`);
-      sendResponse({ clicked: false });
+      sendResponse({ clicked: false, totalCount: null });
       return;
     }
     // 見つかったことと現在の件数を先に返す。クリックするとページ遷移が

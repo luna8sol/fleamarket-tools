@@ -529,7 +529,7 @@ export class QueueManager {
         await this.failCurrent('削除リンクが見つかりません（どのページにもありませんでした）');
         return;
       }
-      this.state.countBeforeDelete = response.totalCount ?? null;
+      this.state.countBeforeDelete = response.totalCount;
       await this.save();
     } catch (e) {
       warn('一覧タブへのメッセージ送信に失敗しました', e);

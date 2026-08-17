@@ -112,14 +112,25 @@ export interface ClickDeleteMessage {
   page?: number | null;
 }
 
-/** CLICK_RELIST / CLICK_DELETE への応答 */
-export interface ClickResponse {
+/** CLICK_RELIST への応答 */
+export interface ClickRelistResponse {
+  clicked: boolean;
+}
+
+/**
+ * CLICK_DELETE への応答。
+ *
+ * totalCount は削除の成否判定（件数が減ったか）に使うため必須にしている。
+ * 省略できると、書き忘れたときに Background が弱い判定（一覧に残っていないか）へ
+ * 黙ってフォールバックする。
+ */
+export interface ClickDeleteResponse {
   clicked: boolean;
   /**
-   * クリック直前の一覧全体の件数。削除の成否判定に使う。
-   * 読み取れないページでは null。
+   * クリック直前の一覧全体の件数。
+   * 読み取れないページ・クリックしなかった場合は null。
    */
-  totalCount?: number | null;
+  totalCount: number | null;
 }
 
 /**
@@ -215,8 +226,8 @@ export type MessageResponses = ResponseMap<{
   [MessageType.START_QUEUE]: AckResponse;
   [MessageType.STOP_QUEUE]: AckResponse;
   [MessageType.GET_PROGRESS]: QueueProgress;
-  [MessageType.CLICK_RELIST]: ClickResponse;
-  [MessageType.CLICK_DELETE]: ClickResponse;
+  [MessageType.CLICK_RELIST]: ClickRelistResponse;
+  [MessageType.CLICK_DELETE]: ClickDeleteResponse;
   [MessageType.LIST_READY]: AckResponse;
   [MessageType.QUEUE_PROGRESS]: AckResponse;
   [MessageType.CHECK_AUTO_TAB]: CheckAutoTabResponse;
