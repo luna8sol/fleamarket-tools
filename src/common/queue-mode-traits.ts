@@ -95,4 +95,13 @@ export const QUEUE_MODE_TRAITS: Record<QueueMode, QueueModeTraits> = {
     waitsBetweenItems: false,
     actionLabel: '削除',
   },
+  replace: {
+    // 出品中商品の編集ページを Background が自分で開くので、一覧タブには依存しない
+    requiresListTab: false,
+    usesFormPage: true,
+    completesOnListReady: false,
+    // 待機の基準時間だけは画面から変えられる（下限 30 秒。QueueManager が丸める）
+    waitsBetweenItems: true,
+    actionLabel: '置換',
+  },
 };

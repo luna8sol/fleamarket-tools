@@ -5,6 +5,8 @@ export interface BulkBarHandlers {
   onStart: () => void;
   onStop: () => void;
   onDelete: () => void;
+  /** 説明文の一括置換パネルを開く（/sell のみ。無ければボタンを出さない） */
+  onReplace?: () => void;
 }
 
 /** 開始ボタンのラベル（ページタイプ別に指定する） */
@@ -94,6 +96,24 @@ export function renderBulkBar(options: BulkBarOptions, handlers: BulkBarHandlers
   bar.appendChild(countSpan);
   bar.appendChild(startBtn);
   bar.appendChild(deleteBtn);
+
+  // 説明文の一括置換はパネルを開くだけ（保存には向かわない）
+  if (handlers.onReplace) {
+    const replaceBtn = document.createElement('button');
+    replaceBtn.id = ID_NAME.BULK_REPLACE_BTN;
+    replaceBtn.textContent = '説明文の一括置換';
+    applyStyles(replaceBtn, {
+      padding: '8px 14px',
+      backgroundColor: '#fff',
+      color: '#555',
+      border: '1px solid #999',
+      borderRadius: '4px',
+      cursor: 'pointer',
+    });
+    replaceBtn.addEventListener('click', handlers.onReplace);
+    bar.appendChild(replaceBtn);
+  }
+
   bar.appendChild(stopBtn);
   bar.appendChild(statusSpan);
   document.body.appendChild(bar);
@@ -115,6 +135,7 @@ export function updateCount(count: number): void {
 export function updateProgress(progress: QueueProgress): void {
   const startBtn = document.getElementById(ID_NAME.BULK_START_BTN);
   const deleteBtn = document.getElementById(ID_NAME.BULK_DELETE_BTN);
+  const replaceBtn = document.getElementById(ID_NAME.BULK_REPLACE_BTN);
   const stopBtn = document.getElementById(ID_NAME.BULK_STOP_BTN);
   const statusSpan = document.getElementById(ID_NAME.BULK_STATUS_SPAN);
   if (!startBtn || !deleteBtn || !stopBtn || !statusSpan) return;
@@ -125,6 +146,7 @@ export function updateProgress(progress: QueueProgress): void {
   if (progress.running) {
     startBtn.style.display = 'none';
     deleteBtn.style.display = 'none';
+    if (replaceBtn) replaceBtn.style.display = 'none';
     stopBtn.style.display = 'inline-block';
     statusSpan.style.display = 'inline';
     const currentLabel = progress.current ? ` (${progress.current.title})` : '';
@@ -132,6 +154,7 @@ export function updateProgress(progress: QueueProgress): void {
   } else {
     startBtn.style.display = 'inline-block';
     deleteBtn.style.display = 'inline-block';
+    if (replaceBtn) replaceBtn.style.display = 'inline-block';
     stopBtn.style.display = 'none';
     if (progress.total > 0) {
       statusSpan.style.display = 'inline';

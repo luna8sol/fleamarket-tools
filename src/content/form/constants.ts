@@ -19,6 +19,19 @@ export const LABEL = {
   DRAFT_SAVE: '下書きに保存する',
   CONFIRM: '確認する',
   PUBLISH: '出品する',
+  /** 出品中商品の編集ページ (/item/{hash}/edit) で「確認する」のあとに出る確定ボタン（replace 用） */
+  UPDATE: '更新する',
+};
+
+/**
+ * 出品フォームの入力欄のセレクタ（name 属性で特定する。css-* クラスは使わない）。
+ * 2026-09-28 に /item/{hash}/edit で実機確認。
+ */
+export const FIELD = {
+  /** 商品名 */
+  ITEM_NAME: 'input[name="itemName"]',
+  /** 商品説明（ラベル「商品説明」。maxLength 属性は無く、隣に「N/1000」の文字数表示が出る） */
+  DESCRIPTION: 'textarea[name="detail"]',
 };
 
 /**
@@ -51,4 +64,12 @@ export const CONFIG = {
   MAX_ERROR_LENGTH: 60,
   /** 失敗時の手がかりに載せるボタンラベルの最大文字数。これを超えるものはボタン以外とみなして捨てる */
   MAX_BUTTON_LABEL_LENGTH: 24,
+
+  // replace（説明文の置換）用
+  /** 編集ページに値が入るまで待つ最大時間 (ms)。値は SSR に無くクライアントで流し込まれる */
+  REPLACE_PAGE_READY_TIMEOUT_MS: 30000,
+  /** 書き込みが React の状態に反映されるのを待つ時間 (ms) */
+  REPLACE_INPUT_SETTLE_MS: 500,
+  /** 説明欄の上限文字数（編集ページの表示「N/1000」から。maxLength 属性は無い） */
+  REPLACE_MAX_DESCRIPTION_LENGTH: 1000,
 };

@@ -42,13 +42,21 @@ export function sendListReady(pageType: PageTypeValue): void {
  *
  * listPage は削除モードでのみ使う（削除のたびに1ページ目へ戻されるため、
  * 対象が居るページ番号を覚えておく）。
+ * waitBaseMs は説明文の一括置換でのみ使う（商品間の待機の基準時間。画面から変えられる）。
  */
 export async function sendStartQueue(
   mode: QueueMode,
   items: QueueItem[],
-  listPage?: number
+  listPage?: number,
+  waitBaseMs?: number
 ): Promise<StartQueueResponse> {
-  const message: StartQueueMessage = { type: MessageType.START_QUEUE, mode, items, listPage };
+  const message: StartQueueMessage = {
+    type: MessageType.START_QUEUE,
+    mode,
+    items,
+    listPage,
+    waitBaseMs,
+  };
   try {
     const response = await sendToRuntime(message);
     if (response?.started) return response;

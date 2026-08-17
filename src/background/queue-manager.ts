@@ -7,19 +7,38 @@ import {
   QueueMode,
   QueueProgress,
   QueueProgressMessage,
+  ReplaceCounts,
+  ReplaceOutcome,
+  ReplaceRecord,
   SourceItem,
   StartQueueResponse,
 } from '../common/messages';
 import { sendToTab } from '../common/send-message';
-import { isFormPageUrl } from '../common/form-page';
+import { isFormPageUrl, itemEditUrl } from '../common/form-page';
 import { QUEUE_MODE_TRAITS } from '../common/queue-mode-traits';
 import { fetchSourceItem } from './source-item';
 import { log, warn } from '../common/logger';
+import {
+  fingerprint,
+  normalizeLineBreaks,
+  sameFingerprint,
+  TextFingerprint,
+} from '../common/text-fingerprint';
+import { saveReplaceRecord } from '../common/replace-store';
 
 /** 次の商品を処理するまでの基本待機時間 (ms) */
 const WAIT_BETWEEN_ITEMS_MS = 60000;
 /** 待機時間に加算するランダム値の最大 (ms) */
 const WAIT_RANDOM_MS = 15000;
+/**
+ * replace で商品間に挟む待機の基準時間の既定値 (ms)。画面から変えられる。
+ * 下限は chrome.alarms が扱える 30 秒（それ未満はクランプされて意味を持たない）。
+ */
+export const REPLACE_WAIT_BASE_MS = 60000;
+export const REPLACE_WAIT_MIN_MS = 30000;
+/** replace で保存後の本文を商品ページから読み直す回数と間隔（反映の遅れを吸収する） */
+const REPLACE_VERIFY_ATTEMPTS = 3;
+const REPLACE_VERIFY_DELAY_MS = 3000;
 /**
  * 1商品の処理を打ち切るまでの時間 (ms)。
  * NOTE: chrome.alarms は30秒未満の遅延がクランプされるため、十分に長い値にすること。
@@ -50,11 +69,11 @@ type QueuePhase = 'idle' | 'waiting-tab' | 'loading-form' | 'submitting' | 'dele
  * まずどれに当たるかを決め、対応するリセット箇所へ加えること。**
  *
  * 1. キュー全体で不変: start() で設定し、以降は変えない
- *    （mode / items / listTabId / deletePage）
+ *    （mode / items / listTabId / deletePage / waitBaseMs）
  * 2. キューの進行: 商品をまたいで積み上がる
- *    （currentIndex / running / failed）
+ *    （currentIndex / running / failed / replaceCounts / haltedReason）
  * 3. 商品ごと: resetItemState() でまとめてリセットする
- *    （activeTabId / phase / candidateTabIds / expectedSource / countBeforeDelete）
+ *    （activeTabId / phase / candidateTabIds / expectedSource / countBeforeDelete / replaceCurrent）
  *
  * モード固有かどうかは寿命とは別の軸で、リセットの要否には関係しない。
  * 使われないモードでは初期値のまま残る（例: relistなら countBeforeDelete は null）。
@@ -88,6 +107,14 @@ interface QueueState {
    * 全件を通して使い回すため、商品ごとのリセット対象には**含めない**。
    */
   deletePage: number | null;
+  /** replace の商品間の待機の基準時間 (ms)。他のモードでは null（キュー全体で不変） */
+  waitBaseMs: number | null;
+  /** replace の結果種別ごとの件数。他のモードでは null（キューの進行で積み上がる） */
+  replaceCounts: ReplaceCounts | null;
+  /** replace で処理中の商品について、開いた時点の説明欄の文字数・ハッシュ（記録用。商品ごと） */
+  replaceCurrent: TextFingerprint | null;
+  /** replace で残りを開かずに止めた理由 */
+  haltedReason: string | null;
 }
 
 function createInitialState(): QueueState {
@@ -104,7 +131,32 @@ function createInitialState(): QueueState {
     expectedSource: null,
     countBeforeDelete: null,
     deletePage: null,
+    waitBaseMs: null,
+    replaceCounts: null,
+    replaceCurrent: null,
+    haltedReason: null,
   };
+}
+
+function emptyReplaceCounts(): ReplaceCounts {
+  return { applied: 0, already: 0, skipped: 0, failed: 0, unverified: 0 };
+}
+
+/** 一括操作バーの失敗一覧に載せるときの結果種別の呼び名 */
+const REPLACE_OUTCOME_LABEL: Record<ReplaceOutcome, string> = {
+  applied: '成功',
+  already: '適用済み',
+  skipped: 'スキップ',
+  failed: '失敗',
+  unverified: '未確認',
+};
+
+/**
+ * 短い待機。Service Worker 内の 1 つのイベント処理の中でだけ使う
+ * （保存後の再照合のリトライ間隔）。商品間の待機には使わない（chrome.alarms を使う）。
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -113,6 +165,8 @@ function createInitialState(): QueueState {
  * - relist:  一覧タブへ「再出品ボタンをクリックせよ」と指示し、
  *            フリマアシストが開くタブが /item/new へ到達するのを待つ。
  * - publish: 下書きの編集URL (/drafts/{hash}/edit) を自分でタブとして開く。
+ * - replace: 出品中商品の編集URL (/item/{hash}/edit) を自分でタブとして開き、
+ *            保存後に商品ページの本文を再照合して結果を記録する。
  *
  * 出品完了の判定は Content Script ではなく Background 側で行う。
  * 出品成功後の遷移先が別オリジン (item.fril.jp) になりうるため、
@@ -165,13 +219,21 @@ export class QueueManager {
     mode: QueueMode,
     items: QueueItem[],
     listTabId: number,
-    listPage?: number
+    listPage?: number,
+    waitBaseMs?: number
   ): Promise<StartQueueResponse> {
     if (this.state.running) {
       warn('キューは既に実行中です');
       return {
         started: false,
         reason: '他のタブで処理が実行中のため開始できません',
+      };
+    }
+    if (mode === 'replace' && items.some((item) => !item.replace)) {
+      warn('replace の商品に本文が付いていないため開始しません');
+      return {
+        started: false,
+        reason: '置換する本文が付いていない商品があるため開始できません',
       };
     }
     this.state = {
@@ -181,6 +243,11 @@ export class QueueManager {
       listTabId,
       running: true,
       deletePage: listPage ?? null,
+      waitBaseMs:
+        mode === 'replace'
+          ? Math.max(REPLACE_WAIT_MIN_MS, Math.round(waitBaseMs ?? REPLACE_WAIT_BASE_MS))
+          : null,
+      replaceCounts: mode === 'replace' ? emptyReplaceCounts() : null,
     };
 
     log(`キュー開始: mode=${mode}, ${items.length}件`);
@@ -206,14 +273,18 @@ export class QueueManager {
    * 現在の進捗を返す
    */
   getProgress(): QueueProgress {
-    const { mode, items, currentIndex, running, failed } = this.state;
+    const { mode, items, currentIndex, running, failed, replaceCounts, haltedReason } = this.state;
+    const current = running ? (items[currentIndex] ?? null) : null;
     return {
       mode,
       total: items.length,
       done: currentIndex,
-      current: running ? (items[currentIndex] ?? null) : null,
+      // 本文は進捗表示に不要で、一覧タブへ毎回送るには大きすぎる
+      current: current ? { id: current.id, title: current.title } : null,
       running,
       failed,
+      replaceCounts: replaceCounts ?? undefined,
+      haltedReason,
     };
   }
 
@@ -231,6 +302,15 @@ export class QueueManager {
   getExpectedSource(tabId: number): SourceItem | null {
     if (!this.isAutoTab(tabId)) return null;
     return this.state.expectedSource;
+  }
+
+  /**
+   * replace で自動処理中のタブに対して、処理中の商品（商品名・原本・確定版）を返す。
+   * Content Script はこれと編集ページの内容を照合してから書き換える。
+   */
+  getReplaceItem(tabId: number): QueueItem | null {
+    if (!this.isAutoTab(tabId) || this.state.mode !== 'replace') return null;
+    return this.state.items[this.state.currentIndex] ?? null;
   }
 
   /**
@@ -353,23 +433,49 @@ export class QueueManager {
   }
 
   /**
-   * 出品フォームから「出品する」をクリックした通知を受け取る。
+   * 出品フォームから「出品する」「更新する」をクリックした通知を受け取る。
    * 完了判定はこの後のURL遷移（handleTabUpdated）で行う。
    */
-  async handleFormSubmitted(tabId: number): Promise<void> {
+  async handleFormSubmitted(tabId: number, current?: TextFingerprint | null): Promise<void> {
     if (!this.isAutoTab(tabId)) return;
     this.state.phase = 'submitting';
-    log('「出品する」クリック済み。完了（画面遷移）を待機します');
+    this.state.replaceCurrent = current ?? null;
+    log('保存ボタンをクリック済み。完了（画面遷移）を待機します');
     await this.save();
   }
 
   /**
    * 出品フォームから失敗の通知を受け取る。
    * タブは閉じずに残し、ユーザーが状況を確認できるようにする。
+   *
+   * replace では結果種別（スキップ / 失敗）を記録し、fatal なら残りを開かずに止める。
    */
-  async handleFormFailed(tabId: number, reason: string): Promise<void> {
+  async handleFormFailed(
+    tabId: number,
+    reason: string,
+    options: {
+      outcome?: 'skipped' | 'failed';
+      fatal?: boolean;
+      current?: TextFingerprint | null;
+    } = {}
+  ): Promise<void> {
     if (!this.isAutoTab(tabId)) return;
-    await this.failCurrent(reason);
+    this.state.replaceCurrent = options.current ?? null;
+    await this.failCurrent(reason, options.outcome ?? 'failed');
+    if (options.fatal && this.state.mode === 'replace') {
+      await this.halt(reason);
+    }
+  }
+
+  /**
+   * replace で、開いた時点の説明欄がすでに確定版だった通知を受け取る。
+   * 保存はしていないので、記録して次へ進む。
+   */
+  async handleFormAlreadyApplied(tabId: number, current: TextFingerprint): Promise<void> {
+    if (!this.isAutoTab(tabId) || this.state.mode !== 'replace') return;
+    this.state.replaceCurrent = current;
+    await this.recordReplace('already', false);
+    await this.completeCurrent();
   }
 
   /**
@@ -402,7 +508,7 @@ export class QueueManager {
       case 'loading-form':
         return `${base}（出品フォームの自動操作が始まりませんでした）`;
       case 'submitting':
-        return `${base}（出品後の画面遷移を確認できませんでした）`;
+        return `${base}（保存後の画面遷移を確認できませんでした）`;
       case 'deleting':
         return `${base}（削除後の一覧の再読み込みを確認できませんでした）`;
       default:
@@ -437,30 +543,15 @@ export class QueueManager {
         await this.startDelete(item);
         return;
 
-      case 'publish': {
+      case 'publish':
         // 下書きの編集ページを直接開く
-        this.state.phase = 'loading-form';
-        await this.startWatchdog();
-        await this.save();
-        await this.notifyProgress();
-
-        try {
-          const tab = await chrome.tabs.create({
-            url: `https://fril.jp/drafts/${item.id}/edit`,
-            active: false,
-          });
-          if (tab.id === undefined) {
-            await this.failCurrent('編集ページのタブを開けませんでした');
-            return;
-          }
-          this.state.activeTabId = tab.id;
-          await this.save();
-        } catch (e) {
-          warn('編集ページのタブ作成に失敗しました', e);
-          await this.failCurrent('編集ページのタブを開けませんでした');
-        }
+        await this.openFormTab(`https://fril.jp/drafts/${item.id}/edit`);
         return;
-      }
+
+      case 'replace':
+        // 出品中商品の編集ページを直接開く。書き換えと照合は Content Script が行う
+        await this.openFormTab(itemEditUrl(item.id));
+        return;
 
       case 'relist': {
         // 一覧タブへ再出品ボタンのクリックを指示し、新規タブを待つ
@@ -505,6 +596,29 @@ export class QueueManager {
         warn(`未対応のキューモードです: ${String(_exhaustive)}`);
         return;
       }
+    }
+  }
+
+  /**
+   * publish / replace: 編集ページを自分でタブとして開き、Content Script の自動操作を待つ。
+   */
+  private async openFormTab(url: string): Promise<void> {
+    this.state.phase = 'loading-form';
+    await this.startWatchdog();
+    await this.save();
+    await this.notifyProgress();
+
+    try {
+      const tab = await chrome.tabs.create({ url, active: false });
+      if (tab.id === undefined) {
+        await this.failCurrent('編集ページのタブを開けませんでした');
+        return;
+      }
+      this.state.activeTabId = tab.id;
+      await this.save();
+    } catch (e) {
+      warn('編集ページのタブ作成に失敗しました', e);
+      await this.failCurrent('編集ページのタブを開けませんでした');
     }
   }
 
@@ -588,6 +702,13 @@ export class QueueManager {
    */
   private async completeCurrent(): Promise<void> {
     const item = this.state.items[this.state.currentIndex];
+
+    // replace: 保存ボタンを押して編集ページから離れた。保存後の本文を商品ページで再照合し、
+    // 一致して初めて成功にする。確認できなければ「未確認」（保存自体は済んでいる可能性がある）
+    if (this.state.mode === 'replace' && this.state.phase === 'submitting' && item) {
+      await this.verifyReplaced(item);
+    }
+
     const action = QUEUE_MODE_TRAITS[this.state.mode].actionLabel;
     log(`${action}完了: ${item?.title ?? ''}`);
 
@@ -616,12 +737,21 @@ export class QueueManager {
    * 現在の商品を失敗として記録し、次へ進む。
    * 処理中のタブは開いたまま残す（ユーザーが状況を確認できるように）。
    */
-  private async failCurrent(reason: string): Promise<void> {
+  private async failCurrent(
+    reason: string,
+    replaceOutcome: 'skipped' | 'failed' = 'failed'
+  ): Promise<void> {
     const item = this.state.items[this.state.currentIndex];
     if (item) {
-      const action = QUEUE_MODE_TRAITS[this.state.mode].actionLabel;
-      warn(`${action}失敗: ${item.title} (${reason})`);
-      this.state.failed.push({ item, reason });
+      if (this.state.mode === 'replace') {
+        // 保存ボタンを押したあと（submitting）の失敗は、保存された可能性がある
+        const saved = this.state.phase === 'submitting';
+        await this.recordReplace(saved ? 'unverified' : replaceOutcome, saved, reason);
+      } else {
+        const action = QUEUE_MODE_TRAITS[this.state.mode].actionLabel;
+        warn(`${action}失敗: ${item.title} (${reason})`);
+        this.state.failed.push({ item, reason });
+      }
     }
     this.state.currentIndex++;
     // completeCurrent() と同じく、次の processCurrent() までの待機中に
@@ -633,12 +763,100 @@ export class QueueManager {
   }
 
   /**
+   * replace: 保存後の本文を商品ページ (item.fril.jp) の JSON-LD から読み直して照合する。
+   *
+   * 反映が遅れることがあるため数回試す。改行コードは LF に揃えてから比べる
+   * （文字自体は変えない）。
+   */
+  private async verifyReplaced(item: QueueItem): Promise<void> {
+    const final = item.replace?.final ?? '';
+    const expected = fingerprint(final);
+    let live: TextFingerprint | null = null;
+
+    for (let attempt = 0; attempt < REPLACE_VERIFY_ATTEMPTS; attempt++) {
+      if (attempt > 0) await delay(REPLACE_VERIFY_DELAY_MS);
+      const source = await fetchSourceItem(item.id);
+      if (source?.description === null || source?.description === undefined) continue;
+      live = fingerprint(normalizeLineBreaks(source.description));
+      if (sameFingerprint(live, expected)) {
+        await this.recordReplace('applied', true, undefined, live);
+        return;
+      }
+    }
+
+    const reason =
+      live === null
+        ? '保存後の商品ページの本文を読み取れませんでした（保存されたかどうか不明）'
+        : `保存後の商品ページの本文が確定版と一致しません（${live.length}字 / 期待 ${expected.length}字）`;
+    await this.recordReplace('unverified', true, reason, live);
+  }
+
+  /**
+   * replace: 処理中の商品の結果を記録する。
+   * 件数を更新し、成功以外は理由付きで failed に積み（一括操作バーで確認できる）、
+   * chrome.storage.local へ商品IDごとの最新結果として保存する。
+   */
+  private async recordReplace(
+    outcome: ReplaceOutcome,
+    saved: boolean,
+    reason?: string,
+    live: TextFingerprint | null = null
+  ): Promise<void> {
+    const item = this.state.items[this.state.currentIndex];
+    if (!item?.replace || !this.state.replaceCounts) return;
+
+    this.state.replaceCounts[outcome]++;
+    if (outcome === 'applied') {
+      log(`説明文を置き換えました: ${item.title}`);
+    } else if (outcome === 'already') {
+      log(`すでに確定版です: ${item.title}`);
+    } else {
+      warn(`${REPLACE_OUTCOME_LABEL[outcome]}: ${item.title} (${reason ?? ''})`);
+      this.state.failed.push({
+        item: { id: item.id, title: item.title },
+        reason: `[${REPLACE_OUTCOME_LABEL[outcome]}] ${reason ?? ''}`,
+      });
+    }
+
+    const expected = fingerprint(item.replace.final);
+    const record: ReplaceRecord = {
+      id: item.id,
+      name: item.title,
+      outcome,
+      reason,
+      saved,
+      currentLength: this.state.replaceCurrent?.length ?? null,
+      currentHash: this.state.replaceCurrent?.hash ?? null,
+      expectedLength: expected.length,
+      expectedHash: expected.hash,
+      liveLength: live?.length ?? null,
+      liveHash: live?.hash ?? null,
+      at: new Date().toISOString(),
+    };
+    await saveReplaceRecord(record);
+  }
+
+  /**
+   * replace: 残りの商品を開かずに止める。
+   *
+   * 説明欄や確定ボタンが見つからないのは商品固有の事情ではなくラクマ側の
+   * 構造変更を疑うべき状況なので、1 件ずつ失敗を積み上げずにここで止める。
+   * 処理中だったタブは残す（stop と同じ）。
+   */
+  private async halt(reason: string): Promise<void> {
+    if (!this.state.running) return;
+    warn(`残りの商品を開かずに止めます: ${reason}`);
+    this.state.haltedReason = reason;
+    await this.stop();
+  }
+
+  /**
    * 商品ごとの状態（QueueStateのコメントの3種類目）をまとめて初期値に戻す。
    *
    * リセットの正本はこの1か所。**商品ごとの寿命を持つフィールドを足したら
    * ここに加えること。** 逆に、キュー全体で不変のもの（mode / items /
-   * listTabId / deletePage）と、キューの進行で積み上がるもの（currentIndex /
-   * running / failed）は対象外。
+   * listTabId / deletePage / waitBaseMs）と、キューの進行で積み上がるもの（currentIndex /
+   * running / failed / replaceCounts / haltedReason）は対象外。
    *
    * とくに deletePage を混ぜないこと。ここでnullに戻すと2件目以降の削除が
    * 1ページ目から対象を探し始め、2ページ目以降の対象を取りこぼす。
@@ -653,6 +871,7 @@ export class QueueManager {
     this.state.candidateTabIds = [];
     this.state.expectedSource = null;
     this.state.countBeforeDelete = null;
+    this.state.replaceCurrent = null;
   }
 
   /**
@@ -681,7 +900,9 @@ export class QueueManager {
       return;
     }
 
-    const waitMs = WAIT_BETWEEN_ITEMS_MS + Math.floor(Math.random() * WAIT_RANDOM_MS);
+    // replace は画面で指定した基準時間（下限 30 秒）を使う。他は固定値
+    const baseMs = this.state.waitBaseMs ?? WAIT_BETWEEN_ITEMS_MS;
+    const waitMs = baseMs + Math.floor(Math.random() * WAIT_RANDOM_MS);
     log(`${Math.round(waitMs / 1000)}秒待機して次の商品へ`);
     await chrome.alarms.create(ALARM_NEXT_ITEM, { when: Date.now() + waitMs });
     await this.save();
@@ -697,7 +918,8 @@ export class QueueManager {
     await this.clearTimers();
     log(
       `キュー完了: 成功=${this.state.items.length - this.state.failed.length}件, ` +
-        `失敗=${this.state.failed.length}件`
+        `失敗=${this.state.failed.length}件` +
+        (this.state.replaceCounts ? ` 内訳=${JSON.stringify(this.state.replaceCounts)}` : '')
     );
     await this.save();
     await this.notifyProgress();

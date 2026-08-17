@@ -7,6 +7,7 @@ import {
   StartQueueResponse,
 } from '../common/messages';
 import { log, warn } from '../common/logger';
+import { TextFingerprint } from '../common/text-fingerprint';
 import { queueManager } from './queue-manager';
 
 /**
@@ -38,6 +39,17 @@ function senderTabId(
   return tabId;
 }
 
+/** メッセージに載った説明欄の文字数・ハッシュを取り出す（無ければ null） */
+function toFingerprint(message: {
+  currentLength?: number;
+  currentHash?: string;
+}): TextFingerprint | null {
+  if (typeof message.currentLength !== 'number' || typeof message.currentHash !== 'string') {
+    return null;
+  }
+  return { length: message.currentLength, hash: message.currentHash };
+}
+
 /**
  * メッセージを処理し、送信側へ返す値を返す。
  *
@@ -62,7 +74,13 @@ async function handleMessage(
         };
         return response;
       }
-      return queueManager.start(message.mode, message.items, listTabId, message.listPage);
+      return queueManager.start(
+        message.mode,
+        message.items,
+        listTabId,
+        message.listPage,
+        message.waitBaseMs
+      );
     }
 
     case MessageType.STOP_QUEUE:
@@ -78,6 +96,7 @@ async function handleMessage(
       const response: CheckAutoTabResponse = {
         isAutoTab,
         expected: isAutoTab && tabId !== undefined ? queueManager.getExpectedSource(tabId) : null,
+        replaceItem: isAutoTab && tabId !== undefined ? queueManager.getReplaceItem(tabId) : null,
       };
       return response;
     }
@@ -93,7 +112,7 @@ async function handleMessage(
     case MessageType.FORM_SUBMITTED: {
       const tabId = senderTabId(sender, message.type);
       if (tabId !== undefined) {
-        await queueManager.handleFormSubmitted(tabId);
+        await queueManager.handleFormSubmitted(tabId, toFingerprint(message));
       }
       return ACK;
     }
@@ -101,7 +120,22 @@ async function handleMessage(
     case MessageType.FORM_FAILED: {
       const tabId = senderTabId(sender, message.type);
       if (tabId !== undefined) {
-        await queueManager.handleFormFailed(tabId, message.reason);
+        await queueManager.handleFormFailed(tabId, message.reason, {
+          outcome: message.outcome,
+          fatal: message.fatal,
+          current: toFingerprint(message),
+        });
+      }
+      return ACK;
+    }
+
+    case MessageType.FORM_ALREADY_APPLIED: {
+      const tabId = senderTabId(sender, message.type);
+      if (tabId !== undefined) {
+        await queueManager.handleFormAlreadyApplied(tabId, {
+          length: message.currentLength,
+          hash: message.currentHash,
+        });
       }
       return ACK;
     }

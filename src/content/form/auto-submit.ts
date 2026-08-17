@@ -150,7 +150,10 @@ function checkReadyToSubmit(
  * 完了判定はBackground側がタブのURL遷移で行うため、ここではボタンを
  * 押すところまでを担当する。失敗時はタブを開いたまま残す。
  */
-export async function runAutoSubmit(mode: FormMode, expected: SourceItem | null): Promise<void> {
+export async function runAutoSubmit(
+  mode: Exclude<FormMode, 'replace'>,
+  expected: SourceItem | null
+): Promise<void> {
   try {
     const { settled, snapshot, waitedMs } = await waitForFormSettled({
       stableMs: CONFIG.FORM_STABLE_MS,

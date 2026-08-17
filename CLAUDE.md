@@ -19,6 +19,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **保存前の差分チェックを弱めない**（[src/content/form/diff.ts](src/content/form/diff.ts)）。再出品元の商品ページと突き合わせ、**内容が欠けていれば保存しない**。フリマアシストの画像アップロードは遅れるため、待たずに保存すると画像の欠けた下書きができる。
 - **一括削除の確認を外さない。** 開始前に拡張側で件数を出して `window.confirm` を取る（[src/content/list/bulk-bar-handlers.ts](src/content/list/bulk-bar-handlers.ts)）。削除リンクは `data-method="delete"` と**ラベルが「削除」であること**の両方を確認してからクリックし、`data-confirm` は**クリック直前だけ外して直後に必ず戻す**（[src/content/list/logic/delete-clicker.ts](src/content/list/logic/delete-clicker.ts)）。
 - **失敗時は処理中のタブを閉じない。** バリデーションエラーの内容をユーザーが確認できなくなる。
+- **説明文の一括置換は、保存前の 4 段の照合（商品名一致 / 現在値が原本と一致 / 書き込み後の値が確定版と一致 / 商品名が変わっていない）を弱めない**（[src/content/form/replace.ts](src/content/form/replace.ts)）。編集ページ `/item/{hash}/edit` で押すのは「確認する」→「更新する」だけで、同じページにある「下書きに保存する」（出品中の商品が下書きへ落ちる）・「出品する」・「削除」には触れない。説明欄以外の項目を変えない。
 - **商品間の待機を縮めない・外さない**（`WAIT_BETWEEN_ITEMS_MS` + `WAIT_RANDOM_MS` = 60〜75 秒。削除のみ `DELETE_DELAY_MS` + `DELETE_RANDOM_MS` = 2〜4 秒）。
 
 加えて、処理対象の絞り込み条件と件数、途中で失敗したときに部分適用のまま黙って止まらないこと、失敗が観測できること（`failed` に理由付きで積まれ、`warn` が出ること）を確かめる。
@@ -52,6 +53,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 出品フォームページの URL 判定（Background と Content で共有） | [src/common/form-page.ts](src/common/form-page.ts) |
 | 出品フォームの自動処理ガード・`data-rbl-form` マーカー | [src/content/form/index.ts](src/content/form/index.ts) |
 | モード別のボタン操作（下書き保存 / 確認する → 出品する） | [src/content/form/auto-submit.ts](src/content/form/auto-submit.ts) |
+| 説明文の置換（編集ページでの 4 段の照合・確認する → 更新する） | [src/content/form/replace.ts](src/content/form/replace.ts) |
+| 説明文の置換の入力 JSON の検証・処理対象の振り分け | [src/content/list/logic/replace-plan.ts](src/content/list/logic/replace-plan.ts) |
+| 説明文の置換パネル（ファイル選択 → 件数 → 確認 → 開始 / 停止 / 結果出力） | [src/content/list/ui/replace-panel.ts](src/content/list/ui/replace-panel.ts) |
+| 説明文の置換の処理記録（`chrome.storage.local`） | [src/common/replace-store.ts](src/common/replace-store.ts) |
+| 文字数 + FNV-1a による本文の照合 | [src/common/text-fingerprint.ts](src/common/text-fingerprint.ts) |
 | フォーム内容の読み取り・入力完了の待機 | [src/content/form/form-state.ts](src/content/form/form-state.ts) |
 | 再出品元との差分チェック | [src/content/form/diff.ts](src/content/form/diff.ts) |
 | フォームのボタン特定 | [src/content/form/button-finder.ts](src/content/form/button-finder.ts) |
@@ -82,6 +88,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **文書とコードが食い違ったらコードが正。** 古い記述を見つけたらその場で直す。
 
 - **一括削除はコードが入っているだけで、実行しての動作確認がされていない**（README の「未検証」）。DOM の構造と `data-confirm` の挙動までは実機確認済み。**取り消せない操作なので、変更するなら実機確認までを 1 単位にする。**
+- **説明文の一括置換（replace モード）もコードが入っているだけで、保存を実行しての動作確認がされていない**（README の「未検証」）。編集ページの DOM・確定ボタン「更新する」・遷移先 `/sell?is_new=0` までは実機確認済み。**数件で実機検証してから全件に流す。**
+- **`manifest.json` の content-form の `matches` に `https://fril.jp/item/*/edit*` を足した**（2026-09-28）。`/item/{hash}/edit` は [form-page.ts](src/common/form-page.ts) で `replace` に判定される。`/item/new` は従来どおり `relist`。
 - **`manifest.json` の `https://fril.jp/draft*` は `/drafts/{hash}/edit`（出品フォーム）にもマッチする。** 一覧用 content script がフォームで動かないのは、[page-detector.ts](src/content/list/infra/page-detector.ts) が `/drafts` を `UNKNOWN` に落としているからで、manifest 側では除外していない。**片方だけ変えない。**
 - **キューの状態は `chrome.storage.session` に保存され、Service Worker の破棄に耐える。** 変更のたびに書き戻し、各イベントハンドラの先頭で復元する。タイマーは `setTimeout` ではなく `chrome.alarms`（SW の破棄で消えるため）。**`chrome.alarms` は 30 秒未満の遅延がクランプされる**ので、短い待機には使えない。
 - **2026-09-19 に履歴を書き換えて push し直した。** ルートコミットの日時を揃えたうえで全コミットを 10 分刻みに並べ直し（旧ルート `e0c9316` → 新ルート `d99546a`）、`main` を force push した。`main` は現在も `origin` と一致している（`develop` は origin/develop より先行しており、未 push のコミットがある）。**この書き換えより前のクローンが手元にあれば `git fetch && git reset --hard origin/main` で追随させること**（そのままでは pull が失敗する）。

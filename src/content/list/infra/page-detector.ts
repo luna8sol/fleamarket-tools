@@ -59,6 +59,12 @@ export interface ListPageTraits {
 
   /** 一括操作バーの開始ボタンに出す文言 */
   startLabel: string;
+
+  /**
+   * 説明文の一括置換（replace）を使えるか。
+   * 対象は出品中の商品（編集ページ /item/{hash}/edit）だけなので /sell のみ true。
+   */
+  supportsReplace: boolean;
 }
 
 /**
@@ -73,9 +79,11 @@ export const LIST_PAGE_TRAITS: Record<
   [PageType.SELL]: {
     primaryMode: 'relist',
     startLabel: '選択した商品を下書きに保存',
+    supportsReplace: true,
   },
   [PageType.DRAFT]: {
     primaryMode: 'publish',
     startLabel: '選択した下書きをまとめて出品',
+    supportsReplace: false,
   },
 };

@@ -18,6 +18,7 @@ import { getTotalItemCount } from './logic/pager';
 import { sendListReady } from './logic/queue-client';
 import { updateProgress } from './ui/bulk-bar';
 import { showToast } from './ui/notification';
+import { renderReplaceProgress } from './ui/replace-panel';
 import { listRunState } from './run-state';
 import { delay } from '../wait';
 
@@ -96,12 +97,16 @@ function handleQueueProgress(
   sendResponse: AckSendResponse
 ): boolean {
   updateProgress(message.progress);
+  // 説明文の一括置換の進捗はパネル側にも出す（replace 以外では何もしない）
+  renderReplaceProgress(message.progress);
   listRunState.setQueueRunning(message.progress.running);
   if (!message.progress.running) {
-    if (message.progress.total > 0 && message.progress.done >= message.progress.total) {
+    if (message.progress.haltedReason) {
+      showToast(`停止しました: ${message.progress.haltedReason}`, 'error');
+    } else if (message.progress.total > 0 && message.progress.done >= message.progress.total) {
       const failed = message.progress.failed.length;
       if (failed > 0) {
-        showToast(`完了（失敗${failed}件あり）`, 'warning');
+        showToast(`完了（要確認${failed}件あり）`, 'warning');
       } else {
         showToast('すべての処理が完了しました', 'success');
       }

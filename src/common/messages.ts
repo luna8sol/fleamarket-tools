@@ -16,8 +16,11 @@
  * - publish: /draft の下書きの編集ページ (/drafts/{hash}/edit) を開いて出品する
  * - delete:  一覧ページの削除リンクを順にクリックして削除する。
  *            /sell・/draft の双方で使える。取り消せない操作である点に注意。
+ * - replace: 出品中の商品の編集ページ (/item/{hash}/edit) を開き、説明欄だけを
+ *            確定版へ置き換えて「確認する」→「更新する」で保存する。
+ *            説明欄以外（価格・画像・商品名・カテゴリ・配送）には触れない。
  */
-export type QueueMode = 'relist' | 'publish' | 'delete';
+export type QueueMode = 'relist' | 'publish' | 'delete' | 'replace';
 
 /**
  * 出品フォームを操作するモード。
@@ -26,13 +29,63 @@ export type QueueMode = 'relist' | 'publish' | 'delete';
 export type FormMode = Exclude<QueueMode, 'delete'>;
 
 /**
+ * replace モードで 1 商品に持たせる本文。
+ * 原本は「開いた時点の説明欄がこれと一致するとき」だけ書き換えるための照合基準。
+ */
+export interface ReplaceText {
+  /** 取得時点のラクマの本文（原本） */
+  original: string;
+  /** 置き換え後の本文（確定版） */
+  final: string;
+}
+
+/**
  * キューに積む商品1件分の情報
  */
 export interface QueueItem {
   /** 商品ID（URLのhash部分） */
   id: string;
-  /** 商品名（進捗表示用） */
+  /** 商品名（進捗表示用。replace では編集ページの商品名との照合にも使う） */
   title: string;
+  /** replace モードのときだけ入る本文 */
+  replace?: ReplaceText;
+}
+
+/**
+ * replace の 1 件の結果種別。
+ * - applied:    保存し、保存後の商品ページの本文が確定版と一致した
+ * - already:    開いた時点で確定版だった（保存していない）
+ * - skipped:    照合が通らず保存しなかった（商品名不一致・原本と不一致）
+ * - failed:     保存に至れなかった（要素未検出・書き込み失敗・タイムアウト等）
+ * - unverified: 保存ボタンは押したが、保存後の本文を確認できなかった
+ */
+export type ReplaceOutcome = 'applied' | 'already' | 'skipped' | 'failed' | 'unverified';
+
+/** 結果種別ごとの件数 */
+export type ReplaceCounts = Record<ReplaceOutcome, number>;
+
+/**
+ * replace の処理記録（`chrome.storage.local` に商品IDごとの最新 1 件を持つ）
+ */
+export interface ReplaceRecord {
+  id: string;
+  name: string;
+  outcome: ReplaceOutcome;
+  /** スキップ・失敗・未確認の理由 */
+  reason?: string;
+  /** 「更新する」を押したか（押したあとの結果が不明でも true） */
+  saved: boolean;
+  /** 開いた時点の説明欄の文字数・ハッシュ（読めなかったときは null） */
+  currentLength: number | null;
+  currentHash: string | null;
+  /** 確定版の文字数・ハッシュ。次回「同じ確定版で適用済み」かの判定に使う */
+  expectedLength: number;
+  expectedHash: string;
+  /** 保存後に商品ページから読んだ本文の文字数・ハッシュ（確認できなかったときは null） */
+  liveLength: number | null;
+  liveHash: string | null;
+  /** 記録した日時（ISO 8601） */
+  at: string;
 }
 
 /**
@@ -54,8 +107,16 @@ export interface QueueProgress {
   /** 処理中の商品（なければnull） */
   current: QueueItem | null;
   running: boolean;
-  /** 失敗した商品のリスト */
+  /** 失敗した商品のリスト（replace ではスキップ・未確認も理由付きでここに入る） */
   failed: FailedItem[];
+  /** replace のときだけ入る、結果種別ごとの件数 */
+  replaceCounts?: ReplaceCounts;
+  /**
+   * 残りを開かずに止めた理由（replace）。
+   * 説明欄や確定ボタンが見つからないのは商品固有の事情ではなく
+   * ラクマ側の変更を疑うべき状況なので、1 件ずつ失敗を積まずに止める。
+   */
+  haltedReason?: string | null;
 }
 
 /** メッセージ種別 */
@@ -76,10 +137,12 @@ export const MessageType = {
   QUEUE_PROGRESS: 'QUEUE_PROGRESS',
   /** form → bg: このタブは自動処理対象か問い合わせ */
   CHECK_AUTO_TAB: 'CHECK_AUTO_TAB',
-  /** form → bg: 「出品する」までクリックした（完了判定はbg側がURL遷移で行う） */
+  /** form → bg: 「出品する」「更新する」までクリックした（完了判定はbg側がURL遷移で行う） */
   FORM_SUBMITTED: 'FORM_SUBMITTED',
-  /** form → bg: 出品に失敗した（ボタン未検出・タイムアウト等） */
+  /** form → bg: 出品・保存に失敗した（ボタン未検出・タイムアウト等） */
   FORM_FAILED: 'FORM_FAILED',
+  /** form → bg: replace で、開いた時点ですでに確定版だった（保存せずに完了扱い） */
+  FORM_ALREADY_APPLIED: 'FORM_ALREADY_APPLIED',
 } as const;
 
 export type MessageTypeValue = (typeof MessageType)[keyof typeof MessageType];
@@ -93,6 +156,11 @@ export interface StartQueueMessage {
    * deleteモードで、削除のたびに1ページ目へ戻されたあと元のページへ復帰するために使う。
    */
   listPage?: number;
+  /**
+   * replace で商品間に挟む待機の基準時間 (ms)。画面から変えられる。
+   * Background 側で下限（chrome.alarms が扱える 30 秒）に丸める。
+   */
+  waitBaseMs?: number;
 }
 
 /**
@@ -191,15 +259,42 @@ export interface CheckAutoTabResponse {
    * 取得できなかった場合は null（差分チェックは省略される）。
    */
   expected?: SourceItem | null;
+  /**
+   * replaceモードのとき、処理中の商品（商品名・原本・確定版）。
+   * Content Script はこれと編集ページの内容を照合してから書き換える。
+   */
+  replaceItem?: QueueItem | null;
 }
 
 export interface FormSubmittedMessage {
   type: typeof MessageType.FORM_SUBMITTED;
+  /** replace: 開いた時点の説明欄の文字数・ハッシュ（記録用） */
+  currentLength?: number;
+  currentHash?: string;
 }
 
 export interface FormFailedMessage {
   type: typeof MessageType.FORM_FAILED;
   reason: string;
+  /**
+   * replace: 保存しなかった理由の種別。
+   * skipped は照合が通らなかった商品固有の事情、failed はそれ以外。省略時は failed。
+   */
+  outcome?: 'skipped' | 'failed';
+  /**
+   * replace: 残りの商品を開かずにキューを止めるべきか。
+   * 説明欄や確定ボタンが見つからないなど、ラクマ側の構造変更を疑う状況で true。
+   */
+  fatal?: boolean;
+  /** replace: 開いた時点の説明欄の文字数・ハッシュ（記録用） */
+  currentLength?: number;
+  currentHash?: string;
+}
+
+export interface FormAlreadyAppliedMessage {
+  type: typeof MessageType.FORM_ALREADY_APPLIED;
+  currentLength: number;
+  currentHash: string;
 }
 
 /**
@@ -213,7 +308,8 @@ export type BackgroundBoundMessage =
   | ListReadyMessage
   | CheckAutoTabMessage
   | FormSubmittedMessage
-  | FormFailedMessage;
+  | FormFailedMessage
+  | FormAlreadyAppliedMessage;
 
 /**
  * bg → list へ送るメッセージ。
@@ -264,6 +360,7 @@ export type MessageResponses = ResponseMap<{
   [MessageType.CHECK_AUTO_TAB]: CheckAutoTabResponse;
   [MessageType.FORM_SUBMITTED]: AckResponse;
   [MessageType.FORM_FAILED]: AckResponse;
+  [MessageType.FORM_ALREADY_APPLIED]: AckResponse;
 }>;
 
 /** メッセージ M を送ったときに返ってくる応答の型 */

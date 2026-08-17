@@ -32,7 +32,8 @@
     {
       "matches": [
         "https://fril.jp/drafts/*",
-        "https://fril.jp/item/new*"
+        "https://fril.jp/item/new*",
+        "https://fril.jp/item/*/edit*"
       ],
       "js": [
         "dist/content-form.js"

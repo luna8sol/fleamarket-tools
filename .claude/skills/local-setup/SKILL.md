@@ -43,6 +43,7 @@ content script が動くのは、`manifest.json` の `matches` にある URL だ
 | `https://fril.jp/draft*` | `dist/content-list.js` | 下書き一覧 → 一括出品・一括削除 |
 | `https://fril.jp/drafts/*` | `dist/content-form.js` | 下書き編集ページ → 「確認する」→「出品する」 |
 | `https://fril.jp/item/new*` | `dist/content-form.js` | 新規出品ページ → 「下書きに保存する」 |
+| `https://fril.jp/item/*/edit*` | `dist/content-form.js` | 出品中商品の編集ページ → 説明欄を書き換え →「確認する」→「更新する」（説明文の一括置換） |
 
 他のページでは何も起きないのが正常。
 

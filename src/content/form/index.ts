@@ -4,11 +4,13 @@ import { detectFormPageMode } from '../../common/form-page';
 import { debug, log, setDebugMode, warn } from '../../common/logger';
 import { CONFIG } from './constants';
 import { runAutoSubmit } from './auto-submit';
+import { runReplace } from './replace';
 import { delay } from '../wait';
 
 /**
  * 出品フォームページ用Content Scriptのエントリポイント。
- * 対象は下書き編集ページ (/drafts/{hash}/edit) と新規出品ページ (/item/new)。
+ * 対象は下書き編集ページ (/drafts/{hash}/edit)・新規出品ページ (/item/new)・
+ * 出品中商品の編集ページ (/item/{hash}/edit)。
  *
  * 安全のため、Backgroundに「このタブは一括処理が開いた自動処理対象か」を
  * 必ず確認し、自動処理対象の場合のみ自動出品を実行する。
@@ -71,6 +73,24 @@ async function main(): Promise<void> {
   }
 
   markState('auto');
+
+  if (mode === 'replace') {
+    // 押すボタンはページの中身ではなくモードで決める。編集ページにも
+    // 「下書きに保存する」があるが、replace では「確認する」→「更新する」しか押さない
+    const item = response.replaceItem ?? null;
+    if (!item?.replace) {
+      warn('replace の対象商品が Background から返らなかったため何もしません');
+      await sendToRuntime({
+        type: MessageType.FORM_FAILED,
+        reason: '処理対象の本文を受け取れませんでした',
+      }).catch((e) => warn('失敗の通知をBackgroundへ送れませんでした', e));
+      return;
+    }
+    log(`自動処理対象の編集ページとして起動: mode=replace, ${item.title}`);
+    await runReplace(item);
+    return;
+  }
+
   const expected: SourceItem | null = response.expected ?? null;
   log(
     `自動処理対象の出品フォームとして起動: mode=${mode}, ` +

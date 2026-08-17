@@ -72,7 +72,21 @@ export const ID_NAME = {
   BULK_DELETE_BTN: 'rbl-bulk-delete-btn',
   BULK_STOP_BTN: 'rbl-bulk-stop-btn',
   BULK_STATUS_SPAN: 'rbl-bulk-status',
+  BULK_REPLACE_BTN: 'rbl-bulk-replace-btn',
   TOAST: 'rbl-toast',
+
+  // 説明文の一括置換パネル（/sell のみ）
+  REPLACE_PANEL: 'rbl-replace-panel',
+  REPLACE_CLOSE_BTN: 'rbl-replace-close-btn',
+  REPLACE_FINAL_FILE: 'rbl-replace-final-file',
+  REPLACE_ORIGINAL_FILE: 'rbl-replace-original-file',
+  REPLACE_WAIT_INPUT: 'rbl-replace-wait',
+  REPLACE_LOAD_BTN: 'rbl-replace-load-btn',
+  REPLACE_START_BTN: 'rbl-replace-start-btn',
+  REPLACE_STOP_BTN: 'rbl-replace-stop-btn',
+  REPLACE_EXPORT_BTN: 'rbl-replace-export-btn',
+  REPLACE_SUMMARY: 'rbl-replace-summary',
+  REPLACE_STATUS: 'rbl-replace-status',
 };
 
 /**
@@ -92,4 +106,13 @@ export const CONFIG = {
   MAX_NAVIGATION_STEPS: 10,
   /** 一覧の連続するDOM変化をまとめる待ち時間 (ms) */
   LIST_DEBOUNCE_MS: 300,
+
+  /** 説明文の一括置換: 説明欄の上限文字数（ラクマの編集ページの表示「N/1000」から） */
+  REPLACE_MAX_DESCRIPTION_LENGTH: 1000,
+  /** 説明文の一括置換: 商品間の待機の基準秒数の既定値（画面から変えられる） */
+  REPLACE_WAIT_BASE_SECONDS: 60,
+  /** 説明文の一括置換: 待機の下限秒数（Background の chrome.alarms が 30 秒未満を扱えない） */
+  REPLACE_WAIT_MIN_SECONDS: 30,
+  /** 説明文の一括置換: 待機に加算されるランダム秒数の最大（Background の WAIT_RANDOM_MS と同じ） */
+  REPLACE_WAIT_RANDOM_SECONDS: 15,
 };
