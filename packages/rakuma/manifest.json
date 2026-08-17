@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Rakuma Bulk Lister",
+  "version": "0.1.0",
+  "description": "ラクマの出品中商品の一括再出品・下書き商品の一括出品を行う拡張機能",
+  "permissions": [
+    "tabs",
+    "alarms",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://fril.jp/*",
+    "https://item.fril.jp/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "dist/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://fril.jp/sell*",
+        "https://fril.jp/draft*"
+      ],
+      "js": [
+        "dist/content-list.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://fril.jp/drafts/*",
+        "https://fril.jp/item/new*",
+        "https://fril.jp/item/*/edit*"
+      ],
+      "js": [
+        "dist/content-form.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
