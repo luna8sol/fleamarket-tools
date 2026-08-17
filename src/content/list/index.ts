@@ -1,6 +1,6 @@
 import { FormMode, QueueProgress } from '../../common/messages';
 import { setDebugMode, warn } from '../../common/logger';
-import { detectCurrentPage, PageType } from './infra/page-detector';
+import { detectCurrentPage, LIST_PAGE_TRAITS, PageType } from './infra/page-detector';
 import { observeListChanges } from './infra/list-observer';
 import { requestProgress } from './logic/queue-client';
 import { renderBulkBar, updateProgress } from './ui/bulk-bar';
@@ -21,10 +21,7 @@ function main(): void {
     return;
   }
 
-  /** このページの主モード。削除はどちらのページでも使えるため別扱い */
-  const primaryMode: FormMode = pageType === PageType.SELL ? 'relist' : 'publish';
-  const startLabel =
-    primaryMode === 'relist' ? '選択した商品を下書きに保存' : '選択した下書きをまとめて出品';
+  const { primaryMode, startLabel } = LIST_PAGE_TRAITS[pageType];
 
   // 一括操作バーを描画
   renderBulkBar({ startLabel }, createBulkBarHandlers(pageType, primaryMode));

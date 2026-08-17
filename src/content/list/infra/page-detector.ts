@@ -2,6 +2,8 @@
  * 現在のページタイプを判定するモジュール。
  */
 
+import { FormMode } from '../../../common/messages';
+
 export const PageType = {
   /** 出品中一覧 (/sell) — フリマアシストの再出品ボタンで一括再出品 */
   SELL: 'sell',
@@ -38,3 +40,42 @@ export function detectCurrentPage(): PageTypeValue {
   }
   return PageType.UNKNOWN;
 }
+
+/**
+ * 一覧ページの種別ごとの性質。
+ *
+ * 種別から主モードを導く分岐（`pageType === PageType.SELL ? 'relist' : 'publish'`）は、
+ * PageType に種別を足したとき黙って publish 側へ落ちる。Record にしておくと
+ * 種別を足した時点で**全性質の記入が型で強制される**。
+ * src/common/queue-mode-traits.ts の QUEUE_MODE_TRAITS と同じ考え方。
+ *
+ * NOTE: このファイルは URL 判定のモジュールだが、この表のために
+ * src/common/messages.ts の FormMode に依存する。表を PageType の隣へ置くのは、
+ * 種別を足す作業と性質を書き足す作業を同じファイルで完結させるため。
+ */
+export interface ListPageTraits {
+  /** このページの主モード。削除はどちらのページでも使えるため含めない */
+  primaryMode: FormMode;
+
+  /** 一括操作バーの開始ボタンに出す文言 */
+  startLabel: string;
+}
+
+/**
+ * 種別ごとの性質。UNKNOWN は一覧用 Content Script の担当外なので除く。
+ *
+ * Record なので種別を足すと記入漏れがコンパイルエラーになる。
+ */
+export const LIST_PAGE_TRAITS: Record<
+  Exclude<PageTypeValue, typeof PageType.UNKNOWN>,
+  ListPageTraits
+> = {
+  [PageType.SELL]: {
+    primaryMode: 'relist',
+    startLabel: '選択した商品を下書きに保存',
+  },
+  [PageType.DRAFT]: {
+    primaryMode: 'publish',
+    startLabel: '選択した下書きをまとめて出品',
+  },
+};
