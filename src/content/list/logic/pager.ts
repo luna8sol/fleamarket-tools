@@ -32,19 +32,29 @@ export function getCurrentPage(): number {
 
 /** ページャに出ている最大のページ番号。ページャが無ければ1 */
 export function getMaxPage(): number {
-  const pages = Array.from(document.querySelectorAll<HTMLAnchorElement>(SELECTOR.PAGER_LINK))
-    .map((link) => Number(link.getAttribute('href')?.match(/[?&]page=(\d+)/)?.[1]))
-    .filter((page) => Number.isInteger(page) && page > 0);
-  return Math.max(getCurrentPage(), ...pages, 1);
+  return Math.max(getCurrentPage(), ...listLinkedPages(), 1);
+}
+
+/** リンクのhrefからページ番号を読む。1ページ目はpage=が付かないためnullになる */
+function pageFromHref(link: HTMLAnchorElement): number | null {
+  const page = Number(link.getAttribute('href')?.match(/[?&]page=(\d+)/)?.[1]);
+  return Number.isInteger(page) && page > 0 ? page : null;
 }
 
 /**
  * 指定ページへのリンクを返す。
- * リンクのテキストがページ番号なのでそれで探す（1ページ目はhrefにpage=が付かない）。
+ *
+ * ふつうはリンクのテキストがページ番号だが、「最後のページ」へのリンクは
+ * ラベルが記号で番号を持たないため、hrefからも判定する。
+ * 逆に1ページ目のリンクはhrefにpage=が付かないのでテキストでしか判定できない。
  */
 export function findPageLink(page: number): HTMLAnchorElement | null {
   const links = Array.from(document.querySelectorAll<HTMLAnchorElement>(SELECTOR.PAGER_LINK));
-  return links.find((link) => link.textContent?.trim() === String(page)) ?? null;
+  return (
+    links.find((link) => link.textContent?.trim() === String(page)) ??
+    links.find((link) => pageFromHref(link) === page) ??
+    null
+  );
 }
 
 /**
@@ -63,6 +73,61 @@ export async function gotoPage(page: number): Promise<boolean> {
   while (Date.now() - startedAt < PAGE_CHANGE_TIMEOUT_MS) {
     await delay(POLL_INTERVAL_MS);
     if (getCurrentPage() === page) return true;
+  }
+  return false;
+}
+
+/** ページ移動を諦めるまでの試行回数（リンクが飛び飛びのとき複数回かかる） */
+const MAX_NAVIGATION_STEPS = 10;
+
+/** ページャにリンクとして出ているページ番号 */
+function listLinkedPages(): number[] {
+  const pages = new Set<number>();
+  for (const link of Array.from(
+    document.querySelectorAll<HTMLAnchorElement>(SELECTOR.PAGER_LINK)
+  )) {
+    const byText = Number(link.textContent?.trim());
+    if (Number.isInteger(byText) && byText > 0) pages.add(byText);
+
+    const byHref = pageFromHref(link);
+    if (byHref !== null) pages.add(byHref);
+  }
+  return Array.from(pages);
+}
+
+/** 目的ページに近づくために、いま押せるページ番号 */
+function pickStepToward(current: number, target: number): number | null {
+  const pages = listLinkedPages().filter((page) => page !== current);
+  if (pages.length === 0) return null;
+
+  const forward = target > current;
+  // 行き過ぎない範囲で、いちばん目的地に近いページ
+  const withinRange = pages.filter((page) =>
+    forward ? page > current && page <= target : page < current && page >= target
+  );
+  if (withinRange.length > 0) {
+    return forward ? Math.max(...withinRange) : Math.min(...withinRange);
+  }
+
+  // 範囲内に無ければ、方向だけ合わせていちばん近いページへ
+  const sameDirection = pages.filter((page) => (forward ? page > current : page < current));
+  if (sameDirection.length === 0) return null;
+  return forward ? Math.min(...sameDirection) : Math.max(...sameDirection);
+}
+
+/**
+ * 指定ページへ移動する。
+ * 直接のリンクが無い場合（ページャが「…」で省略している場合）は、
+ * 目的のページに近づく方向へ段階的に移動する。
+ */
+export async function navigateToPage(page: number): Promise<boolean> {
+  for (let step = 0; step < MAX_NAVIGATION_STEPS; step++) {
+    if (getCurrentPage() === page) return true;
+    if (await gotoPage(page)) return true;
+
+    const next = pickStepToward(getCurrentPage(), page);
+    if (next === null) return false;
+    if (!(await gotoPage(next))) return false;
   }
   return false;
 }

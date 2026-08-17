@@ -12,7 +12,13 @@ import { detectCurrentPage, PageType } from './infra/page-detector';
 import { observeListChanges } from './infra/list-observer';
 import { collectItems, findRelistButton } from './logic/item-collector';
 import { clickDeleteLink, findDeleteLink } from './logic/delete-clicker';
-import { getCurrentPage, getMaxPage, getTotalItemCount, gotoPage } from './logic/pager';
+import {
+  getCurrentPage,
+  getMaxPage,
+  getTotalItemCount,
+  gotoPage,
+  navigateToPage,
+} from './logic/pager';
 import { selectionManager } from './logic/selection-manager';
 import { addCheckboxes, setCheckboxesEnabled } from './ui/checkbox-manager';
 import { renderBulkBar, updateCount, updateProgress } from './ui/bulk-bar';
@@ -105,17 +111,15 @@ function main(): void {
   };
 
   /**
-   * 指定商品の削除リンクを、必要ならページを移動して探す。
-   *
-   * 削除するとページ全体が遷移して1ページ目に戻るため、2ページ目以降の商品を
-   * 続けて削除するには、そのつど探しに行く必要がある。
+   * 全ページを順に探す。想定が崩れた場合の保険。
    */
-  const locateDeleteLink = async (itemId: string): Promise<HTMLAnchorElement | null> => {
-    const onCurrentPage = findDeleteLink(pageType, itemId);
-    if (onCurrentPage) return onCurrentPage;
+  const searchAllPages = async (itemId: string): Promise<HTMLAnchorElement | null> => {
+    await navigateToPage(1);
+    const onFirstPage = findDeleteLink(pageType, itemId);
+    if (onFirstPage) return onFirstPage;
 
     const maxPage = getMaxPage();
-    for (let page = getCurrentPage() + 1; page <= maxPage; page++) {
+    for (let page = 2; page <= maxPage; page++) {
       if (!(await gotoPage(page))) break;
       log(`${page}ページ目を確認します`);
       const link = findDeleteLink(pageType, itemId);
@@ -124,8 +128,37 @@ function main(): void {
     return null;
   };
 
-  const startQueue = (mode: QueueMode, items: { id: string; title: string }[]): void => {
-    const message: StartQueueMessage = { type: MessageType.START_QUEUE, mode, items };
+  /**
+   * 指定商品の削除リンクを探す。
+   *
+   * 削除すると一覧は1ページ目に戻るが、対象は必ず開始時のページに居る。
+   * 選択はページ送りのたびに破棄されるので対象は1ページに収まり、
+   * 同じページの商品を削除しても後続はそのページ内に留まるため
+   * （後ろのページから繰り上がってくるだけ）。そのページへ戻してから探す。
+   */
+  const locateDeleteLink = async (
+    itemId: string,
+    page: number | null
+  ): Promise<HTMLAnchorElement | null> => {
+    if (page !== null && getCurrentPage() !== page) {
+      if (!(await navigateToPage(page))) {
+        warn(`${page}ページ目へ戻れませんでした`);
+      }
+    }
+
+    const onTargetPage = findDeleteLink(pageType, itemId);
+    if (onTargetPage) return onTargetPage;
+
+    warn('想定のページに見つからないため、全ページを探します');
+    return searchAllPages(itemId);
+  };
+
+  const startQueue = (
+    mode: QueueMode,
+    items: { id: string; title: string }[],
+    listPage?: number
+  ): void => {
+    const message: StartQueueMessage = { type: MessageType.START_QUEUE, mode, items, listPage };
     void chrome.runtime.sendMessage(message);
     queueRunning = true;
     setCheckboxesEnabled(false);
@@ -170,7 +203,8 @@ function main(): void {
           `${target}を${selected.length}件削除します。\n削除すると元に戻せません。実行しますか？`
         );
         if (!ok) return;
-        startQueue('delete', selected);
+        // 削除のたびに1ページ目へ戻されるため、対象が居るページを覚えておく
+        startQueue('delete', selected, getCurrentPage());
       },
 
       onStop: () => {
@@ -216,7 +250,7 @@ function main(): void {
         // 商品を探すためにページを移動することがあるので応答は非同期になる
         keepChannelOpen = true;
         void (async (): Promise<void> => {
-          if (!(await locateDeleteLink(message.item.id))) {
+          if (!(await locateDeleteLink(message.item.id, message.page ?? null))) {
             warn(`削除リンクが見つかりません: ${message.item.title}`);
             sendResponse({ clicked: false });
             return;

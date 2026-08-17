@@ -85,6 +85,11 @@ export interface StartQueueMessage {
   type: typeof MessageType.START_QUEUE;
   mode: QueueMode;
   items: QueueItem[];
+  /**
+   * 開始時に表示していた一覧のページ番号。
+   * deleteモードで、削除のたびに1ページ目へ戻されたあと元のページへ復帰するために使う。
+   */
+  listPage?: number;
 }
 
 export interface StopQueueMessage {
@@ -103,6 +108,8 @@ export interface ClickRelistMessage {
 export interface ClickDeleteMessage {
   type: typeof MessageType.CLICK_DELETE;
   item: QueueItem;
+  /** 対象が居るはずのページ番号。クリック前にこのページへ戻る */
+  page?: number | null;
 }
 
 /** CLICK_RELIST / CLICK_DELETE への応答 */

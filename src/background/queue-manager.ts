@@ -61,6 +61,15 @@ interface QueueState {
   expectedSource: SourceItem | null;
   /** deleteで削除リンクをクリックする直前の一覧全体の件数 */
   countBeforeDelete: number | null;
+  /**
+   * deleteの対象が居る一覧のページ番号。
+   *
+   * 削除するたびに一覧は1ページ目へ戻るが、選択はページ送りのたびに
+   * 破棄される（SelectionManager.retain）ので、対象は必ず同じ1ページに収まる。
+   * さらに、ある商品を削除しても同じページの後続はそのページ内に留まる
+   * （後ろのページから繰り上がってくるだけ）ため、このページへ戻れば必ず見つかる。
+   */
+  deletePage: number | null;
 }
 
 function createInitialState(): QueueState {
@@ -76,6 +85,7 @@ function createInitialState(): QueueState {
     candidateTabIds: [],
     expectedSource: null,
     countBeforeDelete: null,
+    deletePage: null,
   };
 }
 
@@ -130,7 +140,12 @@ export class QueueManager {
   /**
    * キューを開始する
    */
-  async start(mode: QueueMode, items: QueueItem[], listTabId: number): Promise<void> {
+  async start(
+    mode: QueueMode,
+    items: QueueItem[],
+    listTabId: number,
+    listPage?: number
+  ): Promise<void> {
     if (this.state.running) {
       warn('キューは既に実行中です');
       return;
@@ -141,6 +156,7 @@ export class QueueManager {
       items,
       listTabId,
       running: true,
+      deletePage: listPage ?? null,
     };
 
     log(`キュー開始: mode=${mode}, ${items.length}件`);
@@ -434,7 +450,11 @@ export class QueueManager {
     await this.save();
     await this.notifyProgress();
 
-    const message: ClickDeleteMessage = { type: MessageType.CLICK_DELETE, item };
+    const message: ClickDeleteMessage = {
+      type: MessageType.CLICK_DELETE,
+      item,
+      page: this.state.deletePage,
+    };
     try {
       const response = (await chrome.tabs.sendMessage(this.state.listTabId, message)) as
         ClickResponse | undefined;

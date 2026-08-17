@@ -31,7 +31,7 @@ async function handleMessage(
     case MessageType.START_QUEUE: {
       const listTabId = sender.tab?.id;
       if (listTabId !== undefined) {
-        await queueManager.start(message.mode, message.items, listTabId);
+        await queueManager.start(message.mode, message.items, listTabId, message.listPage);
       }
       return ACK;
     }
