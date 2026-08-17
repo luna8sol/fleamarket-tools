@@ -59,9 +59,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 一覧の描画監視（MutationObserver） | [src/content/list/infra/list-observer.ts](src/content/list/infra/list-observer.ts) |
 | 商品の収集・再出品ボタンの探索 | [src/content/list/logic/item-collector.ts](src/content/list/logic/item-collector.ts) |
 | 削除リンクの特定とクリック | [src/content/list/logic/delete-clicker.ts](src/content/list/logic/delete-clicker.ts) |
+| 削除対象が居るページの探索（ページを跨いで探す） | [src/content/list/logic/delete-locator.ts](src/content/list/logic/delete-locator.ts) |
 | ページ送り（削除後に 1 ページ目へ戻る問題の対処） | [src/content/list/logic/pager.ts](src/content/list/logic/pager.ts) |
 | 選択状態・選択順の管理 | [src/content/list/logic/selection-manager.ts](src/content/list/logic/selection-manager.ts) |
+| Background へ送るメッセージ（LIST_READY・キューの開始/停止・進捗取得） | [src/content/list/logic/queue-client.ts](src/content/list/logic/queue-client.ts) |
 | 一覧ページの組み立て・一括削除の確認 | [src/content/list/index.ts](src/content/list/index.ts) |
+| Background から届くメッセージの処理（再出品ボタン・削除リンクのクリック） | [src/content/list/message-handlers.ts](src/content/list/message-handlers.ts) |
 | 一括操作バー・チェックボックス・トースト | [ui/bulk-bar.ts](src/content/list/ui/bulk-bar.ts), [ui/checkbox-manager.ts](src/content/list/ui/checkbox-manager.ts), [ui/notification.ts](src/content/list/ui/notification.ts) |
 | ログ出力 | [src/common/logger.ts](src/common/logger.ts) |
 | ビルド構成 | [webpack.config.js](webpack.config.js), [tsconfig.json](tsconfig.json) |

@@ -1,41 +1,30 @@
 import {
   ExtensionMessage,
   FormMode,
-  ListReadyMessage,
   MessageType,
   QueueMode,
   QueueProgress,
-  StartQueueMessage,
 } from '../../common/messages';
 import { log, setDebugMode, warn } from '../../common/logger';
 import { detectCurrentPage, PageType } from './infra/page-detector';
 import { observeListChanges } from './infra/list-observer';
 import { collectItems, findRelistButton } from './logic/item-collector';
-import { clickDeleteLink, findDeleteLink } from './logic/delete-clicker';
+import { getCurrentPage } from './logic/pager';
 import {
-  getCurrentPage,
-  getMaxPage,
-  getTotalItemCount,
-  gotoPage,
-  navigateToPage,
-} from './logic/pager';
+  sendListReady,
+  sendStartQueue,
+  sendStopQueue,
+  requestProgress,
+} from './logic/queue-client';
 import { selectionManager } from './logic/selection-manager';
 import { addCheckboxes, setCheckboxesEnabled } from './ui/checkbox-manager';
 import { renderBulkBar, updateCount, updateProgress } from './ui/bulk-bar';
 import { showToast } from './ui/notification';
+import { handleClickDelete, handleClickRelist } from './message-handlers';
 
 /**
  * 一覧ページ（/sell・/draft）用Content Scriptのエントリポイント。
  */
-
-/** 削除リンクをクリックするまでの基本待機時間 (ms) */
-const DELETE_DELAY_MS = 2000;
-/** 削除の待機時間に加算するランダム値の最大 (ms) */
-const DELETE_RANDOM_MS = 2000;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
 
 function main(): void {
   setDebugMode(true);
@@ -93,64 +82,8 @@ function main(): void {
     // 削除キューの成否判定に使うため、描画が終わったことをBackgroundへ伝える
     if (!listReadySent) {
       listReadySent = true;
-      sendListReady();
+      sendListReady(pageType);
     }
-  };
-
-  /**
-   * 現在表示中の商品IDをBackgroundへ伝える。
-   * 削除キューは、対象商品がこのIDリストに残っていないことで成否を判定する。
-   */
-  const sendListReady = (): void => {
-    const message: ListReadyMessage = {
-      type: MessageType.LIST_READY,
-      ids: collectItems(pageType).map((item) => item.id),
-      totalCount: getTotalItemCount(),
-    };
-    void chrome.runtime.sendMessage(message);
-  };
-
-  /**
-   * 全ページを順に探す。想定が崩れた場合の保険。
-   */
-  const searchAllPages = async (itemId: string): Promise<HTMLAnchorElement | null> => {
-    await navigateToPage(1);
-    const onFirstPage = findDeleteLink(pageType, itemId);
-    if (onFirstPage) return onFirstPage;
-
-    const maxPage = getMaxPage();
-    for (let page = 2; page <= maxPage; page++) {
-      if (!(await gotoPage(page))) break;
-      log(`${page}ページ目を確認します`);
-      const link = findDeleteLink(pageType, itemId);
-      if (link) return link;
-    }
-    return null;
-  };
-
-  /**
-   * 指定商品の削除リンクを探す。
-   *
-   * 削除すると一覧は1ページ目に戻るが、対象は必ず開始時のページに居る。
-   * 選択はページ送りのたびに破棄されるので対象は1ページに収まり、
-   * 同じページの商品を削除しても後続はそのページ内に留まるため
-   * （後ろのページから繰り上がってくるだけ）。そのページへ戻してから探す。
-   */
-  const locateDeleteLink = async (
-    itemId: string,
-    page: number | null
-  ): Promise<HTMLAnchorElement | null> => {
-    if (page !== null && getCurrentPage() !== page) {
-      if (!(await navigateToPage(page))) {
-        warn(`${page}ページ目へ戻れませんでした`);
-      }
-    }
-
-    const onTargetPage = findDeleteLink(pageType, itemId);
-    if (onTargetPage) return onTargetPage;
-
-    warn('想定のページに見つからないため、全ページを探します');
-    return searchAllPages(itemId);
   };
 
   const startQueue = (
@@ -158,8 +91,7 @@ function main(): void {
     items: { id: string; title: string }[],
     listPage?: number
   ): void => {
-    const message: StartQueueMessage = { type: MessageType.START_QUEUE, mode, items, listPage };
-    void chrome.runtime.sendMessage(message);
+    sendStartQueue(mode, items, listPage);
     queueRunning = true;
     setCheckboxesEnabled(false);
     showToast(`${items.length}件の処理を開始しました`, 'info');
@@ -208,7 +140,7 @@ function main(): void {
       },
 
       onStop: () => {
-        void chrome.runtime.sendMessage({ type: MessageType.STOP_QUEUE });
+        sendStopQueue();
         queueRunning = false;
         setCheckboxesEnabled(true);
         showToast('処理を停止しました', 'warning');
@@ -233,48 +165,13 @@ function main(): void {
     let keepChannelOpen = false;
 
     switch (message.type) {
-      case MessageType.CLICK_RELIST: {
-        const btn = findRelistButton(message.item.id);
-        if (btn) {
-          log(`再出品ボタンをクリック: ${message.item.title}`);
-          btn.click();
-          sendResponse({ clicked: true });
-        } else {
-          warn(`再出品ボタンが見つかりません: ${message.item.title}`);
-          sendResponse({ clicked: false });
-        }
+      case MessageType.CLICK_RELIST:
+        keepChannelOpen = handleClickRelist(message, sendResponse);
         break;
-      }
 
-      case MessageType.CLICK_DELETE: {
-        // 商品を探すためにページを移動することがあるので応答は非同期になる
-        keepChannelOpen = true;
-        void (async (): Promise<void> => {
-          if (!(await locateDeleteLink(message.item.id, message.page ?? null))) {
-            warn(`削除リンクが見つかりません: ${message.item.title}`);
-            sendResponse({ clicked: false });
-            return;
-          }
-          // 見つかったことと現在の件数を先に返す。クリックするとページ遷移が
-          // 始まり、応答を返せなくなるため。
-          sendResponse({ clicked: true, totalCount: getTotalItemCount() });
-
-          await delay(DELETE_DELAY_MS + Math.floor(Math.random() * DELETE_RANDOM_MS));
-
-          // 待っている間に一覧が再描画されて要素が差し替わっている可能性があるため、
-          // クリック直前に取り直す
-          const link = findDeleteLink(pageType, message.item.id);
-          if (!link) {
-            warn(`削除リンクが消えていました: ${message.item.title}`);
-            // Backgroundは一覧の再読み込みを待っているので、現状を伝えて失敗扱いにさせる
-            sendListReady();
-            return;
-          }
-          log(`削除リンクをクリック: ${message.item.title}`);
-          clickDeleteLink(link);
-        })();
+      case MessageType.CLICK_DELETE:
+        keepChannelOpen = handleClickDelete(pageType, message, sendResponse);
         break;
-      }
 
       case MessageType.QUEUE_PROGRESS: {
         updateProgress(message.progress);
@@ -309,9 +206,7 @@ function main(): void {
  */
 async function restoreProgress(primaryMode: FormMode): Promise<QueueProgress | null> {
   try {
-    const progress = (await chrome.runtime.sendMessage({
-      type: MessageType.GET_PROGRESS,
-    })) as QueueProgress | undefined;
+    const progress = await requestProgress();
 
     if (!progress || progress.total === 0) return null;
     // 別ページのキュー（例: /sell で /draft のキュー）の進捗は表示しない。

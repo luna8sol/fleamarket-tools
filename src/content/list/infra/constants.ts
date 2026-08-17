@@ -68,4 +68,8 @@ export const ID_NAME = {
  */
 export const CONFIG = {
   TOAST_DURATION_MS: 3000,
+  /** 削除リンクをクリックするまでの基本待機時間 (ms) */
+  DELETE_DELAY_MS: 2000,
+  /** 削除の待機時間に加算するランダム値の最大 (ms) */
+  DELETE_RANDOM_MS: 2000,
 };
