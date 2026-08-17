@@ -13,7 +13,7 @@ npm ci
 
 - **worktree は `node_modules` を共有しない。** 本体チェックアウトに `node_modules` があっても worktree には無い。**作成後にまず依存をインストールする**（しないと型チェック・lint がコードと無関係に落ちる）。
 - `npm ci` を使う（`package-lock.json` どおりに入り、lockfile を書き換えない）。README は `npm install` と書いているが、既存環境では `npm ci` のほうが安全。
-- **gitignore されたファイルは worktree にコピーされない。** 現状このリポジトリは `.env` を使っていない（`src/` にも `webpack.config.js` にも参照が無い）が、将来追加したら本体から手で持ってくること。**テンプレートから secret をコピーするときは `cp -n`**（既存を空テンプレートで上書きしない）。
+- **gitignore されたファイルは worktree にコピーされない。** 現状このリポジトリは `.env` を使っていないが、将来追加したら本体から手で持ってくること。**テンプレートから secret をコピーするときは `cp -n`**（既存を空テンプレートで上書きしない）。
 
 ## 2. ビルドする
 
@@ -22,7 +22,7 @@ npm run build       # 開発用
 npm run build:prod  # 本番用（最適化・圧縮あり）
 ```
 
-出力先は **`dist/`**（`dist/content-list.js` / `dist/content-edit.js` / `dist/background.js` / `dist/popup.js`）。`dist/` は gitignore 済み。
+出力先は **`dist/`**（`dist/content-list.js` / `dist/content-form.js` / `dist/background.js` / `dist/popup.js`）。`dist/` は gitignore 済み。
 
 ## 3. Chrome に読み込む
 
@@ -39,15 +39,27 @@ content script が動くのは、`manifest.json` の `matches` にある URL だ
 
 | URL | 入る content script | 役割 |
 | --- | --- | --- |
-| `https://fril.jp/sell*` | `dist/content-list.js` | 出品中一覧 → 一括再出品 |
-| `https://fril.jp/draft*` | `dist/content-list.js` | 下書き一覧 → 一括出品 |
-| `https://fril.jp/drafts/*` | `dist/content-edit.js` | 下書き編集ページ → 自動出品 |
+| `https://fril.jp/sell*` | `dist/content-list.js` | 出品中一覧 → 一括下書き保存・一括削除 |
+| `https://fril.jp/draft*` | `dist/content-list.js` | 下書き一覧 → 一括出品・一括削除 |
+| `https://fril.jp/drafts/*` | `dist/content-form.js` | 下書き編集ページ → 「確認する」→「出品する」 |
+| `https://fril.jp/item/new*` | `dist/content-form.js` | 新規出品ページ → 「下書きに保存する」 |
 
 他のページでは何も起きないのが正常。
 
-**一括再出品には Chrome 拡張機能「フリマアシスト」が必要。** `/sell` の再出品ボタン（`a#clone-item`）は同拡張が注入するもので、入っていないとこの拡張だけでは再出品できない。下書きの一括出品にはフリマアシストは不要。
+- **一括下書き保存には Chrome 拡張機能「フリマアシスト」が必要。** `/sell` の再出品ボタン（`a#clone-item`）は同拡張が注入するもの。下書きの一括出品・一括削除には不要。
+- **`/sell` の一括処理では出品されない。** 複製内容を下書きとして保存するところまで。公開は `/draft` 側で行う 2 段構え。
+- **1 件の処理に 1 分以上かかるのが正常。** 商品間に 60〜75 秒のランダム待機が入る（削除のみ 2〜4 秒）。止まって見えても待つ。
 
-**1 件の処理に 1 分以上かかるのが正常。** 商品間に 60〜75 秒のランダム待機が入る（`src/background/queue-manager.ts`）。止まって見えても待つ。
+### 状態の切り分けは `data-rbl-form` で行う
+
+Content Script と Service Worker の console ログは拡張の外からは読めないため、出品フォーム用 Content Script は自分の状態を `<html data-rbl-form="...">` に残す。DevTools の Elements で `<html>` を見る。
+
+| 値 | 意味 |
+| --- | --- |
+| 無し | Content Script が注入されていない（manifest の `matches`、または拡張の再読み込み漏れ） |
+| `checking` | Background へ問い合わせ中（この値で止まっているなら応答が返っていない） |
+| `manual` | 注入されたが、自動処理対象ではないと判定した（Background がタブを捕捉できていない） |
+| `auto` | 自動処理対象として自動処理を実行した |
 
 ## 症状 → 原因
 
@@ -59,13 +71,16 @@ content script が動くのは、`manifest.json` の `matches` にある URL だ
 | Chrome に読み込もうとして「マニフェストが見つかりません」 | `dist/` を選んでいる。選ぶのは**リポジトリルート** |
 | 拡張機能は読み込めたが、`/sell` や `/draft` に一括操作バーが出ない | `npm run build` をしていない。`dist/content-list.js` が無いと content script はロードされない（エラーも出ないので「機能が壊れた」ように見える） |
 | ソースを直したのに挙動が変わらない | ①再ビルドしていない（`npm run build`）②ビルド後に `chrome://extensions` で拡張機能の再読み込みをしていない ③ページをリロードしていない。**この 3 つは全部必要** |
-| バーは出るが対象の商品が 1 件も拾えない | ラクマ側の DOM が変わった可能性。`src/content/list/infra/constants.ts` の `SELECTOR` と、実際のページの DOM を突き合わせる。DevTools のコンソールに `[RakumaBulkLister] 商品IDを取得できない要素をスキップしました` が出ていないか見る |
-| `/sell` で「フリマアシストの再出品ボタンが見つかりません」と出る | フリマアシスト拡張が入っていない・無効・まだ注入前。`a#clone-item` の有無を DevTools で確認する |
-| 編集ページを開いても自動でクリックされない | **手動で開いた編集ページでは意図的に何もしない**（Background へ `CHECK_AUTO_TAB` で確認している）。一括処理から開かれたタブでのみ動く。仕様であって不具合ではない |
-| 出品に失敗したタブが開いたまま残る | **仕様。** バリデーションエラー等をユーザーが確認できるように残している（`handleEditFailed`） |
-| 拡張機能を再読み込みしたら実行中のキューが消えた | キューの状態は Service Worker のメモリ上にのみある（`queue-manager.ts` の NOTE）。再読み込みで失われる |
+| `manifest.json` を直したのに反映されない | ページのリロードでは反映されない。`chrome://extensions` で**拡張自体の再読み込み**が必要 |
+| バーは出るが対象の商品が 1 件も拾えない | ラクマ側の DOM が変わった可能性。`src/content/list/infra/constants.ts` の `SELECTOR` と実際の DOM を突き合わせる。商品リストはクライアント描画で `MutationObserver` 頼みなので、`list-observer.ts` が動いているかも見る |
+| `/sell` で「フリマアシストの再出品ボタンが見つかりません」と出る | フリマアシスト拡張が入っていない・無効・まだ注入前。`a#clone-item` は**ページ読み込み後に非同期で注入される** |
+| 出品フォームを開いても自動でクリックされない | `data-rbl-form` を見る。`manual` なら**手動で開いたページと判定**（仕様。一括処理から開かれたタブでのみ動く）。無しなら content script が入っていない |
+| 下書きが保存されず「内容が足りない」系の理由で失敗する | 差分チェック（`src/content/form/diff.ts`）が欠落を検知した。フリマアシストの画像アップロードが終わる前に判定された可能性。**仕様として正しい失敗**なので、タブを見て中身を確かめる |
+| 失敗したタブが開いたまま残る | **仕様。** バリデーションエラー等をユーザーが確認できるように残している |
+| 処理が 5 分で打ち切られる | ウォッチドッグ（`ITEM_WATCHDOG_MS` = 300000ms）。1 商品の処理が終わらないときの保険 |
+| 拡張機能を再読み込みしたらキューが消えた | キューは `chrome.storage.session` に保存されるが、**拡張の再読み込みでセッションごと消える**。Service Worker の破棄だけなら復元される |
 | 進捗表示が更新されない | 一覧タブが閉じられている・遷移した。Background は `notifyProgress` の失敗を握り潰して処理を続ける |
-| `npm run format:check` が落ちる | **元から落ちている**（`src` の全 16 ファイル）。セットアップの失敗ではない。`npm run lint` のほうは通るのが正常。詳細は [CLAUDE.md の「検証」](../../../CLAUDE.md) |
+| `npm run format:check` が全ファイルで落ちる | 改行コードが CRLF になっている。`.gitattributes` で LF に固定してあるので、`git ls-files --eol <パス>` の `w/` が `crlf` なら取り直す。中身の整形の問題ではない |
 | `npm run build:tsc` を実行したら `dist/` の中身が変わった | `build:tsc` は `tsc`（`--noEmit` なし）で成果物を吐く。型チェックには使わない。`npm run build` で作り直す |
 
 ## worktree を新しく作ったとき

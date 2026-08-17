@@ -71,18 +71,19 @@ scope の付け方・件名の字数・コミット日時の扱いは [CLAUDE.md
 コミット前に以下を実行してください。
 
 ```bash
-npm run lint       # ESLint（通るのが正常）
-npx tsc --noEmit   # 型チェック（通るのが正常）
-npm run build      # ビルド（通るのが正常）
+npm run lint           # ESLint（通るのが正常）
+npx tsc --noEmit       # 型チェック（通るのが正常）
+npm run build          # ビルド（通るのが正常）
+npm run format:check   # Prettier（通るのが正常）
 ```
 
-フォーマットは**自分が触ったファイルだけ**直す。
+`format:check` が落ちたら、**自分が触ったファイルだけ**直す。
 
 ```bash
 npx prettier --write <触ったファイル>
 ```
 
-`npm run format` でリポジトリ全体を一括整形しないこと（現状 `src` 全体が未整形で、一括整形の予定と理由は [CLAUDE.md](CLAUDE.md) の「落とし穴」にある）。
+`npm run format` でリポジトリ全体を一括整形しないこと（差分が膨れて本来の変更が埋もれる）。改行コードは [.gitattributes](.gitattributes) で LF に固定してあり、これが崩れると全ファイルが差分として報告される（[CLAUDE.md](CLAUDE.md) の「落とし穴」）。
 
 主なルール（ESLint / tsconfig で強制）:
 - `any` 型の使用禁止

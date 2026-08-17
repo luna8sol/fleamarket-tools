@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-ラクマ（fril.jp）の出品中商品を一括再出品し、下書き商品を一括出品する Chrome 拡張機能（Manifest V3 / TypeScript）。
+ラクマ（fril.jp）の出品作業を一括化する Chrome 拡張機能（Manifest V3 / TypeScript）。`/sell` の一括下書き保存、`/draft` の下書き一括出品、`/sell`・`/draft` の一括削除を行う。
 
 このファイルは**規約の正本**。手順はスキル（`.claude/skills/`）に置き、規約はここ 1 か所に置く。同じ規約を複数のスキルに書かない（片方だけ育ってズレる）。
 
@@ -10,52 +10,74 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 実装・レビュー・設計判断が競合したときは、この 2 つを他のすべてより優先する。
 
-1. **誤操作・誤出品を起こさない。** 一括出品・一括再出品は取り消せない実操作で、対象を間違えると実際の商品が世に出る。とくに次の 3 つは安全装置なので、**弱める変更をしない**:
-   - **編集ページの自動クリックは、Background への `CHECK_AUTO_TAB` 問い合わせに `isAutoTab: true` が返ったタブでのみ実行する**（[src/content/edit/index.ts](src/content/edit/index.ts)）。ユーザーが手動で開いた編集ページでは何もしない。この確認を外すと、ユーザーが自分で開いた下書きが勝手に出品される。
-   - **失敗時は編集タブを閉じない**（[queue-manager.ts](src/background/queue-manager.ts) の `handleEditFailed`）。バリデーションエラーの内容をユーザーが確認できなくなる。
-   - **商品間の待機を縮めない・外さない**（`WAIT_BETWEEN_ITEMS_MS` + `WAIT_RANDOM_MS` = 60〜75 秒）。短時間の大量実行を避けるための値。
+### 1. 取り消せない操作を誤って実行しない
 
-   加えて、処理対象の絞り込み条件と件数、途中で失敗したときに部分適用のまま黙って止まらないこと、失敗が観測できること（`failed` に積まれ、`warn` が出ること）を確かめる。
+一括出品・一括削除は取り消せない実操作で、対象を間違えると実際の商品が世に出る／消える。次の 6 つは安全装置なので、**弱める変更をしない**。
 
-2. **ラクマ側の DOM 変更に耐える。** セレクタとページ判定はこちらが制御できない外部構造に依存している。
-   - 一覧ページのセレクタは必ず [src/content/list/infra/constants.ts](src/content/list/infra/constants.ts) に集約する。
-   - **編集ページのボタンはクラス名で特定しない。** ラクマの編集ページは React / Chakra UI 製で `css-*` クラスがビルドごとに変わるため、**テキスト完全一致**で探す（[src/content/edit/button-finder.ts](src/content/edit/button-finder.ts)）。
-   - 想定した要素が見つからないときは、**黙って何もしないのではなく、検知して安全に止まる**。`waitForButton` の reject を握り潰さず `EDIT_FAILED` として Background へ伝える、`collectItems` のスキップを `warn` に出す、といった既存の作りを壊さない。
+- **自動クリックは、Background への `CHECK_AUTO_TAB` 問い合わせで `isAutoTab: true` が返ったタブでのみ実行する**（[src/content/form/index.ts](src/content/form/index.ts)）。ユーザーが手動で開いた出品ページでは何もしない。この確認を外すと、ユーザーが自分で開いた下書きが勝手に出品される。
+- **`/sell` の一括処理は出品せず「下書きに保存する」で止める。** 再出品は「`/sell` で下書きに溜める → 内容を確認 → `/draft` で公開する」の 2 段構え。この分離が誤出品に対する最大の防御なので、`/sell` 側から直接出品する経路を作らない。
+- **保存前の差分チェックを弱めない**（[src/content/form/diff.ts](src/content/form/diff.ts)）。再出品元の商品ページと突き合わせ、**内容が欠けていれば保存しない**。フリマアシストの画像アップロードは遅れるため、待たずに保存すると画像の欠けた下書きができる。
+- **一括削除の確認を外さない。** 開始前に拡張側で件数を出して `window.confirm` を取る（[src/content/list/index.ts](src/content/list/index.ts)）。削除リンクは `data-method="delete"` と**ラベルが「削除」であること**の両方を確認してからクリックし、`data-confirm` は**クリック直前だけ外して直後に必ず戻す**（[src/content/list/logic/delete-clicker.ts](src/content/list/logic/delete-clicker.ts)）。
+- **失敗時は処理中のタブを閉じない。** バリデーションエラーの内容をユーザーが確認できなくなる。
+- **商品間の待機を縮めない・外さない**（`WAIT_BETWEEN_ITEMS_MS` + `WAIT_RANDOM_MS` = 60〜75 秒。削除のみ `DELETE_DELAY_MS` + `DELETE_RANDOM_MS` = 2〜4 秒）。
+
+加えて、処理対象の絞り込み条件と件数、途中で失敗したときに部分適用のまま黙って止まらないこと、失敗が観測できること（`failed` に理由付きで積まれ、`warn` が出ること）を確かめる。
+
+### 2. ラクマ側の DOM 変更に耐える
+
+セレクタとページ判定はこちらが制御できない外部構造に依存している。
+
+- 一覧ページのセレクタは必ず [src/content/list/infra/constants.ts](src/content/list/infra/constants.ts) に集約する。
+- **出品フォームのボタンはクラス名で特定しない。** ラクマの出品フォームは React / Chakra UI 製で `css-*` クラスがビルドごとに変わるため、**テキスト完全一致**で探す（[src/content/form/button-finder.ts](src/content/form/button-finder.ts)）。
+- **押すボタンはページの中身ではなくキューのモードで決める。** `/item/new` と `/drafts/{hash}/edit` はどちらも「下書きに保存する」と「確認する」を持つため、ボタン名からページを判別してはいけない。
+- 想定した要素が見つからないときは、**黙って何もしないのではなく、検知して安全に止まる**。待機の失敗を握り潰さず `FORM_FAILED` として Background へ伝える、`collectItems` のスキップを `warn` に出す、といった既存の作りを壊さない。
 
 ## 着手前に読むもの
 
 **実装判断の前に、該当する一次資料とコードを直接読む。** このファイルには要約を置かない（要約はここだけ更新されずに古い前提で作業される）。
 
+**[README.md](README.md) が設計判断の一次資料。** なぜその作りになっているか（完了判定を Background に置く理由、入力完了の待ち方、差分チェックの向き、削除がページ遷移をまたぐ理由、実機で確認済みの DOM 前提）はすべてそこにある。**コードを変える前に該当する節を読む。**
+
 | 領域 | 一次資料 |
 | --- | --- |
-| 機能概要・処理フロー・開発コマンド | [README.md](README.md) |
+| 機能概要・設計判断・実機で確認済みの DOM 前提・開発コマンド | [README.md](README.md) |
 | ブランチ運用・コミットメッセージ・コードスタイル | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | 拡張機能の権限・対象 URL・エントリーポイント | [manifest.json](manifest.json) |
 | Background ⇔ Content のメッセージ型・キューの型 | [src/common/messages.ts](src/common/messages.ts) |
-| 処理キュー・タブ追跡・待機時間 | [src/background/queue-manager.ts](src/background/queue-manager.ts) |
+| 処理キュー・タブ追跡・完了検知・待機・ウォッチドッグ | [src/background/queue-manager.ts](src/background/queue-manager.ts) |
 | Background の配線（メッセージ・タブ・アラーム） | [src/background/index.ts](src/background/index.ts) |
+| 再出品元の商品ページの取得（JSON-LD / 画像枚数） | [src/background/source-item.ts](src/background/source-item.ts) |
+| 出品フォームページの URL 判定（Background と Content で共有） | [src/common/form-page.ts](src/common/form-page.ts) |
+| 出品フォームの自動処理ガード・`data-rbl-form` マーカー | [src/content/form/index.ts](src/content/form/index.ts) |
+| モード別のボタン操作（下書き保存 / 確認する → 出品する） | [src/content/form/auto-submit.ts](src/content/form/auto-submit.ts) |
+| フォーム内容の読み取り・入力完了の待機 | [src/content/form/form-state.ts](src/content/form/form-state.ts) |
+| 再出品元との差分チェック | [src/content/form/diff.ts](src/content/form/diff.ts) |
+| フォームのボタン特定 | [src/content/form/button-finder.ts](src/content/form/button-finder.ts) |
+| ポーリング待機ユーティリティ | [src/content/form/wait.ts](src/content/form/wait.ts) |
 | セレクタ・クラス名・ID・設定値（一覧ページ） | [src/content/list/infra/constants.ts](src/content/list/infra/constants.ts) |
 | ページ種別（`/sell` / `/draft`）の判定 | [src/content/list/infra/page-detector.ts](src/content/list/infra/page-detector.ts) |
+| 一覧の描画監視（MutationObserver） | [src/content/list/infra/list-observer.ts](src/content/list/infra/list-observer.ts) |
 | 商品の収集・再出品ボタンの探索 | [src/content/list/logic/item-collector.ts](src/content/list/logic/item-collector.ts) |
+| 削除リンクの特定とクリック | [src/content/list/logic/delete-clicker.ts](src/content/list/logic/delete-clicker.ts) |
+| ページ送り（削除後に 1 ページ目へ戻る問題の対処） | [src/content/list/logic/pager.ts](src/content/list/logic/pager.ts) |
 | 選択状態・選択順の管理 | [src/content/list/logic/selection-manager.ts](src/content/list/logic/selection-manager.ts) |
-| 一覧ページの組み立て | [src/content/list/index.ts](src/content/list/index.ts) |
+| 一覧ページの組み立て・一括削除の確認 | [src/content/list/index.ts](src/content/list/index.ts) |
 | 一括操作バー・チェックボックス・トースト | [ui/bulk-bar.ts](src/content/list/ui/bulk-bar.ts), [ui/checkbox-manager.ts](src/content/list/ui/checkbox-manager.ts), [ui/notification.ts](src/content/list/ui/notification.ts) |
-| 編集ページの自動出品（確認する → 出品する） | [src/content/edit/auto-submit.ts](src/content/edit/auto-submit.ts) |
-| 編集ページのボタン特定 | [src/content/edit/button-finder.ts](src/content/edit/button-finder.ts) |
-| 編集ページの自動処理ガード | [src/content/edit/index.ts](src/content/edit/index.ts) |
 | ログ出力 | [src/common/logger.ts](src/common/logger.ts) |
 | ビルド構成 | [webpack.config.js](webpack.config.js), [tsconfig.json](tsconfig.json) |
-| lint / format 構成 | [eslint.config.js](eslint.config.js), [.prettierrc](.prettierrc) |
+| lint / format / 改行コード | [eslint.config.js](eslint.config.js), [.prettierrc](.prettierrc), [.gitattributes](.gitattributes) |
 
-### 既知の状態（2026-09-19 / `d99546a` 時点）
+### 既知の状態（2026-09-19 時点）
 
 **文書とコードが食い違ったらコードが正。** 古い記述を見つけたらその場で直す。
 
-- **`feat/queue-robustness` に develop 未統合のコミットが 13 本ある。** そこでは `src/content/edit/` が `src/content/form/` にリネームされ、ページ送り・一括削除・フォーム内容の検証などが追加されている。上の索引は `develop`（= `main` と同じ内容）に対するもの。**develop に統合したら、索引と下の「検証」の表を更新すること。**
-- **`manifest.json` の `https://fril.jp/draft*` は `/drafts/{hash}/edit`（編集ページ）にもマッチする。** 一覧用 content script が編集ページで動かないのは、[page-detector.ts](src/content/list/infra/page-detector.ts) が `/drafts` を `UNKNOWN` に落としているからで、manifest 側では除外していない。**片方だけ変えない。**
-- **キューの状態は Service Worker のメモリ上にのみ存在する**（[queue-manager.ts](src/background/queue-manager.ts) の NOTE）。拡張機能を再読み込みすると実行中のキューは失われる。待機に `chrome.alarms` を使っているのは SW の破棄を避けるため。
-- **自動テストは存在しない。** 「テストを回す」は型チェック・ビルド・静的解析を回すことを指す（下記「検証」）。
+- **README の「`watchdog` アラーム: 1 商品の処理が 3 分以内に完了しない場合に打ち切る」は実装と違う。** 実際は `ITEM_WATCHDOG_MS = 300000`（**5 分**）。触ったついでに直すか、少なくとも実装側の値を信じること。
+- **一括削除はコードが入っているだけで、実行しての動作確認がされていない**（README の「未検証」）。DOM の構造と `data-confirm` の挙動までは実機確認済み。**取り消せない操作なので、変更するなら実機確認までを 1 単位にする。**
+- **「出品する」を押したあとの遷移先も未検証。** 完了判定は「出品フォームの URL から離れたこと」で行うため、出品完了で URL が変わらない場合は検知できず、実際には出品されているのにウォッチドッグで失敗扱いになる。兆候は失敗理由「出品後の画面遷移を確認できませんでした」として現れる。
+- **`manifest.json` の `https://fril.jp/draft*` は `/drafts/{hash}/edit`（出品フォーム）にもマッチする。** 一覧用 content script がフォームで動かないのは、[page-detector.ts](src/content/list/infra/page-detector.ts) が `/drafts` を `UNKNOWN` に落としているからで、manifest 側では除外していない。**片方だけ変えない。**
+- **キューの状態は `chrome.storage.session` に保存され、Service Worker の破棄に耐える。** 変更のたびに書き戻し、各イベントハンドラの先頭で復元する。タイマーは `setTimeout` ではなく `chrome.alarms`（SW の破棄で消えるため）。**`chrome.alarms` は 30 秒未満の遅延がクランプされる**ので、短い待機には使えない。
 - **ローカルの `main` は `origin/main` と分岐している。** 2026-09-19 にルートコミットの日時を揃えるためローカルで書き換え（`e0c9316` → `d99546a`）、手元の全ブランチを新しいルートに載せ替えた。`origin/main` は古い `e0c9316` のまま。**force push するかは人が判断する**ので、勝手に `git push --force` しない。
+- **自動テストは存在しない。** 「テストを回す」は型チェック・ビルド・静的解析を回すことを指す（下記「検証」）。
 
 ## コーディングルール
 
@@ -65,8 +87,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 未使用 import は自動検出・エラー扱い
 - 一覧ページの DOM セレクタ・クラス名・ID・設定値は必ず [src/content/list/infra/constants.ts](src/content/list/infra/constants.ts) に追加する
 - Background ⇔ Content のやり取りは必ず [src/common/messages.ts](src/common/messages.ts) の型を経由する。新しいメッセージはまずここに型を足す
+- 出品フォームページの URL 判定は [src/common/form-page.ts](src/common/form-page.ts) に集約する（Background と Content の双方から使うため、片側に直書きしない）
+- キューの状態を増やしたら `chrome.storage.session` に保存される形にする（Service Worker が破棄されても続きから処理できること）
 - 主要なマネージャークラスはファイル末尾でシングルトンとしてエクスポートする（例: `export const queueManager = new QueueManager()`）
 - ログは `console.log` を直接呼ばず [src/common/logger.ts](src/common/logger.ts) の `log` / `warn` / `debug` を使う
+- 拡張の外から挙動を切り分けられるようにする。出品フォーム側の状態は `<html data-rbl-form="checking|auto|manual">` に出す（console ログは拡張の外からは読めない）
 
 ## ブランチ運用・コミットルール
 
@@ -75,7 +100,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### ブランチ運用の補足（CONTRIBUTING.md に無い部分）
 
 - **統合ブランチは `develop`。ここで直接作業しない。** 各タスクは `develop` からトピックブランチを切る。
-  - `develop` は 2026-09-19 に `main`（`d99546a`）から作った**ローカルブランチ**で、まだ origin には無い。push するかは人が判断する。
+  - `develop` は 2026-09-19 に `main` から作った**ローカルブランチ**で、まだ origin には無い。push するかは人が判断する。
 - 命名は CONTRIBUTING.md の規則（`feature/` / `fix/` / `docs/` / `refactor/` + ハイフン区切りの英小文字）。日付・イニシャル・連番は入れない。
   - **`feature/` を既定にしない。** 中身が修正なら `fix/`、ドキュメントなら `docs/`、挙動を変えない整理なら `refactor/`。コミットの prefix と同じく**中身で選ぶ**。
 - **エージェントが自動命名したブランチ（`claude/...`、`worktree-...`）のまま作業を終えない。** 規約名に直す。
@@ -104,12 +129,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   | --- | --- |
   | `background` | `src/background/` |
   | `list` | `src/content/list/` |
-  | `edit` | `src/content/edit/` |
+  | `form` | `src/content/form/` |
   | `content` | `src/content/` 全体にまたがる変更 |
   | `common` | `src/common/` |
   | `popup` | `src/popup/`, `popup.html` |
   | `manifest` | `manifest.json` |
-  | `build` | `webpack.config.js`, `tsconfig.json`, `package.json`, `eslint.config.js`, `.prettierrc`, `.gitignore` |
+  | `build` | `webpack.config.js`, `tsconfig.json`, `package.json`, `eslint.config.js`, `.prettierrc`, `.gitignore`, `.gitattributes` |
   | `docs` | `README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `.claude/` |
 
 - 件名は**動詞の原形で始める**（imperative mood）。`Fixed` / `Fixes` / 名詞句にしない
@@ -119,7 +144,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 本文は任意。書くなら**なぜそうしたか**を書く（差分を読めば分かるファイル列挙は書かない）
 - **`Co-Authored-By` と生成表示（「🤖 Generated with Claude Code」等）を付けない。**
 
-### 良い例（`feat/queue-robustness` の実際のコミットから）
+### 良い例（`develop` の実際のコミットから）
 
 ```
 fix: add checkboxes as the list renders instead of once at document_idle
@@ -132,7 +157,7 @@ perf: return to the recorded page when deleting instead of scanning from page 1
 ```
 feat: initial scaffold with bulk relist/publish core flow
 ```
-→ 件名 52 字で 50 字超過（`main` の `d99546a`）。今後は踏襲しない。
+→ 件名 52 字で 50 字超過（ルートコミットの `d99546a`）。今後は踏襲しない。
 
 ```
 fix: bug fix
@@ -159,24 +184,24 @@ update queue-manager.ts
 
 パッケージは**ルート 1 つだけ**（モノレポではない）。すべてリポジトリルートで実行する。
 
-| 項目 | コマンド | 現状（2026-09-19 / `d99546a` 実測） |
+| 項目 | コマンド | 現状（2026-09-19 実測） |
 | --- | --- | --- |
 | 型チェック | `npx tsc --noEmit` | **通過**（exit 0）。約 5 秒 |
-| ビルド | `npm run build` | **通過**（exit 0）。約 6 秒（webpack 自体は約 2 秒。初回は 30 秒以上かかることがある） |
-| 静的解析 | `npm run lint` | **通過**（exit 0）。約 6 秒 |
-| フォーマット | `npm run format:check` | **落ちる**（exit 1 / `src` の全 16 ファイルに差分） |
+| ビルド | `npm run build` | **通過**（exit 0）。約 6 秒（初回は 30 秒以上かかることがある） |
+| 静的解析 | `npm run lint` | **通過**（exit 0）。約 4 秒 |
+| フォーマット | `npm run format:check` | **通過**（exit 0）。約 3 秒 |
 | テスト | （無し） | テストフレームワーク未導入 |
 
-その他のコマンドは [README.md の「コマンド」](README.md) を参照。
+**4 つとも通るのが正常。落ちたらそれは自分の変更のせい。** その他のコマンドは [README.md の「コマンド」](README.md) を参照。
 
 ### 落とし穴
 
-- **`npm run lint` は現在通っている。落ちたらそれは自分の変更のせい。** 通っている状態を壊さないこと。
-- **`npm run format:check` は元から落ちる**（`src` の全 16 ファイル。つまり全ソースが未整形）。これだけは自分の変更が正しくても落ちる。**自分が触ったファイルの指摘が増えていないか**で判断する。
-  - **一括整形は `feat/queue-robustness` を `develop` に統合した後に行う**（2026-09-19 に決定）。先に整形すると、同じファイルを大きく書き換えている未統合の 13 コミットと衝突する。統合後の一括整形（`style:` の独立コミット）が済んだら、この項目と上の表を更新する。
-  - それまでの間、**リポジトリ全体に `npm run format` をかけない**（差分が膨れて本来の変更が埋もれる）。触ったファイルだけ `npx prettier --write <パス>` で直す。
+- **改行コードは [.gitattributes](.gitattributes) で LF に固定している。** Prettier の `endOfLine` 既定値が `"lf"` のため、作業ツリーが CRLF になると中身が整形済みでも `format:check` が全ファイルを差分として報告する（2026-09-19 まで実際にそうなっていた）。`core.autocrlf` の設定に関わらず LF でチェックアウトされる。**`format:check` が全ファイルで落ちたら、まず改行コードを疑う**（`git ls-files --eol <パス>` の `w/` が `lf` か）。
+- **`npm run format` でリポジトリ全体を一括整形しない。** 触ったファイルだけ `npx prettier --write <パス>` で直す（差分が膨れて本来の変更が埋もれる）。
 - **型チェックに `npm run build:tsc` を使わない。** これは `tsc`（`--noEmit` なし）なので `dist/` に成果物を吐いてビルド出力を汚す。型チェックは必ず `npx tsc --noEmit`。
 - **`lint` スクリプトの `--ext .ts,.js` は flat config では効いていない。** 実際の対象は [eslint.config.js](eslint.config.js) の `files: ['**/*.ts', '**/*.tsx']` だけで、`webpack.config.js` や `eslint.config.js` 自身は lint されない。
+- **ビルドが通っても動作確認にはならない。** 自動テストが無いため、挙動を変えたら Chrome に読み込んで確かめる（`local-setup` スキル）。確かめていないなら報告に「未検証」と書く。
+- **`manifest.json` を変えたらページのリロードでは反映されない。** `chrome://extensions` で拡張自体を再読み込みする（`dist/*.js` の変更はページのリロードで反映される）。
 
 ### CI
 
