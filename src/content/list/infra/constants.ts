@@ -44,6 +44,18 @@ export const SELECTOR = {
 };
 
 /**
+ * ラクマ側の表記に依存するラベル。
+ *
+ * セレクタと同じくラクマの変更で崩れる値なので、ここに集めて一覧できるようにする。
+ * 実機の表記と 1 文字でも違うと要素が見つからなくなるため、
+ * 値は実機を確認せずに変えないこと。
+ */
+export const LABEL = {
+  /** 削除リンクのラベル。取り消せない操作なのでクリック前に必ず一致を確認する */
+  DELETE: '削除',
+};
+
+/**
  * CSSクラス名定数（この拡張が付与するもの）
  */
 export const CLASS_NAME = {
@@ -72,4 +84,12 @@ export const CONFIG = {
   DELETE_DELAY_MS: 2000,
   /** 削除の待機時間に加算するランダム値の最大 (ms) */
   DELETE_RANDOM_MS: 2000,
+  /** ページ移動が反映されるまでの最大待機時間 (ms) */
+  PAGE_CHANGE_TIMEOUT_MS: 15000,
+  /** ページ移動の確認間隔 (ms) */
+  PAGE_POLL_INTERVAL_MS: 300,
+  /** ページ移動を諦めるまでの試行回数（リンクが飛び飛びのとき複数回かかる） */
+  MAX_NAVIGATION_STEPS: 10,
+  /** 一覧の連続するDOM変化をまとめる待ち時間 (ms) */
+  LIST_DEBOUNCE_MS: 300,
 };

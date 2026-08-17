@@ -1,4 +1,4 @@
-import { SELECTOR } from '../infra/constants';
+import { LABEL, SELECTOR } from '../infra/constants';
 import { PageTypeValue } from '../infra/page-detector';
 import { collectItems } from './item-collector';
 import { warn } from '../../../common/logger';
@@ -10,9 +10,6 @@ import { warn } from '../../../common/logger';
  * （`<a data-method="delete" data-confirm="本当に削除してもよろしいですか？">`）。
  * `data-remote` を持たないため、クリックするとページ遷移が起きる。
  */
-
-/** 削除リンクのラベル。取り消せない操作なのでクリック前に必ず一致を確認する */
-const DELETE_LABEL = '削除';
 
 /**
  * 指定商品の削除リンクを探す。
@@ -28,7 +25,7 @@ export function findDeleteLink(pageType: PageTypeValue, itemId: string): HTMLAnc
   if (!link) return null;
 
   const label = link.textContent?.trim();
-  if (label !== DELETE_LABEL) {
+  if (label !== LABEL.DELETE) {
     warn(`削除リンクのラベルが想定と異なるためクリックしません: ${label}`);
     return null;
   }

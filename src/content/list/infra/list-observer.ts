@@ -9,8 +9,7 @@
  * ページ送りでリストが差し替わった場合にも同じ仕組みで追従できる。
  */
 
-/** 連続するDOM変化をまとめる待ち時間 (ms) */
-const DEBOUNCE_MS = 300;
+import { CONFIG } from './constants';
 
 /**
  * body配下のDOM変化を監視し、落ち着いたタイミングで onChange を呼ぶ。
@@ -28,7 +27,7 @@ export function observeListChanges(onChange: () => void): void {
     timer = window.setTimeout(() => {
       timer = undefined;
       onChange();
-    }, DEBOUNCE_MS);
+    }, CONFIG.LIST_DEBOUNCE_MS);
   };
 
   new MutationObserver(schedule).observe(document.body, {

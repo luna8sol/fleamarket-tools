@@ -1,4 +1,4 @@
-import { SELECTOR } from '../infra/constants';
+import { CONFIG, SELECTOR } from '../infra/constants';
 import { pollUntil } from '../../wait';
 
 /**
@@ -11,11 +11,6 @@ import { pollUntil } from '../../wait';
  * `.pagination .page.current`、他のページは `.pagination a` のリンクとして出る。
  * `/draft` のようにページャが無いページでは常に1ページとして扱う。
  */
-
-/** ページ移動が反映されるまでの最大待機時間 (ms) */
-const PAGE_CHANGE_TIMEOUT_MS = 15000;
-/** ページ移動の確認間隔 (ms) */
-const POLL_INTERVAL_MS = 300;
 
 /** 「122件中 31 - 60件」から総件数を取り出す */
 const PAGE_INFO_RE = /^(\d+)件中\s*\d+\s*-\s*\d+件$/;
@@ -67,14 +62,11 @@ export async function gotoPage(page: number): Promise<boolean> {
   link.click();
 
   const arrived = await pollUntil(() => (getCurrentPage() === page ? page : null), {
-    timeoutMs: PAGE_CHANGE_TIMEOUT_MS,
-    intervalMs: POLL_INTERVAL_MS,
+    timeoutMs: CONFIG.PAGE_CHANGE_TIMEOUT_MS,
+    intervalMs: CONFIG.PAGE_POLL_INTERVAL_MS,
   });
   return arrived !== null;
 }
-
-/** ページ移動を諦めるまでの試行回数（リンクが飛び飛びのとき複数回かかる） */
-const MAX_NAVIGATION_STEPS = 10;
 
 /** ページャにリンクとして出ているページ番号 */
 function listLinkedPages(): number[] {
@@ -117,7 +109,7 @@ function pickStepToward(current: number, target: number): number | null {
  * 目的のページに近づく方向へ段階的に移動する。
  */
 export async function navigateToPage(page: number): Promise<boolean> {
-  for (let step = 0; step < MAX_NAVIGATION_STEPS; step++) {
+  for (let step = 0; step < CONFIG.MAX_NAVIGATION_STEPS; step++) {
     if (getCurrentPage() === page) return true;
     if (await gotoPage(page)) return true;
 
