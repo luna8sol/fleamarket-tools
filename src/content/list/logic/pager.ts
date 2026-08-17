@@ -1,5 +1,5 @@
 import { SELECTOR } from '../infra/constants';
-import { delay } from '../../wait';
+import { pollUntil } from '../../wait';
 
 /**
  * 一覧ページのページ送りを扱うモジュール。
@@ -66,12 +66,11 @@ export async function gotoPage(page: number): Promise<boolean> {
 
   link.click();
 
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < PAGE_CHANGE_TIMEOUT_MS) {
-    await delay(POLL_INTERVAL_MS);
-    if (getCurrentPage() === page) return true;
-  }
-  return false;
+  const arrived = await pollUntil(() => (getCurrentPage() === page ? page : null), {
+    timeoutMs: PAGE_CHANGE_TIMEOUT_MS,
+    intervalMs: POLL_INTERVAL_MS,
+  });
+  return arrived !== null;
 }
 
 /** ページ移動を諦めるまでの試行回数（リンクが飛び飛びのとき複数回かかる） */
