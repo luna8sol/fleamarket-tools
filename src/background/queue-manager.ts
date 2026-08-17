@@ -249,18 +249,24 @@ export class QueueManager {
 
     const isForm = isFormPageUrl(this.state.mode, url);
 
-    // 候補タブが出品フォームへ到達したら、処理対象として確定する
-    if (
-      this.state.phase === 'waiting-tab' &&
-      isForm &&
-      this.state.candidateTabIds.includes(tabId)
-    ) {
-      this.state.activeTabId = tabId;
-      this.state.candidateTabIds = [];
-      this.state.phase = 'loading-form';
-      log(`出品フォームのタブを捕捉: tabId=${tabId}`);
-      await this.save();
-      return;
+    // 出品フォームへ到達したタブを処理対象として確定する。
+    //
+    // ふつうは再出品ボタンで開かれた新規タブ（candidateTabIds）だが、
+    // フリマアシストが既存のタブを使い回すこともある（失敗して残ったタブなど）。
+    // その場合 tabs.onCreated が発生せず候補に入らないため、
+    // 「いま遷移してきた」ことが分かる changeInfo.url があれば受け入れる。
+    // 一覧タブ自身は対象にしない。
+    if (this.state.phase === 'waiting-tab' && isForm && tabId !== this.state.listTabId) {
+      const isCandidate = this.state.candidateTabIds.includes(tabId);
+      const justNavigated = changeInfo.url !== undefined;
+      if (isCandidate || justNavigated) {
+        this.state.activeTabId = tabId;
+        this.state.candidateTabIds = [];
+        this.state.phase = 'loading-form';
+        log(`出品フォームのタブを捕捉: tabId=${tabId}, 新規タブ=${isCandidate}`);
+        await this.save();
+        return;
+      }
     }
 
     if (tabId !== this.state.activeTabId) return;
@@ -425,7 +431,13 @@ export class QueueManager {
 
     const message: ClickRelistMessage = { type: MessageType.CLICK_RELIST, item };
     try {
-      await chrome.tabs.sendMessage(this.state.listTabId, message);
+      const response = (await chrome.tabs.sendMessage(this.state.listTabId, message)) as
+        ClickResponse | undefined;
+      // クリックできていなければタブは開かない。ウォッチドッグで
+      // 「タブを検出できませんでした」と出るのを待たず、ここで失敗にする。
+      if (!response?.clicked) {
+        await this.failCurrent('再出品ボタンが見つかりません（一覧が更新された可能性があります）');
+      }
     } catch (e) {
       warn('一覧タブへのメッセージ送信に失敗しました', e);
       await this.failCurrent('一覧タブとの通信に失敗しました');

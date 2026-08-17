@@ -5,11 +5,17 @@ import { FormSnapshot } from './form-state';
  * 出品フォームの内容を、再出品元の商品の内容と突き合わせるモジュール。
  *
  * フリマアシストの流し込みが途中の状態で保存してしまうと、内容が欠けた
- * 下書きができる。保存の直前にここで突き合わせ、一致しない場合は保存しない。
+ * 下書きができる。保存の直前にここで突き合わせ、揃っていなければ保存しない。
  *
- * 実機で、商品ページのJSON-LDとフォームの値は商品名・説明とも完全一致する
- * ことを確認済み。そのため文字列は厳密に比較する。
+ * 検出したいのは**内容の欠落**なので、比較には向きを持たせる。
+ * フォーム側が元より多い・書式が違うぶんには問題にしない。
+ * JSON-LD とフォームは別々のシリアライズ経路であり、同じ内容でも数文字
+ * ずれることが実際にある（実測: 元779文字に対しフォーム782文字）。
+ * 厳密一致を求めると、内容は揃っているのに永久に保存できなくなる。
  */
+
+/** 正規化しきれないゆらぎを吸収する許容差（文字） */
+const DESCRIPTION_TOLERANCE = 5;
 
 export interface Difference {
   field: string;
@@ -17,9 +23,17 @@ export interface Difference {
   actual: string;
 }
 
-/** 改行表現の違いだけを吸収する */
+/** 改行コードと行末の空白のゆらぎを吸収する */
 function normalizeText(text: string): string {
-  return text.replace(/\r\n/g, '\n');
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+$/gm, '')
+    .trim();
+}
+
+/** 書式のゆらぎを完全に落として中身だけを比べる */
+function normalizeCompact(text: string): string {
+  return normalizeText(text).replace(/\s+/g, '');
 }
 
 /** 「¥7,199」のような表記から数値を取り出す */
@@ -31,32 +45,32 @@ function parsePrice(value: string): number | null {
 }
 
 /**
- * フォームの内容と再出品元を比較し、一致しない項目を返す。
+ * フォームの内容と再出品元を比較し、足りていない項目を返す。
  * 再出品元で取得できなかった項目（null）は比較しない。
  */
 export function diffAgainstSource(snapshot: FormSnapshot, expected: SourceItem): Difference[] {
   const differences: Difference[] = [];
 
   if (expected.name !== null) {
-    const actual = snapshot.itemName.trim();
-    const want = expected.name.trim();
-    if (actual !== want) {
-      differences.push({ field: '商品名', expected: want, actual: actual || '(空)' });
+    // 空白の入り方だけの違いで止めないよう、書式を落として比べる
+    if (normalizeCompact(snapshot.itemName) !== normalizeCompact(expected.name)) {
+      differences.push({
+        field: '商品名',
+        expected: expected.name.trim(),
+        actual: snapshot.itemName.trim() || '(空)',
+      });
     }
   }
 
   if (expected.description !== null) {
     const actual = normalizeText(snapshot.description);
     const want = normalizeText(expected.description);
-    if (actual !== want) {
+    // 欠落だけを見る。フォーム側が長いぶんには問題にしない
+    if (actual.length + DESCRIPTION_TOLERANCE < want.length) {
       differences.push({
         field: '商品説明',
         expected: `${want.length}文字`,
-        // 文字数が同じで中身だけ違う場合に、文字数の表示だけでは分からないため区別する
-        actual:
-          actual.length === want.length
-            ? `${actual.length}文字(内容が不一致)`
-            : `${actual.length}文字`,
+        actual: `${actual.length}文字(不足)`,
       });
     }
   }
@@ -73,11 +87,12 @@ export function diffAgainstSource(snapshot: FormSnapshot, expected: SourceItem):
   }
 
   if (expected.imageCount !== null) {
-    if (snapshot.imageCount !== expected.imageCount) {
+    // アップロード途中の不足だけを見る。多いぶんには問題にしない
+    if (snapshot.imageCount < expected.imageCount) {
       differences.push({
         field: '画像枚数',
         expected: `${expected.imageCount}枚`,
-        actual: `${snapshot.imageCount}枚`,
+        actual: `${snapshot.imageCount}枚(不足)`,
       });
     }
   }
