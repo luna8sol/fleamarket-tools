@@ -37,4 +37,18 @@ export const CONFIG = {
   CHECK_ATTEMPTS: 3,
   /** 問い合わせのリトライ間隔 (ms) */
   CHECK_RETRY_MS: 700,
+  /**
+   * 入力完了を待つあいだにフォームを読み直す間隔 (ms)。
+   *
+   * src/content/wait.ts の pollUntil の既定値と同値だが、入力完了の待機は
+   * 「変化が止まったか」を自前のループで見ており pollUntil を通らないため、
+   * 既定値に頼らずここで明示する。
+   */
+  POLL_INTERVAL_MS: 500,
+  /** 失敗理由に添えるエラー文言の最大件数 */
+  MAX_ERRORS: 4,
+  /** 失敗理由に載せるエラー文言の最大文字数。これを超えるものは説明文とみなして捨てる */
+  MAX_ERROR_LENGTH: 60,
+  /** 失敗時の手がかりに載せるボタンラベルの最大文字数。これを超えるものはボタン以外とみなして捨てる */
+  MAX_BUTTON_LABEL_LENGTH: 24,
 };

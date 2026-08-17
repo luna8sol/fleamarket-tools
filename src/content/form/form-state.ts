@@ -1,4 +1,5 @@
 import { delay } from '../wait';
+import { CONFIG } from './constants';
 
 /**
  * 出品フォームの内容を読み取り、入力が落ち着くまで待つモジュール。
@@ -11,9 +12,6 @@ import { delay } from '../wait';
  * ここでは各項目のスナップショットを取り、一定時間まったく変化しなくなった
  * ことをもって入力完了とみなす。
  */
-
-/** ポーリング間隔 (ms) */
-const POLL_INTERVAL_MS = 500;
 
 /**
  * 出品フォームの内容のスナップショット。
@@ -161,7 +159,7 @@ export async function waitForFormSettled(options: SettleOptions): Promise<Settle
       return { settled: false, snapshot, waitedMs: Date.now() - startedAt };
     }
 
-    await delay(POLL_INTERVAL_MS);
+    await delay(CONFIG.POLL_INTERVAL_MS);
 
     snapshot = collectFormSnapshot();
     const current = fingerprint(snapshot);
@@ -171,9 +169,6 @@ export async function waitForFormSettled(options: SettleOptions): Promise<Settle
     }
   }
 }
-
-/** 失敗理由に添えるエラー文言の最大件数 */
-const MAX_ERRORS = 4;
 
 /**
  * 画面に出ているバリデーションエラーの文言を集める。
@@ -188,6 +183,6 @@ export function collectValidationErrors(): string[] {
   );
   const texts = nodes
     .map((el) => el.textContent?.trim() ?? '')
-    .filter((text) => text.length > 0 && text.length <= 60);
-  return Array.from(new Set(texts)).slice(0, MAX_ERRORS);
+    .filter((text) => text.length > 0 && text.length <= CONFIG.MAX_ERROR_LENGTH);
+  return Array.from(new Set(texts)).slice(0, CONFIG.MAX_ERRORS);
 }

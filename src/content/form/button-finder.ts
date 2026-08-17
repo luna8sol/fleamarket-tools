@@ -3,6 +3,7 @@
  * css-* クラスはビルドごとに変わるハッシュのため、セレクタには使わない。
  */
 
+import { CONFIG } from './constants';
 import { waitFor } from './wait';
 
 export interface FindButtonOptions {
@@ -55,7 +56,7 @@ export function listRenderedButtonLabels(): string[] {
   const labels = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
     .filter(isRendered)
     .map((btn) => btn.textContent?.trim() ?? '')
-    .filter((label) => label.length > 0 && label.length <= 24);
+    .filter((label) => label.length > 0 && label.length <= CONFIG.MAX_BUTTON_LABEL_LENGTH);
   return Array.from(new Set(labels));
 }
 
