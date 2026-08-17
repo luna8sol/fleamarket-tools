@@ -51,9 +51,17 @@ function main(): void {
           showToast('商品を選択してください', 'warning');
           return;
         }
-        if (mode === 'relist' && !findRelistButton(selected[0].id)) {
-          showToast('フリマアシストの再出品ボタンが見つかりません', 'error');
-          return;
+        // NOTE: フリマアシストのボタンは読み込み後に非同期で注入される。
+        // 開始前に全件そろっているか確認し、不足していれば件数を伝える。
+        if (mode === 'relist') {
+          const missing = selected.filter((item) => !findRelistButton(item.id)).length;
+          if (missing > 0) {
+            showToast(
+              `フリマアシストの再出品ボタンが${missing}件見つかりません（読み込み完了後に再試行してください）`,
+              'error'
+            );
+            return;
+          }
         }
         const message: StartQueueMessage = {
           type: MessageType.START_QUEUE,

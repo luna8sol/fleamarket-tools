@@ -1,7 +1,7 @@
 import { MessageType } from '../../common/messages';
 import { log, warn } from '../../common/logger';
-import { waitForButton } from './button-finder';
-import { waitForFormFilled } from './form-state';
+import { listRenderedButtonLabels, waitForButton } from './button-finder';
+import { collectValidationErrors, waitForFormFilled } from './form-state';
 import { delay } from './wait';
 
 /** 各ボタンの出現を待つ最大時間 (ms) */
@@ -12,6 +12,23 @@ const FORM_FILL_TIMEOUT_MS = 20000;
 const FORM_SETTLE_MS = 2000;
 /** ボタンクリック間の待機時間 (ms) — 人間的な間を空ける */
 const CLICK_DELAY_MS = 1500;
+
+/**
+ * 失敗理由に画面の状況を添える。
+ * バリデーションエラーがあればそれを、なければ表示中のボタンを列挙する
+ * （「出品する」のラベルが想定と違った場合に気づけるようにする）。
+ */
+function describeFailure(reason: string): string {
+  const errors = collectValidationErrors();
+  if (errors.length > 0) {
+    return `${reason} / 入力エラー: ${errors.join(' ')}`;
+  }
+  const labels = listRenderedButtonLabels();
+  if (labels.length > 0) {
+    return `${reason} / 表示中のボタン: ${labels.join(', ')}`;
+  }
+  return reason;
+}
 
 /**
  * 出品フォーム（/drafts/{hash}/edit または /item/new）で
@@ -31,14 +48,15 @@ export async function runAutoSubmit(): Promise<void> {
     }
     await delay(FORM_SETTLE_MS);
 
+    // 実機では type="button"。submitOnly を条件にしないこと。
     const confirmBtn = await waitForButton('確認する', { timeoutMs: BUTTON_TIMEOUT_MS });
     log('「確認する」をクリック');
     confirmBtn.click();
 
-    // 確認モーダルの「出品する」（type="submit"）をクリック
+    // 確認モーダルの「出品する」。モーダルが開くまでDOMに存在しない。
     const submitBtn = await waitForButton('出品する', {
       timeoutMs: BUTTON_TIMEOUT_MS,
-      submitOnly: true,
+      preferSubmit: true,
     });
     await delay(CLICK_DELAY_MS);
 
@@ -49,7 +67,7 @@ export async function runAutoSubmit(): Promise<void> {
     log('「出品する」をクリック');
     submitBtn.click();
   } catch (e) {
-    const reason = e instanceof Error ? e.message : String(e);
+    const reason = describeFailure(e instanceof Error ? e.message : String(e));
     warn('自動出品に失敗しました:', reason);
     await chrome.runtime.sendMessage({ type: MessageType.FORM_FAILED, reason });
   }

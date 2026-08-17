@@ -6,20 +6,58 @@
 import { waitFor } from './wait';
 
 export interface FindButtonOptions {
-  /** button[type="submit"] のみを対象にする（確認モーダルの「出品する」用） */
-  submitOnly?: boolean;
+  /**
+   * button[type="submit"] を優先する（確認モーダルの「出品する」用）。
+   *
+   * NOTE: 「出品する」は確認モーダルが開くまでDOMに存在せず、実機で
+   *       type を確認できていない。type="submit" を必須条件にすると、
+   *       そうでなかった場合に全商品が失敗するため、あくまで優先条件とする。
+   */
+  preferSubmit?: boolean;
 }
 
 /**
- * ページ内のbutton要素をテキスト完全一致で探す
+ * 要素が画面に描画されているか。
+ *
+ * NOTE: Chakra UIのモーダルは position:fixed のことがあり offsetParent が
+ *       null になるため、getClientRects() で判定する。
+ */
+function isRendered(el: HTMLElement): boolean {
+  return el.getClientRects().length > 0;
+}
+
+/**
+ * ページ内のbutton要素をテキスト完全一致で探す。
+ * 描画済みのものを優先し、preferSubmit 指定時はさらに type="submit" を優先する。
  */
 export function findButtonByText(
   text: string,
   options: FindButtonOptions = {}
 ): HTMLButtonElement | null {
-  const selector = options.submitOnly ? 'button[type="submit"]' : 'button';
-  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>(selector));
-  return buttons.find((btn) => btn.textContent?.trim() === text) ?? null;
+  const matched = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).filter(
+    (btn) => btn.textContent?.trim() === text
+  );
+  if (matched.length === 0) return null;
+
+  const rendered = matched.filter(isRendered);
+  const candidates = rendered.length > 0 ? rendered : matched;
+
+  if (options.preferSubmit) {
+    const submit = candidates.find((btn) => btn.type === 'submit');
+    if (submit) return submit;
+  }
+  return candidates[0];
+}
+
+/**
+ * 現在表示されているボタンのラベル一覧。失敗時の手がかりとして使う。
+ */
+export function listRenderedButtonLabels(): string[] {
+  const labels = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+    .filter(isRendered)
+    .map((btn) => btn.textContent?.trim() ?? '')
+    .filter((label) => label.length > 0 && label.length <= 24);
+  return Array.from(new Set(labels));
 }
 
 export interface WaitForButtonOptions extends FindButtonOptions {
