@@ -43,6 +43,19 @@ type QueuePhase = 'idle' | 'waiting-tab' | 'loading-form' | 'submitting' | 'dele
 
 /**
  * キューの全状態。chrome.storage.session に丸ごと保存する。
+ *
+ * フィールドは寿命で3種類に分かれる。**新しいフィールドを足すときは
+ * まずどれに当たるかを決め、対応するリセット箇所へ加えること。**
+ *
+ * 1. キュー全体で不変: start() で設定し、以降は変えない
+ *    （mode / items / listTabId / deletePage）
+ * 2. キューの進行: 商品をまたいで積み上がる
+ *    （currentIndex / running / failed）
+ * 3. 商品ごと: processCurrent() の先頭で毎回リセットする
+ *    （activeTabId / phase / candidateTabIds / expectedSource / countBeforeDelete）
+ *
+ * モード固有かどうかは寿命とは別の軸で、リセットの要否には関係しない。
+ * 使われないモードでは初期値のまま残る（例: relistなら countBeforeDelete は null）。
  */
 interface QueueState {
   mode: QueueMode;
@@ -68,6 +81,9 @@ interface QueueState {
    * 破棄される（SelectionManager.retain）ので、対象は必ず同じ1ページに収まる。
    * さらに、ある商品を削除しても同じページの後続はそのページ内に留まる
    * （後ろのページから繰り上がってくるだけ）ため、このページへ戻れば必ず見つかる。
+   *
+   * delete固有だが寿命は「キュー全体で不変」。開始時の一覧のページ番号を
+   * 全件を通して使い回すため、商品ごとのリセット対象には**含めない**。
    */
   deletePage: number | null;
 }
@@ -375,6 +391,15 @@ export class QueueManager {
     }
 
     const item = this.state.items[this.state.currentIndex];
+
+    // 商品ごとの状態（QueueStateのコメントの3種類目）をここで揃えてから始める。
+    // 直前の商品が成功・失敗・ウォッチドッグ打ち切りのどれで終わったかに
+    // よらず同じ状態から始めるため、リセットの正本はこの1か所に置く。
+    // phase はこの後のモード分岐でそれぞれ設定する（deleteは startDelete 内）。
+    //
+    // deletePage は「キュー全体で不変」なので**触らない**。ここでnullに
+    // 戻すと2件目以降が1ページ目から探し始め、2ページ目以降の対象を
+    // 取りこぼす（＝削除できないのに進む）。
     this.state.activeTabId = null;
     this.state.candidateTabIds = [];
     this.state.expectedSource = null;
@@ -541,6 +566,16 @@ export class QueueManager {
     const action = this.state.mode === 'delete' ? '削除完了' : '出品完了';
     log(`${action}: ${item?.title ?? ''}`);
 
+    // 商品ごとの状態は次の processCurrent() で改めて揃うが、そこまでには
+    // 最大75秒の待機が挟まる。その間に届くタブのイベントが、終わった商品の
+    // 状態を掴んだまま動かないよう、ここで2つだけ先に外す。
+    // - phase='idle': handleTabCreated / handleTabUpdated が待機中に開いた
+    //   タブを候補にも処理対象にもしない（どちらも 'waiting-tab' で判定）
+    // - activeTabId=null: isAutoTab() が false になる。直後にタブを閉じるので、
+    //   これが残っていると handleTabRemoved が失敗として記録してしまう
+    //
+    // 残り（candidateTabIds / expectedSource / countBeforeDelete）は上記2つの
+    // ガードの内側でしか読まれないため、ここでは触らず processCurrent() に委ねる。
     const tabId = this.state.activeTabId;
     this.state.activeTabId = null;
     this.state.phase = 'idle';
@@ -566,6 +601,11 @@ export class QueueManager {
       this.state.failed.push({ item, reason });
     }
     this.state.currentIndex++;
+    // completeCurrent() と同じく、次の processCurrent() までの待機中に
+    // 終わった商品の状態が使われないよう phase と activeTabId を外す。
+    // candidateTabIds も空にしているが、これは phase='idle' のガードと重なる
+    // 念のための後始末で、completeCurrent() が外していないことに意味は無い
+    // （どちらの経路でも待機中に候補は積まれず、参照もされない）。
     this.state.activeTabId = null;
     this.state.candidateTabIds = [];
     this.state.phase = 'idle';
