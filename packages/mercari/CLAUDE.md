@@ -59,7 +59,7 @@
 | 選択状態・選択順の管理 | [src/content/logic/selection-manager.ts](src/content/logic/selection-manager.ts) |
 | DOM 変更の監視 | [src/content/logic/observer-manager.ts](src/content/logic/observer-manager.ts) |
 | UI 全体の組み立て | [src/content/ui/ui-manager.ts](src/content/ui/ui-manager.ts), [ui/index.ts](src/content/ui/index.ts) |
-| 注入 UI の見た目（トークン・ライト/ダーク・部品・アイコン・確認ダイアログ） | [theme.ts](src/content/ui/theme.ts), [components.ts](src/content/ui/components.ts), [icons.ts](src/content/ui/icons.ts), [confirm-dialog.ts](src/content/ui/confirm-dialog.ts) |
+| 注入 UI の見た目（トークン・ライト/ダーク・部品・アイコン・確認ダイアログ） | [theme.ts](src/content/ui/theme.ts), [components.ts](src/content/ui/components.ts), [icons.ts](src/content/ui/icons.ts)（SVG の組み立てと共通アイコンは `@fleamarket/core/icons`。固有アイコンと `mdp-icon` クラスはここ）, [confirm-dialog.ts](src/content/ui/confirm-dialog.ts) |
 | 一括操作バー | [bulk-bar-core.ts](src/content/ui/bulk-bar-core.ts), [bulk-bar-ui.ts](src/content/ui/bulk-bar-ui.ts), [bulk-bar-utils.ts](src/content/ui/bulk-bar-utils.ts), [bulk-relist.ts](src/content/ui/bulk-relist.ts) |
 | Claude API の呼び出し・プロンプト・APIキーの扱い | [src/background/](src/background/)（[claude-client.ts](src/background/claude-client.ts), [prompt.ts](src/background/prompt.ts), [api-error.ts](src/background/api-error.ts)） |
 | AI 説明文生成（編集ページ側） | [edit-entry.ts](src/content/edit-entry.ts), [edit-form.ts](src/content/logic/edit-form.ts), [description-generator.ts](src/content/logic/description-generator.ts), [description-panel.ts](src/content/ui/description-panel.ts) |
