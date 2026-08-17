@@ -1,5 +1,7 @@
 import {
+  ClickDeleteMessage,
   ClickRelistMessage,
+  ClickResponse,
   FailedItem,
   MessageType,
   QueueItem,
@@ -33,8 +35,9 @@ const STORAGE_KEY = 'rakuma-bulk-lister:queue-state';
  * - waiting-tab:  relistで一覧タブのボタンをクリックし、出品フォームのタブが開くのを待っている
  * - loading-form: 出品フォームのタブを特定し、Content Scriptの自動クリックを待っている
  * - submitting:   「出品する」までクリック済み。フォームからの離脱（＝出品完了）を待っている
+ * - deleting:     削除リンクをクリック済み。一覧の再読み込み（LIST_READY）を待っている
  */
-type QueuePhase = 'idle' | 'waiting-tab' | 'loading-form' | 'submitting';
+type QueuePhase = 'idle' | 'waiting-tab' | 'loading-form' | 'submitting' | 'deleting';
 
 /**
  * キューの全状態。chrome.storage.session に丸ごと保存する。
@@ -241,10 +244,10 @@ export class QueueManager {
   async handleTabRemoved(tabId: number): Promise<void> {
     if (!this.state.running) return;
 
-    // relistは一覧タブの再出品ボタンに依存しているため、閉じられたら続行できない
+    // relist・deleteは一覧タブのボタンに依存しているため、閉じられたら続行できない
     if (this.state.listTabId === tabId) {
       this.state.listTabId = null;
-      if (this.state.mode === 'relist') {
+      if (this.state.mode === 'relist' || this.state.mode === 'delete') {
         warn('一覧タブが閉じられたためキューを停止します');
         await this.stop();
         return;
@@ -314,6 +317,8 @@ export class QueueManager {
         return `${base}（出品フォームの自動操作が始まりませんでした）`;
       case 'submitting':
         return `${base}（出品後の画面遷移を確認できませんでした）`;
+      case 'deleting':
+        return `${base}（削除後の一覧の再読み込みを確認できませんでした）`;
       default:
         return base;
     }
@@ -334,6 +339,11 @@ export class QueueManager {
     this.state.activeTabId = null;
     this.state.candidateTabIds = [];
     log(`処理開始 (${this.state.currentIndex + 1}/${this.state.items.length}): ${item.title}`);
+
+    if (this.state.mode === 'delete') {
+      await this.startDelete(item);
+      return;
+    }
 
     if (this.state.mode === 'publish') {
       // 下書きの編集ページを直接開く
@@ -381,11 +391,64 @@ export class QueueManager {
   }
 
   /**
+   * delete: 一覧タブへ削除リンクのクリックを指示する。
+   *
+   * 削除リンクは data-remote を持たないためクリックでページ遷移が起きる。
+   * 完了は、再読み込み後の一覧にその商品が残っていないか（handleListReady）で判定する。
+   */
+  private async startDelete(item: QueueItem): Promise<void> {
+    if (this.state.listTabId === null) {
+      await this.failCurrent('一覧タブが見つかりません');
+      return;
+    }
+
+    this.state.phase = 'deleting';
+    await this.startWatchdog();
+    await this.save();
+    await this.notifyProgress();
+
+    const message: ClickDeleteMessage = { type: MessageType.CLICK_DELETE, item };
+    try {
+      const response = (await chrome.tabs.sendMessage(this.state.listTabId, message)) as
+        | ClickResponse
+        | undefined;
+      if (!response?.clicked) {
+        await this.failCurrent('削除リンクが見つかりません');
+      }
+    } catch (e) {
+      warn('一覧タブへのメッセージ送信に失敗しました', e);
+      await this.failCurrent('一覧タブとの通信に失敗しました');
+    }
+  }
+
+  /**
+   * 一覧の描画完了通知を受け取る。
+   *
+   * deleteモードでは、削除リンクをクリックするとページが遷移して一覧が
+   * 再読み込みされる。その一覧に対象商品が残っていなければ削除成功とみなす。
+   */
+  async handleListReady(tabId: number, ids: string[]): Promise<void> {
+    if (!this.state.running) return;
+    if (this.state.mode !== 'delete' || this.state.phase !== 'deleting') return;
+    if (tabId !== this.state.listTabId) return;
+
+    const item = this.state.items[this.state.currentIndex];
+    if (!item) return;
+
+    if (ids.includes(item.id)) {
+      await this.failCurrent('削除されませんでした（一覧に残っています）');
+      return;
+    }
+    await this.completeCurrent();
+  }
+
+  /**
    * 現在の商品を成功として確定し、次へ進む
    */
   private async completeCurrent(): Promise<void> {
     const item = this.state.items[this.state.currentIndex];
-    log(`出品完了: ${item?.title ?? ''}`);
+    const action = this.state.mode === 'delete' ? '削除完了' : '出品完了';
+    log(`${action}: ${item?.title ?? ''}`);
 
     const tabId = this.state.activeTabId;
     this.state.activeTabId = null;
@@ -431,6 +494,16 @@ export class QueueManager {
 
     if (this.state.currentIndex >= this.state.items.length) {
       await this.finish();
+      return;
+    }
+
+    // deleteは一覧ページ内で完結し、ページ遷移そのものが間隔になる。
+    // クリック前の待機はContent Script側で入れるため、ここでは待たない
+    // （chrome.alarms は短い遅延を指定できないため）。
+    if (this.state.mode === 'delete') {
+      await this.save();
+      await this.notifyProgress();
+      await this.processCurrent();
       return;
     }
 

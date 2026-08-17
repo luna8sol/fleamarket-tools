@@ -24,6 +24,12 @@ export const SELECTOR = {
   /** コメント数 */
   COMMENT_COUNT: '[data-test="item_comment_count"]',
 
+  /**
+   * 削除リンク（jquery_ujs）。/sell・/draft の双方で同じ形。
+   * ラベルではなく data-method で特定する。
+   */
+  DELETE_LINK: 'a.deal-item__button[data-method="delete"]',
+
   // /draft（下書き一覧）用
   /** 下書き編集ページへのリンク（hrefから下書きIDを取得） */
   DRAFT_EDIT_LINK: 'a.deal-item__button[href^="/drafts/"][href$="/edit"]',
@@ -43,6 +49,7 @@ export const ID_NAME = {
   BULK_BAR: 'rbl-bulk-bar',
   BULK_COUNT_SPAN: 'rbl-bulk-count',
   BULK_START_BTN: 'rbl-bulk-start-btn',
+  BULK_DELETE_BTN: 'rbl-bulk-delete-btn',
   BULK_STOP_BTN: 'rbl-bulk-stop-btn',
   BULK_STATUS_SPAN: 'rbl-bulk-status',
   TOAST: 'rbl-toast',

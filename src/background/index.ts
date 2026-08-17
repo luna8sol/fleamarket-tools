@@ -51,6 +51,14 @@ async function handleMessage(
       return response;
     }
 
+    case MessageType.LIST_READY: {
+      const tabId = sender.tab?.id;
+      if (tabId !== undefined) {
+        await queueManager.handleListReady(tabId, message.ids);
+      }
+      return ACK;
+    }
+
     case MessageType.FORM_SUBMITTED: {
       const tabId = sender.tab?.id;
       if (tabId !== undefined) {

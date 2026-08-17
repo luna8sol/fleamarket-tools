@@ -8,7 +8,7 @@
  *   （フリマアシストの再出品ボタンは商品ページを経由してここへ遷移する）
  */
 
-import { QueueMode } from './messages';
+import { FormMode, QueueMode } from './messages';
 
 /** ラクマ本体のオリジン。商品ページの item.fril.jp とは別ホストである点に注意 */
 const FRIL_ORIGIN = 'https://fril.jp';
@@ -22,7 +22,7 @@ const ITEM_NEW_PATH = /^\/item\/new(?:\/|$)/;
  * URLがどちらの出品フォームページかを判定する。
  * 出品フォームでなければ null を返す。
  */
-export function detectFormPageMode(url: string): QueueMode | null {
+export function detectFormPageMode(url: string): FormMode | null {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -40,5 +40,7 @@ export function detectFormPageMode(url: string): QueueMode | null {
  * URLが指定モードの出品フォームページかどうか
  */
 export function isFormPageUrl(mode: QueueMode, url: string): boolean {
+  // deleteモードは出品フォームを使わない
+  if (mode === 'delete') return false;
   return detectFormPageMode(url) === mode;
 }

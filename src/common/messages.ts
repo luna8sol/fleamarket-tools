@@ -11,8 +11,16 @@
  *            開かれた新規出品ページ (/item/new) を下書きとして保存する。
  *            この段階では出品しない（公開は publish で行う）。
  * - publish: /draft の下書きの編集ページ (/drafts/{hash}/edit) を開いて出品する
+ * - delete:  一覧ページの削除リンクを順にクリックして削除する。
+ *            /sell・/draft の双方で使える。取り消せない操作である点に注意。
  */
-export type QueueMode = 'relist' | 'publish';
+export type QueueMode = 'relist' | 'publish' | 'delete';
+
+/**
+ * 出品フォームを操作するモード。
+ * delete は一覧ページ内で完結するためフォームを持たない。
+ */
+export type FormMode = Exclude<QueueMode, 'delete'>;
 
 /**
  * キューに積む商品1件分の情報
@@ -57,6 +65,10 @@ export const MessageType = {
   GET_PROGRESS: 'GET_PROGRESS',
   /** bg → list: 指定商品の再出品ボタンをクリックせよ */
   CLICK_RELIST: 'CLICK_RELIST',
+  /** bg → list: 指定商品の削除リンクをクリックせよ */
+  CLICK_DELETE: 'CLICK_DELETE',
+  /** list → bg: 一覧の描画が終わり、現在表示中の商品IDが確定した */
+  LIST_READY: 'LIST_READY',
   /** bg → list: 進捗更新の通知 */
   QUEUE_PROGRESS: 'QUEUE_PROGRESS',
   /** form → bg: このタブは自動処理対象か問い合わせ */
@@ -88,6 +100,26 @@ export interface ClickRelistMessage {
   item: QueueItem;
 }
 
+export interface ClickDeleteMessage {
+  type: typeof MessageType.CLICK_DELETE;
+  item: QueueItem;
+}
+
+/** CLICK_RELIST / CLICK_DELETE への応答 */
+export interface ClickResponse {
+  clicked: boolean;
+}
+
+/**
+ * 一覧の描画完了通知。
+ * deleteモードでは、削除後に再読込された一覧にその商品が残っていないかで
+ * 削除の成否を判定するため、現在表示中の商品IDを添える。
+ */
+export interface ListReadyMessage {
+  type: typeof MessageType.LIST_READY;
+  ids: string[];
+}
+
 export interface QueueProgressMessage {
   type: typeof MessageType.QUEUE_PROGRESS;
   progress: QueueProgress;
@@ -116,6 +148,8 @@ export type ExtensionMessage =
   | StopQueueMessage
   | GetProgressMessage
   | ClickRelistMessage
+  | ClickDeleteMessage
+  | ListReadyMessage
   | QueueProgressMessage
   | CheckAutoTabMessage
   | FormSubmittedMessage

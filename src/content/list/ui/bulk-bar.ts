@@ -4,6 +4,7 @@ import { QueueProgress } from '../../../common/messages';
 export interface BulkBarHandlers {
   onStart: () => void;
   onStop: () => void;
+  onDelete: () => void;
 }
 
 /** 開始ボタンのラベル（ページタイプ別に指定する） */
@@ -57,6 +58,20 @@ export function renderBulkBar(options: BulkBarOptions, handlers: BulkBarHandlers
   });
   startBtn.addEventListener('click', handlers.onStart);
 
+  // 削除は取り消せないため、開始ボタンとは見た目を明確に分ける
+  const deleteBtn = document.createElement('button');
+  deleteBtn.id = ID_NAME.BULK_DELETE_BTN;
+  deleteBtn.textContent = '選択した商品を削除';
+  applyStyles(deleteBtn, {
+    padding: '8px 14px',
+    backgroundColor: '#fff',
+    color: '#555',
+    border: '1px solid #999',
+    borderRadius: '4px',
+    cursor: 'pointer',
+  });
+  deleteBtn.addEventListener('click', handlers.onDelete);
+
   const stopBtn = document.createElement('button');
   stopBtn.id = ID_NAME.BULK_STOP_BTN;
   stopBtn.textContent = '停止';
@@ -78,6 +93,7 @@ export function renderBulkBar(options: BulkBarOptions, handlers: BulkBarHandlers
 
   bar.appendChild(countSpan);
   bar.appendChild(startBtn);
+  bar.appendChild(deleteBtn);
   bar.appendChild(stopBtn);
   bar.appendChild(statusSpan);
   document.body.appendChild(bar);
@@ -98,21 +114,24 @@ export function updateCount(count: number): void {
  */
 export function updateProgress(progress: QueueProgress): void {
   const startBtn = document.getElementById(ID_NAME.BULK_START_BTN);
+  const deleteBtn = document.getElementById(ID_NAME.BULK_DELETE_BTN);
   const stopBtn = document.getElementById(ID_NAME.BULK_STOP_BTN);
   const statusSpan = document.getElementById(ID_NAME.BULK_STATUS_SPAN);
-  if (!startBtn || !stopBtn || !statusSpan) return;
+  if (!startBtn || !deleteBtn || !stopBtn || !statusSpan) return;
 
   // 失敗した商品と理由はホバーで確認できるようにする
   statusSpan.title = progress.failed.map((f) => `${f.item.title}: ${f.reason}`).join('\n');
 
   if (progress.running) {
     startBtn.style.display = 'none';
+    deleteBtn.style.display = 'none';
     stopBtn.style.display = 'inline-block';
     statusSpan.style.display = 'inline';
     const currentLabel = progress.current ? ` (${progress.current.title})` : '';
     statusSpan.textContent = `処理中 ${progress.done}/${progress.total}${currentLabel}`;
   } else {
     startBtn.style.display = 'inline-block';
+    deleteBtn.style.display = 'inline-block';
     stopBtn.style.display = 'none';
     if (progress.total > 0) {
       statusSpan.style.display = 'inline';
