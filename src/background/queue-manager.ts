@@ -1,7 +1,6 @@
 import {
   ClickDeleteMessage,
   ClickRelistMessage,
-  ClickResponse,
   FailedItem,
   MessageType,
   QueueItem,
@@ -10,6 +9,7 @@ import {
   QueueProgressMessage,
   SourceItem,
 } from '../common/messages';
+import { sendToTab } from '../common/send-message';
 import { isFormPageUrl } from '../common/form-page';
 import { fetchSourceItem } from './source-item';
 import { log, warn } from '../common/logger';
@@ -435,8 +435,7 @@ export class QueueManager {
 
         const message: ClickRelistMessage = { type: MessageType.CLICK_RELIST, item };
         try {
-          const response = (await chrome.tabs.sendMessage(this.state.listTabId, message)) as
-            ClickResponse | undefined;
+          const response = await sendToTab(this.state.listTabId, message);
           // クリックできていなければタブは開かない。ウォッチドッグで
           // 「タブを検出できませんでした」と出るのを待たず、ここで失敗にする。
           if (!response?.clicked) {
@@ -485,8 +484,7 @@ export class QueueManager {
       page: this.state.deletePage,
     };
     try {
-      const response = (await chrome.tabs.sendMessage(this.state.listTabId, message)) as
-        ClickResponse | undefined;
+      const response = await sendToTab(this.state.listTabId, message);
       if (!response?.clicked) {
         await this.failCurrent('削除リンクが見つかりません（どのページにもありませんでした）');
         return;
@@ -642,7 +640,7 @@ export class QueueManager {
       type: MessageType.QUEUE_PROGRESS,
       progress: this.getProgress(),
     };
-    await chrome.tabs.sendMessage(this.state.listTabId, message).catch(() => {
+    await sendToTab(this.state.listTabId, message).catch(() => {
       // 一覧タブが閉じられている場合は通知できないが、処理は継続する
     });
   }

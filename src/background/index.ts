@@ -1,4 +1,9 @@
-import { CheckAutoTabResponse, ExtensionMessage, MessageType } from '../common/messages';
+import {
+  AckResponse,
+  CheckAutoTabResponse,
+  ExtensionMessage,
+  MessageType,
+} from '../common/messages';
 import { log, warn } from '../common/logger';
 import { queueManager } from './queue-manager';
 
@@ -11,7 +16,7 @@ import { queueManager } from './queue-manager';
  */
 
 /** 応答内容を持たないメッセージへのACK */
-const ACK = { ok: true } as const;
+const ACK: AckResponse = { ok: true };
 
 /**
  * メッセージを処理し、送信側へ返す値を返す。

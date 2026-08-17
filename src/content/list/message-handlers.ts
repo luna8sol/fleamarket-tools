@@ -1,4 +1,5 @@
 import {
+  AckResponse,
   ClickDeleteMessage,
   ClickRelistMessage,
   ClickResponse,
@@ -28,7 +29,7 @@ import { delay } from '../wait';
  */
 
 type ClickSendResponse = (response: ClickResponse) => void;
-type AckSendResponse = (response: { ok: boolean }) => void;
+type AckSendResponse = (response: AckResponse) => void;
 
 /**
  * フリマアシストの再出品ボタンをクリックする。

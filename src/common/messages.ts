@@ -186,3 +186,43 @@ export type ExtensionMessage =
   | CheckAutoTabMessage
   | FormSubmittedMessage
   | FormFailedMessage;
+
+/** 応答内容を持たないメッセージへのACK */
+export interface AckResponse {
+  ok: boolean;
+}
+
+/**
+ * MessageResponses の書き漏れを防ぐための制約。
+ * ExtensionMessage のすべての種別に応答型を書くことを強制する。
+ */
+type ResponseMap<T extends Record<ExtensionMessage['type'], unknown>> = T;
+
+/**
+ * メッセージ種別ごとの応答の型。
+ *
+ * chrome.runtime.sendMessage / chrome.tabs.sendMessage の戻り値は any のため、
+ * 送ったメッセージと受け取る型の対応はここでだけ定義する（送信は
+ * src/common/send-message.ts の sendToRuntime / sendToTab を使う）。
+ * ExtensionMessage に種別を足してここに書き忘れると、ResponseMap の制約で
+ * コンパイルエラーになる。
+ *
+ * NOTE: ここに書くのは処理が成功したときの応答。Background がメッセージの処理に
+ *       失敗した場合は種別によらず { ok: false } を返すため（src/background/index.ts）、
+ *       応答を使う側は期待した内容が入っていない場合に耐えること。
+ */
+export type MessageResponses = ResponseMap<{
+  [MessageType.START_QUEUE]: AckResponse;
+  [MessageType.STOP_QUEUE]: AckResponse;
+  [MessageType.GET_PROGRESS]: QueueProgress;
+  [MessageType.CLICK_RELIST]: ClickResponse;
+  [MessageType.CLICK_DELETE]: ClickResponse;
+  [MessageType.LIST_READY]: AckResponse;
+  [MessageType.QUEUE_PROGRESS]: AckResponse;
+  [MessageType.CHECK_AUTO_TAB]: CheckAutoTabResponse;
+  [MessageType.FORM_SUBMITTED]: AckResponse;
+  [MessageType.FORM_FAILED]: AckResponse;
+}>;
+
+/** メッセージ M を送ったときに返ってくる応答の型 */
+export type ResponseTo<M extends ExtensionMessage> = MessageResponses[M['type']];

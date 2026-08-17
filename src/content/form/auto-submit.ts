@@ -1,4 +1,5 @@
 import { FormMode, MessageType, SourceItem } from '../../common/messages';
+import { sendToRuntime } from '../../common/send-message';
 import { log, warn } from '../../common/logger';
 import { listRenderedButtonLabels, waitForButton } from './button-finder';
 import {
@@ -45,7 +46,7 @@ function describeFailure(reason: string): string {
 
 async function sendFailed(reason: string): Promise<void> {
   warn('自動処理に失敗しました:', reason);
-  await chrome.runtime.sendMessage({ type: MessageType.FORM_FAILED, reason });
+  await sendToRuntime({ type: MessageType.FORM_FAILED, reason });
 }
 
 /**
@@ -60,7 +61,7 @@ async function saveAsDraft(): Promise<void> {
 
   // クリック直後にページが遷移してContent Scriptが破棄されうるため、
   // 「これから保存する」ことを先にBackgroundへ伝えておく
-  await chrome.runtime.sendMessage({ type: MessageType.FORM_SUBMITTED });
+  await sendToRuntime({ type: MessageType.FORM_SUBMITTED });
 
   log(`「${LABEL.DRAFT_SAVE}」をクリック`);
   draftBtn.click();
@@ -82,7 +83,7 @@ async function publish(): Promise<void> {
   });
   await delay(CLICK_DELAY_MS);
 
-  await chrome.runtime.sendMessage({ type: MessageType.FORM_SUBMITTED });
+  await sendToRuntime({ type: MessageType.FORM_SUBMITTED });
 
   log(`「${LABEL.PUBLISH}」をクリック`);
   submitBtn.click();

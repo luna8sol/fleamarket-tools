@@ -6,6 +6,7 @@ import {
   QueueProgress,
   StartQueueMessage,
 } from '../../../common/messages';
+import { sendToRuntime } from '../../../common/send-message';
 import { PageTypeValue } from '../infra/page-detector';
 import { collectItems } from './item-collector';
 import { getTotalItemCount } from './pager';
@@ -24,7 +25,7 @@ export function sendListReady(pageType: PageTypeValue): void {
     ids: collectItems(pageType).map((item) => item.id),
     totalCount: getTotalItemCount(),
   };
-  void chrome.runtime.sendMessage(message);
+  void sendToRuntime(message);
 }
 
 /**
@@ -35,21 +36,19 @@ export function sendListReady(pageType: PageTypeValue): void {
  */
 export function sendStartQueue(mode: QueueMode, items: QueueItem[], listPage?: number): void {
   const message: StartQueueMessage = { type: MessageType.START_QUEUE, mode, items, listPage };
-  void chrome.runtime.sendMessage(message);
+  void sendToRuntime(message);
 }
 
 /**
  * キューの停止をBackgroundへ依頼する。
  */
 export function sendStopQueue(): void {
-  void chrome.runtime.sendMessage({ type: MessageType.STOP_QUEUE });
+  void sendToRuntime({ type: MessageType.STOP_QUEUE });
 }
 
 /**
  * Backgroundが保持している現在の進捗を取得する。
  */
 export async function requestProgress(): Promise<QueueProgress | undefined> {
-  return (await chrome.runtime.sendMessage({
-    type: MessageType.GET_PROGRESS,
-  })) as QueueProgress | undefined;
+  return sendToRuntime({ type: MessageType.GET_PROGRESS });
 }

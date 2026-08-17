@@ -44,6 +44,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | ブランチ運用・コミットメッセージ・コードスタイル | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | 拡張機能の権限・対象 URL・エントリーポイント | [manifest.json](manifest.json) |
 | Background ⇔ Content のメッセージ型・キューの型 | [src/common/messages.ts](src/common/messages.ts) |
+| メッセージ送信のラッパー（応答型の解決） | [src/common/send-message.ts](src/common/send-message.ts) |
 | 処理キュー・タブ追跡・完了検知・待機・ウォッチドッグ | [src/background/queue-manager.ts](src/background/queue-manager.ts) |
 | Background の配線（メッセージ・タブ・アラーム） | [src/background/index.ts](src/background/index.ts) |
 | 再出品元の商品ページの取得（JSON-LD / 画像枚数） | [src/background/source-item.ts](src/background/source-item.ts) |
@@ -92,6 +93,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 未使用 import は自動検出・エラー扱い
 - 一覧ページの DOM セレクタ・クラス名・ID・設定値は必ず [src/content/list/infra/constants.ts](src/content/list/infra/constants.ts) に追加する
 - Background ⇔ Content のやり取りは必ず [src/common/messages.ts](src/common/messages.ts) の型を経由する。新しいメッセージはまずここに型を足す
+- 送信は [src/common/send-message.ts](src/common/send-message.ts) の `sendToTab` / `sendToRuntime` を使う。`chrome.tabs.sendMessage` / `chrome.runtime.sendMessage` を呼び出し側から直接呼ばない（戻り値が `any` のため、呼び出し側ごとに型アサーションを書くと応答型の食い違いを検査できない）。応答型は `messages.ts` の `MessageResponses` に書く
 - 出品フォームページの URL 判定は [src/common/form-page.ts](src/common/form-page.ts) に集約する（Background と Content の双方から使うため、片側に直書きしない）
 - キューの状態を増やしたら `chrome.storage.session` に保存される形にする（Service Worker が破棄されても続きから処理できること）
 - 主要なマネージャークラスはファイル末尾でシングルトンとしてエクスポートする（例: `export const queueManager = new QueueManager()`）

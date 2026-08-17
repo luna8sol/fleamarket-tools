@@ -1,4 +1,5 @@
 import { CheckAutoTabResponse, MessageType, SourceItem } from '../../common/messages';
+import { sendToRuntime } from '../../common/send-message';
 import { detectFormPageMode } from '../../common/form-page';
 import { debug, log, setDebugMode, warn } from '../../common/logger';
 import { runAutoSubmit } from './auto-submit';
@@ -42,9 +43,7 @@ function markState(state: 'checking' | 'auto' | 'manual'): void {
 async function checkAutoTab(): Promise<CheckAutoTabResponse | null> {
   for (let i = 0; i < CHECK_ATTEMPTS; i++) {
     try {
-      const response = (await chrome.runtime.sendMessage({
-        type: MessageType.CHECK_AUTO_TAB,
-      })) as CheckAutoTabResponse | undefined;
+      const response = await sendToRuntime({ type: MessageType.CHECK_AUTO_TAB });
       if (response?.isAutoTab) return response;
     } catch (e) {
       warn('Backgroundへの問い合わせに失敗しました', e);
