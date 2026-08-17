@@ -58,9 +58,13 @@ const STORAGE_KEY = 'rakuma-bulk-lister:queue-state';
  * - waiting-tab:  relistで一覧タブのボタンをクリックし、出品フォームのタブが開くのを待っている
  * - loading-form: 出品フォームのタブを特定し、Content Scriptの自動クリックを待っている
  * - submitting:   「出品する」までクリック済み。フォームからの離脱（＝出品完了）を待っている
+ * - verifying:    replace で編集ページから離れたあと、商品ページで本文を再照合している。
+ *                 tabs.onUpdated は 1 回の遷移で複数回（url / status）来るため、照合の await 中に
+ *                 completeCurrent が再入して同じ商品を二重に完了させないよう、この間は
+ *                 submitting と区別する
  * - deleting:     削除リンクをクリック済み。一覧の再読み込み（LIST_READY）を待っている
  */
-type QueuePhase = 'idle' | 'waiting-tab' | 'loading-form' | 'submitting' | 'deleting';
+type QueuePhase = 'idle' | 'waiting-tab' | 'loading-form' | 'submitting' | 'verifying' | 'deleting';
 
 /**
  * キューの全状態。chrome.storage.session に丸ごと保存する。
@@ -509,6 +513,8 @@ export class QueueManager {
         return `${base}（出品フォームの自動操作が始まりませんでした）`;
       case 'submitting':
         return `${base}（保存後の画面遷移を確認できませんでした）`;
+      case 'verifying':
+        return `${base}（保存後の商品ページの再照合が終わりませんでした）`;
       case 'deleting':
         return `${base}（削除後の一覧の再読み込みを確認できませんでした）`;
       default:
@@ -704,8 +710,15 @@ export class QueueManager {
     const item = this.state.items[this.state.currentIndex];
 
     // replace: 保存ボタンを押して編集ページから離れた。保存後の本文を商品ページで再照合し、
-    // 一致して初めて成功にする。確認できなければ「未確認」（保存自体は済んでいる可能性がある）
+    // 一致して初めて成功にする。確認できなければ「未確認」（保存自体は済んでいる可能性がある）。
+    //
+    // 照合は fetch を伴い数秒かかる。その間に同じタブの onUpdated（status: loading / complete）が
+    // 届いて completeCurrent が再入すると、同じ商品を二重に完了させて次の商品を飛ばしてしまう
+    // （実機で発生: 2 件目の記録に 1 件目の結果が書かれ、2 件目は処理されなかった）。
+    // await の前にフェーズを変えて再入を閉じる。
     if (this.state.mode === 'replace' && this.state.phase === 'submitting' && item) {
+      this.state.phase = 'verifying';
+      await this.save();
       await this.verifyReplaced(item);
     }
 
@@ -744,8 +757,8 @@ export class QueueManager {
     const item = this.state.items[this.state.currentIndex];
     if (item) {
       if (this.state.mode === 'replace') {
-        // 保存ボタンを押したあと（submitting）の失敗は、保存された可能性がある
-        const saved = this.state.phase === 'submitting';
+        // 保存ボタンを押したあと（submitting / verifying）の失敗は、保存された可能性がある
+        const saved = this.state.phase === 'submitting' || this.state.phase === 'verifying';
         await this.recordReplace(saved ? 'unverified' : replaceOutcome, saved, reason);
       } else {
         const action = QUEUE_MODE_TRAITS[this.state.mode].actionLabel;

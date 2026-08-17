@@ -45,9 +45,22 @@ function isReplaceRecord(value: unknown): value is ReplaceRecord {
   );
 }
 
-/** 記録上、次の実行から外してよい結果か */
+/**
+ * 記録上、次の実行から外してよい結果か。
+ *
+ * 結果種別だけでは信用しない。applied は「保存後に商品ページから読んだ本文」が確定版と
+ * 一致していること、already は「開いた時点の本文」が確定版と一致していることまで確かめる。
+ * 記録の内部で辻褄が合っていない（完了処理の二重実行などで別の商品の照合結果が
+ * 書かれた）ものを適用済み扱いにすると、その商品が永久に処理されなくなるため。
+ */
 export function isReplaceDone(record: ReplaceRecord): boolean {
-  return DONE_OUTCOMES.includes(record.outcome);
+  if (!DONE_OUTCOMES.includes(record.outcome)) return false;
+  if (record.outcome === 'applied') {
+    return record.liveLength === record.expectedLength && record.liveHash === record.expectedHash;
+  }
+  return (
+    record.currentLength === record.expectedLength && record.currentHash === record.expectedHash
+  );
 }
 
 /**
