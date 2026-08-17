@@ -1,6 +1,7 @@
 import { ExtStorageKey, getExtStorage, setExtStorage } from '../../common/ext-storage';
 import { debug, warn } from './logger';
-import { DescriptionReplaceOutcome, DescriptionReplaceRecord } from './types';
+import { DescriptionReplaceRecord } from './types';
+import { createReplaceStore } from '@fleamarket/core/replace-store';
 
 /**
  * 説明文の一括置換の処理記録。
@@ -11,40 +12,19 @@ import { DescriptionReplaceOutcome, DescriptionReplaceRecord } from './types';
  *
  * **記録が無くても二重に保存されることはありません。** 1 件ずつ開いた時点の本文を
  * 確定版・原本と照合してから書くので、記録はあくまで「開く手間を省く」ためのものです。
- */
-
-/** 記録上「処理済み」として次の実行から外す結果種別 */
-const DONE_OUTCOMES: readonly DescriptionReplaceOutcome[] = ['applied', 'already'];
-
-/** ストレージに入りうる結果種別（読み出し時の検証に使う） */
-const KNOWN_OUTCOMES: readonly DescriptionReplaceOutcome[] = [
-  'applied',
-  'already',
-  'skipped',
-  'failed',
-  'unverified',
-];
-
-/**
- * ストレージから読んだ値が処理記録の形をしているかを確かめる
  *
- * `chrome.storage.local` の中身は型どおりとは限らないため、必要な項目だけ確認します。
- *
- * @param value 検証対象
- * @returns 処理記録として扱えれば true
+ * 読み込み・検証・書き戻しの骨格は共有部品 `@fleamarket/core/replace-store` にあります。
+ * ここでは、この拡張のストレージキー（`ExtStorageKey.DESCRIPTION_REPLACE_RECORDS`。読み書きの
+ * 失敗時のログは ext-storage 側）と、保存後の debug ログを注入します。処理済みの判定は
+ * 結果種別（`applied` / `already`）だけで行います。
  */
-function isReplaceRecord(value: unknown): value is DescriptionReplaceRecord {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.id === 'string' &&
-    typeof candidate.name === 'string' &&
-    typeof candidate.outcome === 'string' &&
-    KNOWN_OUTCOMES.includes(candidate.outcome as DescriptionReplaceOutcome) &&
-    typeof candidate.saved === 'boolean' &&
-    typeof candidate.at === 'string'
-  );
-}
+const store = createReplaceStore<DescriptionReplaceRecord>({
+  read: () => getExtStorage<unknown>(ExtStorageKey.DESCRIPTION_REPLACE_RECORDS, {}),
+  write: (records) => setExtStorage(ExtStorageKey.DESCRIPTION_REPLACE_RECORDS, records),
+  warn: (message) => warn(message),
+  afterSave: (record, saved) =>
+    debug('説明文の一括置換の記録を保存', { id: record.id, outcome: record.outcome, saved }),
+});
 
 /**
  * 記録上、次の実行から外してよい結果か
@@ -53,7 +33,7 @@ function isReplaceRecord(value: unknown): value is DescriptionReplaceRecord {
  * @returns 適用済みとして扱うなら true
  */
 export function isReplaceDone(record: DescriptionReplaceRecord): boolean {
-  return DONE_OUTCOMES.includes(record.outcome);
+  return store.isReplaceDone(record);
 }
 
 /**
@@ -63,31 +43,8 @@ export function isReplaceDone(record: DescriptionReplaceRecord): boolean {
  *
  * @returns 商品IDをキーにした処理記録
  */
-export async function loadReplaceRecords(): Promise<Record<string, DescriptionReplaceRecord>> {
-  const stored = await getExtStorage<unknown>(ExtStorageKey.DESCRIPTION_REPLACE_RECORDS, {});
-  if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) {
-    if (stored !== undefined && stored !== null) {
-      warn('説明文の一括置換の記録が想定外の形だったため無視します');
-    }
-    return {};
-  }
-
-  const records: Record<string, DescriptionReplaceRecord> = {};
-  let dropped = 0;
-
-  for (const [id, value] of Object.entries(stored as Record<string, unknown>)) {
-    if (isReplaceRecord(value) && value.id === id) {
-      records[id] = value;
-    } else {
-      dropped++;
-    }
-  }
-
-  if (dropped > 0) {
-    warn(`説明文の一括置換の記録のうち ${dropped} 件が壊れていたため無視します`);
-  }
-
-  return records;
+export function loadReplaceRecords(): Promise<Record<string, DescriptionReplaceRecord>> {
+  return store.loadReplaceRecords();
 }
 
 /**
@@ -96,11 +53,6 @@ export async function loadReplaceRecords(): Promise<Record<string, DescriptionRe
  * @param record 保存する処理記録
  * @returns 保存に成功したか
  */
-export async function saveReplaceRecord(record: DescriptionReplaceRecord): Promise<boolean> {
-  const records = await loadReplaceRecords();
-  records[record.id] = record;
-
-  const saved = await setExtStorage(ExtStorageKey.DESCRIPTION_REPLACE_RECORDS, records);
-  debug('説明文の一括置換の記録を保存', { id: record.id, outcome: record.outcome, saved });
-  return saved;
+export function saveReplaceRecord(record: DescriptionReplaceRecord): Promise<boolean> {
+  return store.saveReplaceRecord(record);
 }

@@ -68,7 +68,7 @@
 | 説明文の置換（編集ページでの 4 段の照合・確認する → 更新する） | [src/content/form/replace.ts](src/content/form/replace.ts) |
 | 説明文の置換の入力 JSON の検証・処理対象の振り分け | [src/content/list/logic/replace-plan.ts](src/content/list/logic/replace-plan.ts) |
 | 説明文の置換パネル（ファイル選択 → 件数 → 確認 → 開始 / 停止 / 結果出力） | [src/content/list/ui/replace-panel.ts](src/content/list/ui/replace-panel.ts) |
-| 説明文の置換の処理記録（`chrome.storage.local`） | [src/common/replace-store.ts](src/common/replace-store.ts) |
+| 説明文の置換の処理記録（`chrome.storage.local`） | [src/common/replace-store.ts](src/common/replace-store.ts)（骨格は `@fleamarket/core/replace-store`。キー `rakuma-bulk-lister:replace-records`・失敗時の warn・確定版の文字数とハッシュの検証・処理済み判定で記録の辻褄まで確かめる条件はここ） |
 | 文字数 + FNV-1a（8 桁 16 進表記）による本文の照合 | [src/common/text-fingerprint.ts](src/common/text-fingerprint.ts)（ハッシュの計算と改行正規化は `@fleamarket/core/text-hash`。16 進表記はここで付ける） |
 | フォーム内容の読み取り・入力完了の待機 | [src/content/form/form-state.ts](src/content/form/form-state.ts) |
 | 再出品元との差分チェック | [src/content/form/diff.ts](src/content/form/diff.ts) |
