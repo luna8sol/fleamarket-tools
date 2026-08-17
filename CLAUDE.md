@@ -67,15 +67,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | ビルド構成 | [webpack.config.js](webpack.config.js), [tsconfig.json](tsconfig.json) |
 | lint / format / 改行コード | [eslint.config.js](eslint.config.js), [.prettierrc](.prettierrc), [.gitattributes](.gitattributes) |
 
-### 既知の状態（2026-09-19 時点）
+### 既知の状態（2026-09-20 時点）
 
 **文書とコードが食い違ったらコードが正。** 古い記述を見つけたらその場で直す。
 
 - **一括削除はコードが入っているだけで、実行しての動作確認がされていない**（README の「未検証」）。DOM の構造と `data-confirm` の挙動までは実機確認済み。**取り消せない操作なので、変更するなら実機確認までを 1 単位にする。**
-- **「出品する」を押したあとの遷移先も未検証。** 完了判定は「出品フォームの URL から離れたこと」で行うため、出品完了で URL が変わらない場合は検知できず、実際には出品されているのにウォッチドッグで失敗扱いになる。兆候は失敗理由「出品後の画面遷移を確認できませんでした」として現れる。
 - **`manifest.json` の `https://fril.jp/draft*` は `/drafts/{hash}/edit`（出品フォーム）にもマッチする。** 一覧用 content script がフォームで動かないのは、[page-detector.ts](src/content/list/infra/page-detector.ts) が `/drafts` を `UNKNOWN` に落としているからで、manifest 側では除外していない。**片方だけ変えない。**
 - **キューの状態は `chrome.storage.session` に保存され、Service Worker の破棄に耐える。** 変更のたびに書き戻し、各イベントハンドラの先頭で復元する。タイマーは `setTimeout` ではなく `chrome.alarms`（SW の破棄で消えるため）。**`chrome.alarms` は 30 秒未満の遅延がクランプされる**ので、短い待機には使えない。
-- **ローカルの `main` は `origin/main` と分岐している。** 2026-09-19 にルートコミットの日時を揃えるためローカルで書き換え（`e0c9316` → `d99546a`）、手元の全ブランチを新しいルートに載せ替えた。`origin/main` は古い `e0c9316` のまま。**force push するかは人が判断する**ので、勝手に `git push --force` しない。
+- **2026-09-19 に履歴を書き換えて push し直した。** ルートコミットの日時を揃えたうえで全コミットを 10 分刻みに並べ直し（旧ルート `e0c9316` → 新ルート `d99546a`）、`main` を force push した。現在 `main` と `develop` は `origin` と一致している。**この書き換えより前のクローンが手元にあれば `git fetch && git reset --hard origin/main` で追随させること**（そのままでは pull が失敗する）。
 - **自動テストは存在しない。** 「テストを回す」は型チェック・ビルド・静的解析を回すことを指す（下記「検証」）。
 
 ## コーディングルール
