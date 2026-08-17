@@ -51,7 +51,7 @@ type QueuePhase = 'idle' | 'waiting-tab' | 'loading-form' | 'submitting' | 'dele
  *    （mode / items / listTabId / deletePage）
  * 2. キューの進行: 商品をまたいで積み上がる
  *    （currentIndex / running / failed）
- * 3. 商品ごと: processCurrent() の先頭で毎回リセットする
+ * 3. 商品ごと: resetItemState() でまとめてリセットする
  *    （activeTabId / phase / candidateTabIds / expectedSource / countBeforeDelete）
  *
  * モード固有かどうかは寿命とは別の軸で、リセットの要否には関係しない。
@@ -186,9 +186,7 @@ export class QueueManager {
   async stop(): Promise<void> {
     if (!this.state.running) return;
     this.state.running = false;
-    this.state.phase = 'idle';
-    this.state.activeTabId = null;
-    this.state.candidateTabIds = [];
+    this.resetItemState();
     await this.clearTimers();
     log('キューを停止しました');
     await this.save();
@@ -392,18 +390,10 @@ export class QueueManager {
 
     const item = this.state.items[this.state.currentIndex];
 
-    // 商品ごとの状態（QueueStateのコメントの3種類目）をここで揃えてから始める。
     // 直前の商品が成功・失敗・ウォッチドッグ打ち切りのどれで終わったかに
-    // よらず同じ状態から始めるため、リセットの正本はこの1か所に置く。
-    // phase はこの後のモード分岐でそれぞれ設定する（deleteは startDelete 内）。
-    //
-    // deletePage は「キュー全体で不変」なので**触らない**。ここでnullに
-    // 戻すと2件目以降が1ページ目から探し始め、2ページ目以降の対象を
-    // 取りこぼす（＝削除できないのに進む）。
-    this.state.activeTabId = null;
-    this.state.candidateTabIds = [];
-    this.state.expectedSource = null;
-    this.state.countBeforeDelete = null;
+    // よらず、同じ状態から始める。phase はこの直後のモード分岐でそれぞれ
+    // 設定する（deleteは startDelete 内）。
+    this.resetItemState();
     log(`処理開始 (${this.state.currentIndex + 1}/${this.state.items.length}): ${item.title}`);
 
     // モードごとの分岐は switch で網羅する。QueueMode にモードを追加したとき、
@@ -497,8 +487,9 @@ export class QueueManager {
       return;
     }
 
+    // countBeforeDelete は直前の processCurrent() の resetItemState() で
+    // null になっている。実際の件数はクリックの応答（totalCount）で入る。
     this.state.phase = 'deleting';
-    this.state.countBeforeDelete = null;
     await this.startWatchdog();
     await this.save();
     await this.notifyProgress();
@@ -566,19 +557,16 @@ export class QueueManager {
     const action = this.state.mode === 'delete' ? '削除完了' : '出品完了';
     log(`${action}: ${item?.title ?? ''}`);
 
-    // 商品ごとの状態は次の processCurrent() で改めて揃うが、そこまでには
-    // 最大75秒の待機が挟まる。その間に届くタブのイベントが、終わった商品の
-    // 状態を掴んだまま動かないよう、ここで2つだけ先に外す。
+    // このあとタブを閉じるのに使うので、リセットする前に控えておく。
+    const tabId = this.state.activeTabId;
+
+    // 次の processCurrent() までには最大75秒の待機が挟まる。その間に届く
+    // タブのイベントが、終わった商品の状態を掴んだまま動かないようにする。
     // - phase='idle': handleTabCreated / handleTabUpdated が待機中に開いた
     //   タブを候補にも処理対象にもしない（どちらも 'waiting-tab' で判定）
     // - activeTabId=null: isAutoTab() が false になる。直後にタブを閉じるので、
     //   これが残っていると handleTabRemoved が失敗として記録してしまう
-    //
-    // 残り（candidateTabIds / expectedSource / countBeforeDelete）は上記2つの
-    // ガードの内側でしか読まれないため、ここでは触らず processCurrent() に委ねる。
-    const tabId = this.state.activeTabId;
-    this.state.activeTabId = null;
-    this.state.phase = 'idle';
+    this.resetItemState();
     this.state.currentIndex++;
 
     if (tabId !== null) {
@@ -602,14 +590,34 @@ export class QueueManager {
     }
     this.state.currentIndex++;
     // completeCurrent() と同じく、次の processCurrent() までの待機中に
-    // 終わった商品の状態が使われないよう phase と activeTabId を外す。
-    // candidateTabIds も空にしているが、これは phase='idle' のガードと重なる
-    // 念のための後始末で、completeCurrent() が外していないことに意味は無い
-    // （どちらの経路でも待機中に候補は積まれず、参照もされない）。
-    this.state.activeTabId = null;
-    this.state.candidateTabIds = [];
-    this.state.phase = 'idle';
+    // 終わった商品の状態が使われないようにする。
+    // 失敗時はタブを閉じないので、ここで activeTabId を外すと
+    // そのタブは自動処理の対象から外れ、ユーザーの手元に残る。
+    this.resetItemState();
     await this.scheduleNext();
+  }
+
+  /**
+   * 商品ごとの状態（QueueStateのコメントの3種類目）をまとめて初期値に戻す。
+   *
+   * リセットの正本はこの1か所。**商品ごとの寿命を持つフィールドを足したら
+   * ここに加えること。** 逆に、キュー全体で不変のもの（mode / items /
+   * listTabId / deletePage）と、キューの進行で積み上がるもの（currentIndex /
+   * running / failed）は対象外。
+   *
+   * とくに deletePage を混ぜないこと。ここでnullに戻すと2件目以降の削除が
+   * 1ページ目から対象を探し始め、2ページ目以降の対象を取りこぼす。
+   *
+   * 呼ぶのは「1商品ぶんの処理が始まる前」と「終わった後」の両方。
+   * 後者で落としておかないと、次の processCurrent() までの待機（最大75秒）の
+   * 間に届いたタブのイベントが、終わった商品の状態のまま動いてしまう。
+   */
+  private resetItemState(): void {
+    this.state.activeTabId = null;
+    this.state.phase = 'idle';
+    this.state.candidateTabIds = [];
+    this.state.expectedSource = null;
+    this.state.countBeforeDelete = null;
   }
 
   /**
@@ -650,9 +658,7 @@ export class QueueManager {
    */
   private async finish(): Promise<void> {
     this.state.running = false;
-    this.state.phase = 'idle';
-    this.state.activeTabId = null;
-    this.state.candidateTabIds = [];
+    this.resetItemState();
     await this.clearTimers();
     log(
       `キュー完了: 成功=${this.state.items.length - this.state.failed.length}件, ` +
