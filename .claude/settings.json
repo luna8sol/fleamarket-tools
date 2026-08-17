@@ -2,15 +2,20 @@
   "permissions": {
     "allow": [
       "Bash(npm ci)",
+      "Bash(npm run check)",
       "Bash(npm run typecheck)",
+      "Bash(npm run typecheck *)",
       "Bash(npm run lint)",
+      "Bash(npm run lint *)",
       "Bash(npm run format:check)",
+      "Bash(npm run format:check *)",
       "Bash(npm run build)",
+      "Bash(npm run build *)",
       "Bash(npm run build:dev)",
       "Bash(npm run build:prod)",
       "Bash(npx tsc --noEmit)",
       "Bash(npx tsc --noEmit *)",
-      "Bash(npx eslint src *)",
+      "Bash(npx eslint *)",
       "Bash(npx prettier --check *)"
     ]
   }

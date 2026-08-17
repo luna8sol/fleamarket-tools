@@ -15,7 +15,7 @@ description: 対応済みの Claude セッションをアーカイブし、不�
 git worktree list          # worktree とそれが持つブランチ
 git branch -vv             # ローカルブランチ（+ 印が worktree に占有されているもの）
 git branch --no-merged develop
-git log --oneline origin/develop..develop   # develop の未 push 分
+git log --oneline origin/develop..develop   # develop の未 push 分（origin がある場合）
 ```
 
 セッション側は `mcp__ccd_session_mgmt__list_sessions` で一覧を取り、**`cwd` がこのリポジトリ配下のものだけに絞る**（他プロジェクトのセッションが混ざる）。

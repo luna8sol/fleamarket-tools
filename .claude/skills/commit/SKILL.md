@@ -5,7 +5,7 @@ description: 変更を git commit する。品質チェックを通したうえ�
 
 # コミットする
 
-規約の正本は [CONTRIBUTING.md](../../../CONTRIBUTING.md)（プレフィックス 8 種・コードスタイル）と [CLAUDE.md](../../../CLAUDE.md)（scope・件名の書き方）。**このリポジトリのコミットメッセージは英語で書く。**
+規約の正本は [CONTRIBUTING.md](../../../CONTRIBUTING.md)（プレフィックス 8 種・コードスタイル）と [CLAUDE.md](../../../CLAUDE.md)（scope・件名の書き方・コミット日時）。**このリポジトリのコミットメッセージは英語で書く。**
 
 **このスキルはコミットまで。** マージと push は範囲外（頼まれない限りやらない）。マージは `merge` スキル。
 
@@ -15,7 +15,7 @@ description: 変更を git commit する。品質チェックを通したうえ�
 git branch --show-current
 ```
 
-**`develop` に直接コミットしない。** いる場合は、いったんブランチを切ってからコミットする（作業ツリーの変更は保持される）:
+**`develop` と `main` に直接コミットしない。** いる場合は、いったんブランチを切ってからコミットする（作業ツリーの変更は保持される）:
 
 ```bash
 git switch -c <feature|fix|docs|refactor>/<英小文字の短い説明>
@@ -33,8 +33,8 @@ git branch -m <規約名>
 
 `quality-check` スキルを実行する。**通らないならコミットしない。**
 
-- `npx tsc --noEmit` / `npm run build` / `npm run lint` は**通るのが正常**。落ちているならコミットしない。
-- 例外は `npm run format:check` の**既存分の失敗**のみ（元から落ちている。件数は CLAUDE.md の検証表）。自分が触ったファイルが指摘に増えていたら、そのファイルだけ直す。
+- `npm run check`（型チェック・ビルド・lint）は**通るのが正常**。落ちているならコミットしない。
+- `npm run format:check` は**ラクマは通るのが正常**。**メルカリは既存コードの未通過分だけ落ちる**（件数は CLAUDE.md の検証表）。自分が触ったファイルが指摘に増えていたら、そのファイルだけ `npx prettier --write <パス>` で直す。全体を `npm run format` しない。
 
 ## 3. 変更を確認する（3 つとも見る）
 
@@ -56,11 +56,11 @@ git diff --staged
   git add -A -- <旧パス> <新パス>
   ```
 - 混ぜないもの:
-  - `.env` / API キー・トークン・顧客データを含むファイル
-  - `dist/`（gitignore 済みだが、ビルド後は存在する）
+  - `.env` / API キー・トークン・個人情報を含むファイル
+  - `packages/*/dist/`（gitignore 済みだが、ビルド後は存在する）
   - `.claude/settings.local.json`（gitignore 済み。worktree ごとの個人設定）
-  - `node_modules/`
-- このリポジトリで**コミット対象になる `.claude/` 配下**は `.claude/skills/` と `.claude/settings.json` のみ（`.gitignore` がホワイトリスト方式）。
+  - `node_modules/`、パッケージ配下にできてしまった `package-lock.json`（正はルートの 1 つだけ）
+- このリポジトリで**コミット対象になる `.claude/` 配下**は `.claude/skills/` と `.claude/settings.json` のみ（`.gitignore` がホワイトリスト方式）。`.claude/worktrees/` は除外される。
 
 ## 5. メッセージを書く
 
@@ -69,17 +69,13 @@ git diff --staged
 ```
 
 - prefix は CONTRIBUTING.md の **8 種**（`feat:` / `fix:` / `docs:` / `style:` / `refactor:` / `perf:` / `test:` / `chore:`）から選ぶ。独自に増やさない。
-- scope は CLAUDE.md の閉じた選択肢から選ぶ（`content` / `infra` / `logic` / `ui` / `popup` / `common` / `manifest` / `build` / `docs`）。複数に跨るときは付けない。
+- scope は CLAUDE.md の閉じた選択肢から選ぶ（**`mercari` / `rakuma` / `core` / `build` / `docs` の 5 つ**）。2 つ以上のパッケージに跨るときは付けない。層ごとの scope（`ui` / `list` / `form` など）は廃止済みなので使わない。
 - 件名は**動詞の原形**で始め、先頭は小文字、末尾にピリオドを打たない。**50 字以内**（`<prefix>(<scope>): ` は含めない）。
 - **「何を」「どうした」を両方入れる。**
 - 本文は任意。書くなら**なぜそうしたか**を書く（差分を読めば分かるファイル列挙は書かない）。
 - **`Co-Authored-By` と生成表示（「🤖 Generated with Claude Code」等）を付けない。**
 
-バッククォートや複数行を含む本文は、**一時ファイルに書いて `git commit -F <file>`**（シェルで壊れるため）:
-
-```bash
-git commit -F "$SCRATCHPAD/commit-msg.txt"
-```
+バッククォートや複数行を含む本文は、**スクラッチパッドに一時ファイルを書いて `git commit -F <file>`**（シェルで壊れるため）。
 
 ## 6. コミット日時を揃える
 
@@ -87,15 +83,19 @@ git commit -F "$SCRATCHPAD/commit-msg.txt"
 
 ```bash
 git --no-pager log -1 --format=%cI HEAD~1              # 親の日時を確認
-NEW_DATE="2026-04-21T13:10:00+09:00"                   # 親が 13:00 ならこれ
+NEW_DATE="2026-08-17T20:10:00+09:00"                   # 親が 20:00:00 ならこれ
 GIT_COMMITTER_DATE="$NEW_DATE" git commit --amend --no-edit --date="$NEW_DATE"
 ```
 
 - **`--date` だけでは author date しか変わらない。** committer date が実時間のまま残るので `GIT_COMMITTER_DATE` と併用する。
 - 連続して複数コミットするときは 1 本ごとに 10 分進める。
+- 基準は**直前の通常コミット**。マージコミット（`subtree add` の 2 本）の日時には合わせない。
 - **push 済みのコミットには実行しない。** amend でハッシュが変わる。必要なら実行前に理由を報告して指示を仰ぐ。
 - 揃えた結果を `git log --format='%h %cI %s'` で確認し、報告に書く。
 
 ## 7. 単位を守る
 
-大きな変更は論理的な単位に分ける。無関係な変更を 1 コミットに混ぜない。とくに、**既存コードの format 修正を機能変更と同じコミットに入れない**（`style:` で分ける）。
+大きな変更は論理的な単位に分ける。無関係な変更を 1 コミットに混ぜない。とくに:
+
+- **既存コードの format 修正を機能変更と同じコミットに入れない**（`style:` で分ける）。
+- **2 つのパッケージに同じ趣旨の変更を入れるときも、パッケージごとに分ける**（中身は別実装なので、片方だけ戻せる単位にしておく）。共有部品への移動だけは両パッケージの変更を 1 コミットにまとめてよい（分けると中間状態でビルドが壊れる）。
