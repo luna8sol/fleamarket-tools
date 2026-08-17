@@ -2,10 +2,10 @@ import { log } from '../../common/logger';
 import { PageTypeValue } from './infra/page-detector';
 import { collectItems, ListItem } from './logic/item-collector';
 import { sendListReady } from './logic/queue-client';
-import { queueState } from './logic/queue-state';
 import { selectionManager } from './logic/selection-manager';
 import { updateCount } from './ui/bulk-bar';
 import { addCheckboxes, setCheckboxesEnabled } from './ui/checkbox-manager';
+import { listRunState } from './run-state';
 
 /**
  * 一覧の描画に追従してチェックボックスを付け直すモジュール。
@@ -46,7 +46,7 @@ export function createItemSync(pageType: PageTypeValue): () => void {
     // ページ送りで一覧から消えた商品の選択は破棄する
     selectionManager.retain(new Set(items.map((item) => item.id)));
     updateCount(selectionManager.getCount());
-    if (queueState.isQueueRunning()) {
+    if (listRunState.isQueueRunning()) {
       setCheckboxesEnabled(false);
     }
 

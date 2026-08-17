@@ -66,11 +66,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | ページ送り（削除後に 1 ページ目へ戻る問題の対処） | [src/content/list/logic/pager.ts](src/content/list/logic/pager.ts) |
 | 選択状態・選択順の管理 | [src/content/list/logic/selection-manager.ts](src/content/list/logic/selection-manager.ts) |
 | Background へ送るメッセージ（LIST_READY・キューの開始/停止・進捗取得） | [src/content/list/logic/queue-client.ts](src/content/list/logic/queue-client.ts) |
-| 一覧ページ側のキュー実行中状態（`queueRunning` / `listReadySent`） | [src/content/list/logic/queue-state.ts](src/content/list/logic/queue-state.ts) |
 | 一覧ページの組み立て（配線のみ） | [src/content/list/index.ts](src/content/list/index.ts) |
 | 一括操作バーのボタン処理・一括削除の確認 | [src/content/list/bulk-bar-handlers.ts](src/content/list/bulk-bar-handlers.ts) |
 | 一覧の描画に追従したチェックボックスの付与 | [src/content/list/item-sync.ts](src/content/list/item-sync.ts) |
 | Background から届くメッセージの処理（クリック指示・進捗の反映） | [src/content/list/message-handlers.ts](src/content/list/message-handlers.ts) |
+| 一覧ページ側のキュー実行中状態（`queueRunning`。チェックボックスの有効/無効も同時に切り替える） | [src/content/list/run-state.ts](src/content/list/run-state.ts) |
 | 一括操作バー・チェックボックス・トースト | [ui/bulk-bar.ts](src/content/list/ui/bulk-bar.ts), [ui/checkbox-manager.ts](src/content/list/ui/checkbox-manager.ts), [ui/notification.ts](src/content/list/ui/notification.ts) |
 | ログ出力 | [src/common/logger.ts](src/common/logger.ts) |
 | ビルド構成 | [webpack.config.js](webpack.config.js), [tsconfig.json](tsconfig.json) |

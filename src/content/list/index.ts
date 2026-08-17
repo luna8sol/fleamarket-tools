@@ -3,9 +3,8 @@ import { setDebugMode, warn } from '../../common/logger';
 import { detectCurrentPage, PageType } from './infra/page-detector';
 import { observeListChanges } from './infra/list-observer';
 import { requestProgress } from './logic/queue-client';
-import { queueState } from './logic/queue-state';
 import { renderBulkBar, updateProgress } from './ui/bulk-bar';
-import { setCheckboxesEnabled } from './ui/checkbox-manager';
+import { listRunState } from './run-state';
 import { createBulkBarHandlers } from './bulk-bar-handlers';
 import { createItemSync } from './item-sync';
 import { registerMessageHandlers } from './message-handlers';
@@ -37,8 +36,7 @@ function main(): void {
   // ページ再読込時に、実行中のキューの表示を復元する
   void restoreProgress(primaryMode).then((progress) => {
     if (progress?.running) {
-      queueState.setQueueRunning(true);
-      setCheckboxesEnabled(false);
+      listRunState.setQueueRunning(true);
     }
   });
 

@@ -15,10 +15,9 @@ import { locateDeleteLink } from './logic/delete-locator';
 import { findRelistButton } from './logic/item-collector';
 import { getTotalItemCount } from './logic/pager';
 import { sendListReady } from './logic/queue-client';
-import { queueState } from './logic/queue-state';
 import { updateProgress } from './ui/bulk-bar';
-import { setCheckboxesEnabled } from './ui/checkbox-manager';
 import { showToast } from './ui/notification';
+import { listRunState } from './run-state';
 import { delay } from '../wait';
 
 /**
@@ -92,9 +91,8 @@ function handleQueueProgress(
   sendResponse: AckSendResponse
 ): boolean {
   updateProgress(message.progress);
-  queueState.setQueueRunning(message.progress.running);
+  listRunState.setQueueRunning(message.progress.running);
   if (!message.progress.running) {
-    setCheckboxesEnabled(true);
     if (message.progress.total > 0 && message.progress.done >= message.progress.total) {
       const failed = message.progress.failed.length;
       if (failed > 0) {

@@ -3,11 +3,10 @@ import { PageType, PageTypeValue } from './infra/page-detector';
 import { findRelistButton } from './logic/item-collector';
 import { getCurrentPage } from './logic/pager';
 import { sendStartQueue, sendStopQueue } from './logic/queue-client';
-import { queueState } from './logic/queue-state';
 import { selectionManager } from './logic/selection-manager';
 import { BulkBarHandlers } from './ui/bulk-bar';
-import { setCheckboxesEnabled } from './ui/checkbox-manager';
 import { showToast } from './ui/notification';
+import { listRunState } from './run-state';
 
 /**
  * 一括操作バーのボタンを押したときの処理。
@@ -15,8 +14,7 @@ import { showToast } from './ui/notification';
 
 function startQueue(mode: QueueMode, items: QueueItem[], listPage?: number): void {
   sendStartQueue(mode, items, listPage);
-  queueState.setQueueRunning(true);
-  setCheckboxesEnabled(false);
+  listRunState.setQueueRunning(true);
   showToast(`${items.length}件の処理を開始しました`, 'info');
 }
 
@@ -68,8 +66,7 @@ export function createBulkBarHandlers(
 
     onStop: (): void => {
       sendStopQueue();
-      queueState.setQueueRunning(false);
-      setCheckboxesEnabled(true);
+      listRunState.setQueueRunning(false);
       showToast('処理を停止しました', 'warning');
     },
   };
