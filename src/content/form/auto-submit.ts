@@ -29,9 +29,41 @@ function describeFailure(reason: string): string {
   return reason;
 }
 
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * 失敗をBackgroundへ伝える。
+ *
+ * ここでの送信失敗はもう伝える先が無いため warn に落として握る
+ * （unhandled rejection にすると、通知できなかったことすら残らない）。
+ */
 async function sendFailed(reason: string): Promise<void> {
   warn('自動処理に失敗しました:', reason);
-  await sendToRuntime({ type: MessageType.FORM_FAILED, reason });
+  await sendToRuntime({ type: MessageType.FORM_FAILED, reason }).catch((e) =>
+    warn('失敗の通知をBackgroundへ送れませんでした', e)
+  );
+}
+
+/**
+ * これからボタンを押すことをBackgroundへ伝える。**送れたことを確認してから押す。**
+ *
+ * クリック直後にページが遷移してContent Scriptが破棄されうるため、伝えるのは
+ * 必ずクリックの前（この順序を入れ替えない）。
+ *
+ * 送れなかった場合はクリックせずに throw して、通信失敗を理由に失敗として扱う。
+ * Backgroundが知らないまま押してしまうと、完了も失敗も観測されないまま
+ * ウォッチドッグの時間切れを待つことになり、通信に失敗したことも分からない。
+ */
+async function sendSubmittedBeforeClick(label: string): Promise<void> {
+  try {
+    await sendToRuntime({ type: MessageType.FORM_SUBMITTED });
+  } catch (e) {
+    throw new Error(
+      `Backgroundへ通知できなかったため「${label}」を押しませんでした（通信失敗: ${errorMessage(e)}）`
+    );
+  }
 }
 
 /**
@@ -44,9 +76,8 @@ async function saveAsDraft(): Promise<void> {
   const draftBtn = await waitForButton(LABEL.DRAFT_SAVE, { timeoutMs: CONFIG.BUTTON_TIMEOUT_MS });
   await delay(CONFIG.CLICK_DELAY_MS);
 
-  // クリック直後にページが遷移してContent Scriptが破棄されうるため、
-  // 「これから保存する」ことを先にBackgroundへ伝えておく
-  await sendToRuntime({ type: MessageType.FORM_SUBMITTED });
+  // 「これから保存する」ことを先にBackgroundへ伝え、送れた場合だけクリックする
+  await sendSubmittedBeforeClick(LABEL.DRAFT_SAVE);
 
   log(`「${LABEL.DRAFT_SAVE}」をクリック`);
   draftBtn.click();
@@ -68,7 +99,8 @@ async function publish(): Promise<void> {
   });
   await delay(CONFIG.CLICK_DELAY_MS);
 
-  await sendToRuntime({ type: MessageType.FORM_SUBMITTED });
+  // 「これから出品する」ことを先にBackgroundへ伝え、送れた場合だけクリックする
+  await sendSubmittedBeforeClick(LABEL.PUBLISH);
 
   log(`「${LABEL.PUBLISH}」をクリック`);
   submitBtn.click();
@@ -149,6 +181,6 @@ export async function runAutoSubmit(mode: FormMode, expected: SourceItem | null)
       await publish();
     }
   } catch (e) {
-    await sendFailed(describeFailure(e instanceof Error ? e.message : String(e)));
+    await sendFailed(describeFailure(errorMessage(e)));
   }
 }
