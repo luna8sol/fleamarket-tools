@@ -1,6 +1,7 @@
 import { FormMode, MessageType, SourceItem } from '../../common/messages';
 import { sendToRuntime } from '../../common/send-message';
 import { log, warn } from '../../common/logger';
+import { CONFIG, LABEL } from './constants';
 import { listRenderedButtonLabels, waitForButton } from './button-finder';
 import {
   collectValidationErrors,
@@ -10,22 +11,6 @@ import {
 } from './form-state';
 import { diffAgainstSource, formatDifferences } from './diff';
 import { delay } from '../wait';
-
-/** 各ボタンの出現を待つ最大時間 (ms) */
-const BUTTON_TIMEOUT_MS = 30000;
-/** フォームの内容がこの時間だけ変化しなければ入力完了とみなす (ms) */
-const FORM_STABLE_MS = 5000;
-/** 入力完了を待つ最大時間 (ms)。画像のアップロードを待つため長めにとる */
-const FORM_SETTLE_TIMEOUT_MS = 120000;
-/** ボタンクリック間の待機時間 (ms) — 人間的な間を空ける */
-const CLICK_DELAY_MS = 1500;
-
-/** ボタンのラベル */
-const LABEL = {
-  DRAFT_SAVE: '下書きに保存する',
-  CONFIRM: '確認する',
-  PUBLISH: '出品する',
-};
 
 /**
  * 失敗理由に画面の状況を添える。
@@ -56,8 +41,8 @@ async function sendFailed(reason: string): Promise<void> {
  * 公開は「下書きの商品」(/draft) からの一括出品で行う運用にするため。
  */
 async function saveAsDraft(): Promise<void> {
-  const draftBtn = await waitForButton(LABEL.DRAFT_SAVE, { timeoutMs: BUTTON_TIMEOUT_MS });
-  await delay(CLICK_DELAY_MS);
+  const draftBtn = await waitForButton(LABEL.DRAFT_SAVE, { timeoutMs: CONFIG.BUTTON_TIMEOUT_MS });
+  await delay(CONFIG.CLICK_DELAY_MS);
 
   // クリック直後にページが遷移してContent Scriptが破棄されうるため、
   // 「これから保存する」ことを先にBackgroundへ伝えておく
@@ -72,16 +57,16 @@ async function saveAsDraft(): Promise<void> {
  */
 async function publish(): Promise<void> {
   // 実機では type="button"。preferSubmit を付けないこと。
-  const confirmBtn = await waitForButton(LABEL.CONFIRM, { timeoutMs: BUTTON_TIMEOUT_MS });
+  const confirmBtn = await waitForButton(LABEL.CONFIRM, { timeoutMs: CONFIG.BUTTON_TIMEOUT_MS });
   log(`「${LABEL.CONFIRM}」をクリック`);
   confirmBtn.click();
 
   // 「出品する」は確認画面に切り替わってから現れる（モーダルではなくURLも変わらない）。
   const submitBtn = await waitForButton(LABEL.PUBLISH, {
-    timeoutMs: BUTTON_TIMEOUT_MS,
+    timeoutMs: CONFIG.BUTTON_TIMEOUT_MS,
     preferSubmit: true,
   });
-  await delay(CLICK_DELAY_MS);
+  await delay(CONFIG.CLICK_DELAY_MS);
 
   await sendToRuntime({ type: MessageType.FORM_SUBMITTED });
 
@@ -136,8 +121,8 @@ function checkReadyToSubmit(
 export async function runAutoSubmit(mode: FormMode, expected: SourceItem | null): Promise<void> {
   try {
     const { settled, snapshot, waitedMs } = await waitForFormSettled({
-      stableMs: FORM_STABLE_MS,
-      timeoutMs: FORM_SETTLE_TIMEOUT_MS,
+      stableMs: CONFIG.FORM_STABLE_MS,
+      timeoutMs: CONFIG.FORM_SETTLE_TIMEOUT_MS,
       requireImages: mode === 'relist',
       // 元の内容が分かっているなら、変化が止まるのを待つのではなく
       // 元と一致するまで待つ（画像のアップロードの合間で打ち切らないため）
@@ -156,7 +141,7 @@ export async function runAutoSubmit(mode: FormMode, expected: SourceItem | null)
       return;
     }
 
-    await delay(CLICK_DELAY_MS);
+    await delay(CONFIG.CLICK_DELAY_MS);
 
     if (mode === 'relist') {
       await saveAsDraft();

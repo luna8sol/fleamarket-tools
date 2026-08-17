@@ -54,6 +54,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | フォーム内容の読み取り・入力完了の待機 | [src/content/form/form-state.ts](src/content/form/form-state.ts) |
 | 再出品元との差分チェック | [src/content/form/diff.ts](src/content/form/diff.ts) |
 | フォームのボタン特定 | [src/content/form/button-finder.ts](src/content/form/button-finder.ts) |
+| 出品フォームのボタンラベル・設定値 | [src/content/form/constants.ts](src/content/form/constants.ts) |
 | ポーリング待機ユーティリティ | [src/content/form/wait.ts](src/content/form/wait.ts) |
 | 一定時間の待機（一覧・フォーム共通） | [src/content/wait.ts](src/content/wait.ts) |
 | セレクタ・クラス名・ID・設定値（一覧ページ） | [src/content/list/infra/constants.ts](src/content/list/infra/constants.ts) |
@@ -92,6 +93,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 文字列はシングルクォート、文末セミコロン必須
 - 未使用 import は自動検出・エラー扱い
 - 一覧ページの DOM セレクタ・クラス名・ID・設定値は必ず [src/content/list/infra/constants.ts](src/content/list/infra/constants.ts) に追加する
+- 出品フォームページのボタンラベル・タイムアウト等の設定値は必ず [src/content/form/constants.ts](src/content/form/constants.ts) に追加する。**ラベルはボタン特定に使うテキスト完全一致の値なので、実機を確認せずに変えない**
 - Background ⇔ Content のやり取りは必ず [src/common/messages.ts](src/common/messages.ts) の型を経由する。新しいメッセージはまずここに型を足す
 - 送信は [src/common/send-message.ts](src/common/send-message.ts) の `sendToTab` / `sendToRuntime` を使う。`chrome.tabs.sendMessage` / `chrome.runtime.sendMessage` を呼び出し側から直接呼ばない（戻り値が `any` のため、呼び出し側ごとに型アサーションを書くと応答型の食い違いを検査できない）。応答型は `messages.ts` の `MessageResponses` に書く
 - 出品フォームページの URL 判定は [src/common/form-page.ts](src/common/form-page.ts) に集約する（Background と Content の双方から使うため、片側に直書きしない）

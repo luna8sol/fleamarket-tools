@@ -2,6 +2,7 @@ import { CheckAutoTabResponse, MessageType, SourceItem } from '../../common/mess
 import { sendToRuntime } from '../../common/send-message';
 import { detectFormPageMode } from '../../common/form-page';
 import { debug, log, setDebugMode, warn } from '../../common/logger';
+import { CONFIG } from './constants';
 import { runAutoSubmit } from './auto-submit';
 import { delay } from '../wait';
 
@@ -13,11 +14,6 @@ import { delay } from '../wait';
  * 必ず確認し、自動処理対象の場合のみ自動出品を実行する。
  * ユーザーが手動で開いた出品ページでは何もしない。
  */
-
-/** 自動処理対象かの問い合わせ回数 */
-const CHECK_ATTEMPTS = 3;
-/** 問い合わせのリトライ間隔 (ms) */
-const CHECK_RETRY_MS = 700;
 
 /**
  * Content Scriptの状態を <html data-rbl-form="..."> に残す。
@@ -41,7 +37,7 @@ function markState(state: 'checking' | 'auto' | 'manual'): void {
  * 自動処理対象の場合、応答には再出品元の内容（差分チェック用）が含まれる。
  */
 async function checkAutoTab(): Promise<CheckAutoTabResponse | null> {
-  for (let i = 0; i < CHECK_ATTEMPTS; i++) {
+  for (let i = 0; i < CONFIG.CHECK_ATTEMPTS; i++) {
     try {
       const response = await sendToRuntime({ type: MessageType.CHECK_AUTO_TAB });
       if (response?.isAutoTab) return response;
@@ -49,8 +45,8 @@ async function checkAutoTab(): Promise<CheckAutoTabResponse | null> {
       warn('Backgroundへの問い合わせに失敗しました', e);
       return null;
     }
-    if (i < CHECK_ATTEMPTS - 1) {
-      await delay(CHECK_RETRY_MS);
+    if (i < CONFIG.CHECK_ATTEMPTS - 1) {
+      await delay(CONFIG.CHECK_RETRY_MS);
     }
   }
   return null;
