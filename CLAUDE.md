@@ -71,7 +71,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **文書とコードが食い違ったらコードが正。** 古い記述を見つけたらその場で直す。
 
-- **README の「`watchdog` アラーム: 1 商品の処理が 3 分以内に完了しない場合に打ち切る」は実装と違う。** 実際は `ITEM_WATCHDOG_MS = 300000`（**5 分**）。触ったついでに直すか、少なくとも実装側の値を信じること。
 - **一括削除はコードが入っているだけで、実行しての動作確認がされていない**（README の「未検証」）。DOM の構造と `data-confirm` の挙動までは実機確認済み。**取り消せない操作なので、変更するなら実機確認までを 1 単位にする。**
 - **「出品する」を押したあとの遷移先も未検証。** 完了判定は「出品フォームの URL から離れたこと」で行うため、出品完了で URL が変わらない場合は検知できず、実際には出品されているのにウォッチドッグで失敗扱いになる。兆候は失敗理由「出品後の画面遷移を確認できませんでした」として現れる。
 - **`manifest.json` の `https://fril.jp/draft*` は `/drafts/{hash}/edit`（出品フォーム）にもマッチする。** 一覧用 content script がフォームで動かないのは、[page-detector.ts](src/content/list/infra/page-detector.ts) が `/drafts` を `UNKNOWN` に落としているからで、manifest 側では除外していない。**片方だけ変えない。**

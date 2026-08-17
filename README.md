@@ -163,7 +163,7 @@ MV3 の Service Worker はアイドル状態が続くと破棄される。本拡
 破棄とともに消えるため）。
 
 - `next-item` アラーム: 次の商品の処理開始
-- `watchdog` アラーム: 1 商品の処理が 3 分以内に完了しない場合に打ち切る
+- `watchdog` アラーム: 1 商品の処理が 5 分以内に完了しない場合に打ち切る（`ITEM_WATCHDOG_MS`）
 
 ### 一覧の描画をMutationObserverで待つ
 
