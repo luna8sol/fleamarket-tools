@@ -59,7 +59,8 @@ async function main(): Promise<void> {
   setDebugMode(true);
 
   // 出品フォーム以外（/drafts/ 配下の他ページ等）では何もしない
-  if (detectFormPageMode(window.location.href) === null) {
+  const mode = detectFormPageMode(window.location.href);
+  if (mode === null) {
     return;
   }
 
@@ -72,8 +73,8 @@ async function main(): Promise<void> {
   }
 
   markState('auto');
-  log('自動処理対象の出品フォームとして起動');
-  await runAutoSubmit();
+  log(`自動処理対象の出品フォームとして起動: mode=${mode}`);
+  await runAutoSubmit(mode);
 }
 
 void main();

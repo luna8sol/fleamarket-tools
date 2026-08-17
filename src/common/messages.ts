@@ -8,7 +8,8 @@
 /**
  * キューの処理モード
  * - relist:  /sell でフリマアシストの再出品ボタンをクリックし、
- *            開かれた新規出品ページ (/item/new) で出品する
+ *            開かれた新規出品ページ (/item/new) を下書きとして保存する。
+ *            この段階では出品しない（公開は publish で行う）。
  * - publish: /draft の下書きの編集ページ (/drafts/{hash}/edit) を開いて出品する
  */
 export type QueueMode = 'relist' | 'publish';

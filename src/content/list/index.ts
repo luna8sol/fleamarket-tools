@@ -26,7 +26,8 @@ function main(): void {
   }
 
   const mode: QueueMode = pageType === PageType.SELL ? 'relist' : 'publish';
-  const startLabel = mode === 'relist' ? '選択した商品を再出品' : '選択した下書きをまとめて出品';
+  const startLabel =
+    mode === 'relist' ? '選択した商品を下書きに保存' : '選択した下書きをまとめて出品';
 
   /** キュー実行中は、後から現れたチェックボックスも無効にしておく */
   let queueRunning = false;
