@@ -250,6 +250,9 @@ export class QueueManager {
 
   /**
    * タブのURL変化を受け取る。出品フォームへの到達と、そこからの離脱を検知する。
+   *
+   * chrome.tabs.onUpdated からの入口はこの1つに保ちつつ、phase ごとに
+   * 専用メソッドへ委譲する（到達と離脱は発生するタイミングも意味も異なるため）。
    */
   async handleTabUpdated(
     tabId: number,
@@ -263,32 +266,53 @@ export class QueueManager {
 
     const isForm = isFormPageUrl(this.state.mode, url);
 
-    // 出品フォームへ到達したタブを処理対象として確定する。
-    //
-    // ふつうは再出品ボタンで開かれた新規タブ（candidateTabIds）だが、
-    // フリマアシストが既存のタブを使い回すこともある（失敗して残ったタブなど）。
-    // その場合 tabs.onCreated が発生せず候補に入らないため、
-    // 「いま遷移してきた」ことが分かる changeInfo.url があれば受け入れる。
-    // 一覧タブ自身は対象にしない。
-    if (this.state.phase === 'waiting-tab' && isForm && tabId !== this.state.listTabId) {
-      const isCandidate = this.state.candidateTabIds.includes(tabId);
-      const justNavigated = changeInfo.url !== undefined;
-      if (isCandidate || justNavigated) {
-        this.state.activeTabId = tabId;
-        this.state.candidateTabIds = [];
-        this.state.phase = 'loading-form';
-        log(`出品フォームのタブを捕捉: tabId=${tabId}, 新規タブ=${isCandidate}`);
-        await this.save();
-        return;
-      }
+    if (this.state.phase === 'waiting-tab') {
+      await this.handleFormArrival(tabId, changeInfo, isForm);
+      return;
     }
 
+    if (this.state.phase === 'submitting') {
+      await this.handleFormDeparture(tabId, isForm);
+    }
+  }
+
+  /**
+   * 出品フォームへ到達したタブを処理対象として確定する。
+   *
+   * ふつうは再出品ボタンで開かれた新規タブ（candidateTabIds）だが、
+   * フリマアシストが既存のタブを使い回すこともある（失敗して残ったタブなど）。
+   * その場合 tabs.onCreated が発生せず候補に入らないため、
+   * 「いま遷移してきた」ことが分かる changeInfo.url があれば受け入れる。
+   * 一覧タブ自身は対象にしない。
+   */
+  private async handleFormArrival(
+    tabId: number,
+    changeInfo: chrome.tabs.OnUpdatedInfo,
+    isForm: boolean
+  ): Promise<void> {
+    if (!isForm || tabId === this.state.listTabId) return;
+
+    const isCandidate = this.state.candidateTabIds.includes(tabId);
+    const justNavigated = changeInfo.url !== undefined;
+    if (!isCandidate && !justNavigated) return;
+
+    this.state.activeTabId = tabId;
+    this.state.candidateTabIds = [];
+    this.state.phase = 'loading-form';
+    log(`出品フォームのタブを捕捉: tabId=${tabId}, 新規タブ=${isCandidate}`);
+    await this.save();
+  }
+
+  /**
+   * 「出品する」クリック後に出品フォームのURLから離れたこと＝出品完了とみなす。
+   * 遷移先が別オリジン（item.fril.jp）になりうるため Content Script では
+   * 見届けられない。この判定は Background 側に置いたままにすること。
+   */
+  private async handleFormDeparture(tabId: number, isForm: boolean): Promise<void> {
     if (tabId !== this.state.activeTabId) return;
+    if (isForm) return;
 
-    // 「出品する」クリック後にフォームから離れた = 出品完了
-    if (this.state.phase === 'submitting' && !isForm) {
-      await this.completeCurrent();
-    }
+    await this.completeCurrent();
   }
 
   /**
