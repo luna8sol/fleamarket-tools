@@ -90,7 +90,7 @@
 | 一覧の描画に追従したチェックボックスの付与 | [src/content/list/item-sync.ts](src/content/list/item-sync.ts) |
 | Background から届くメッセージの処理（クリック指示・進捗の反映） | [src/content/list/message-handlers.ts](src/content/list/message-handlers.ts) |
 | 一覧ページ側のキュー実行中状態（`queueRunning`。チェックボックスの有効/無効も同時に切り替える） | [src/content/list/run-state.ts](src/content/list/run-state.ts) |
-| 一括操作ドック・チェックボックス・トースト | [ui/bulk-bar.ts](src/content/list/ui/bulk-bar.ts), [ui/checkbox-manager.ts](src/content/list/ui/checkbox-manager.ts), [ui/notification.ts](src/content/list/ui/notification.ts) |
+| 一括操作ドック・チェックボックス・トースト | [ui/bulk-bar.ts](src/content/list/ui/bulk-bar.ts), [ui/checkbox-manager.ts](src/content/list/ui/checkbox-manager.ts), [ui/notification.ts](src/content/list/ui/notification.ts)（トーストの組み立てと表示時間の制御は `@fleamarket/core/toast`。種別ごとの表示時間・`--rbl-toast-duration`・ホバー後は残り時間から再開する方式はここ） |
 | 確認ダイアログ（削除・置換・再出品・出品の前） | [ui/confirm-dialog.ts](src/content/list/ui/confirm-dialog.ts) |
 | 注入 UI のスタイル・共通部品 | [ui/theme.ts](src/content/list/ui/theme.ts)（CSS 本文はここ。`<style>` の注入は `@fleamarket/core/style`）, [ui/components.ts](src/content/list/ui/components.ts)（組み立ては `@fleamarket/core/components`。接頭辞 `rbl`、補足行、`renderProgress` の名前はここ） |
 | デザイントークン・ライト/ダークの設定・アイコン（注入 UI と popup で共有） | [src/common/theme.ts](src/common/theme.ts), [src/common/icons.ts](src/common/icons.ts)（SVG の組み立てと共通アイコンは `@fleamarket/core/icons`。固有アイコンと `rbl-icon` クラスはここ） |

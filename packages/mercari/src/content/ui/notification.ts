@@ -2,9 +2,21 @@ import { ID_NAME } from '../infra/constants';
 import { createIcon } from './icons';
 import { decorateIconButton } from './components';
 import { ensureTheme } from './theme';
+import { createToast } from '@fleamarket/core/toast';
 
-/** 退場アニメーションの長さ（theme.ts の mdp-toast-out と合わせる） */
-const LEAVE_ANIMATION_MS = 220;
+/**
+ * トースト通知。組み立てと表示時間の制御は共有部品 `@fleamarket/core/toast` にある。
+ * ここでは要素の id・接頭辞 `mdp`・「マウスを離したら最初から数え直す」方式を注入し、
+ * 従来のシグネチャ（表示時間を呼び出し側が渡す）を保つ。
+ */
+const toast = createToast({
+  id: ID_NAME.TOAST,
+  prefix: 'mdp',
+  hoverBehavior: 'restart',
+  createIcon,
+  decorateIconButton,
+  ensureTheme,
+});
 
 /**
  * トースト通知を表示
@@ -22,44 +34,5 @@ export function showToast(
   type: 'success' | 'error' | 'info' | 'warning' = 'info',
   duration: number = 3000
 ): void {
-  ensureTheme();
-
-  document.getElementById(ID_NAME.TOAST)?.remove();
-
-  const toast = document.createElement('div');
-  toast.id = ID_NAME.TOAST;
-  toast.className = 'mdp-toast mdp-scope';
-  toast.dataset.tone = type;
-  toast.setAttribute('role', type === 'error' || type === 'warning' ? 'alert' : 'status');
-
-  const icon = createIcon(type, 18);
-  icon.classList.add('mdp-toast__icon');
-
-  const body = document.createElement('div');
-  body.className = 'mdp-toast__body';
-  body.textContent = message;
-
-  const close = decorateIconButton(document.createElement('button'), 'close', '通知を閉じる');
-
-  toast.append(icon, body, close);
-  document.body.appendChild(toast);
-
-  let timer = 0;
-
-  const dismiss = (): void => {
-    window.clearTimeout(timer);
-    if (!toast.isConnected) return;
-    toast.dataset.leaving = 'true';
-    window.setTimeout(() => toast.remove(), LEAVE_ANIMATION_MS);
-  };
-
-  const schedule = (): void => {
-    window.clearTimeout(timer);
-    timer = window.setTimeout(dismiss, duration);
-  };
-
-  close.addEventListener('click', dismiss);
-  toast.addEventListener('mouseenter', () => window.clearTimeout(timer));
-  toast.addEventListener('mouseleave', schedule);
-  schedule();
+  toast(message, type, duration);
 }

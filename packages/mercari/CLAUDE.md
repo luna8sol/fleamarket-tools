@@ -61,6 +61,7 @@
 | UI 全体の組み立て | [src/content/ui/ui-manager.ts](src/content/ui/ui-manager.ts), [ui/index.ts](src/content/ui/index.ts) |
 | 注入 UI の見た目（トークン・ライト/ダーク・部品・アイコン・確認ダイアログ） | [theme.ts](src/content/ui/theme.ts)（CSS 本文はここ。`<style>` の注入は `@fleamarket/core/style`）, [components.ts](src/content/ui/components.ts)（組み立ては `@fleamarket/core/components`。接頭辞 `mdp` とクラス名、`updateProgress` の名前はここ）, [icons.ts](src/content/ui/icons.ts)（SVG の組み立てと共通アイコンは `@fleamarket/core/icons`。固有アイコンと `mdp-icon` クラスはここ）, [confirm-dialog.ts](src/content/ui/confirm-dialog.ts) |
 | 一括操作バー | [bulk-bar-core.ts](src/content/ui/bulk-bar-core.ts), [bulk-bar-ui.ts](src/content/ui/bulk-bar-ui.ts), [bulk-bar-utils.ts](src/content/ui/bulk-bar-utils.ts), [bulk-relist.ts](src/content/ui/bulk-relist.ts) |
+| トースト通知 | [notification.ts](src/content/ui/notification.ts)（組み立てと表示時間の制御は `@fleamarket/core/toast`。id・接頭辞 `mdp`・表示時間を引数で受けること・ホバー後は最初から数え直す方式はここ） |
 | Claude API の呼び出し・プロンプト・APIキーの扱い | [src/background/](src/background/)（[claude-client.ts](src/background/claude-client.ts), [prompt.ts](src/background/prompt.ts), [api-error.ts](src/background/api-error.ts)） |
 | AI 説明文生成（編集ページ側） | [edit-entry.ts](src/content/edit-entry.ts), [edit-form.ts](src/content/logic/edit-form.ts), [description-generator.ts](src/content/logic/description-generator.ts), [description-panel.ts](src/content/ui/description-panel.ts) |
 | APIキーの設定画面 | [options.html](options.html), [src/options/index.ts](src/options/index.ts) |
