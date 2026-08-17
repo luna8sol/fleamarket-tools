@@ -3,6 +3,7 @@ import {
   CheckAutoTabResponse,
   ExtensionMessage,
   MessageType,
+  MessageTypeValue,
 } from '../common/messages';
 import { log, warn } from '../common/logger';
 import { queueManager } from './queue-manager';
@@ -17,6 +18,24 @@ import { queueManager } from './queue-manager';
 
 /** 応答内容を持たないメッセージへのACK */
 const ACK: AckResponse = { ok: true };
+
+/**
+ * メッセージの送信元タブのIDを取り出す。
+ *
+ * 取り出せないのはContent Script以外（ポップアップ等）から送られた場合で、
+ * タブに紐づく処理はできない。黙ってACKを返すと送信側は成功したと解釈するため、
+ * ここで記録してから undefined を返す。
+ */
+function senderTabId(
+  sender: chrome.runtime.MessageSender,
+  type: MessageTypeValue
+): number | undefined {
+  const tabId = sender.tab?.id;
+  if (tabId === undefined) {
+    warn(`送信元のタブが特定できないため処理しませんでした: ${type}`);
+  }
+  return tabId;
+}
 
 /**
  * メッセージを処理し、送信側へ返す値を返す。
@@ -34,7 +53,7 @@ async function handleMessage(
 
   switch (message.type) {
     case MessageType.START_QUEUE: {
-      const listTabId = sender.tab?.id;
+      const listTabId = senderTabId(sender, message.type);
       if (listTabId !== undefined) {
         await queueManager.start(message.mode, message.items, listTabId, message.listPage);
       }
@@ -49,7 +68,7 @@ async function handleMessage(
       return queueManager.getProgress();
 
     case MessageType.CHECK_AUTO_TAB: {
-      const tabId = sender.tab?.id;
+      const tabId = senderTabId(sender, message.type);
       const isAutoTab = tabId !== undefined && queueManager.isAutoTab(tabId);
       const response: CheckAutoTabResponse = {
         isAutoTab,
@@ -59,7 +78,7 @@ async function handleMessage(
     }
 
     case MessageType.LIST_READY: {
-      const tabId = sender.tab?.id;
+      const tabId = senderTabId(sender, message.type);
       if (tabId !== undefined) {
         await queueManager.handleListReady(tabId, message.ids, message.totalCount ?? null);
       }
@@ -67,7 +86,7 @@ async function handleMessage(
     }
 
     case MessageType.FORM_SUBMITTED: {
-      const tabId = sender.tab?.id;
+      const tabId = senderTabId(sender, message.type);
       if (tabId !== undefined) {
         await queueManager.handleFormSubmitted(tabId);
       }
@@ -75,15 +94,28 @@ async function handleMessage(
     }
 
     case MessageType.FORM_FAILED: {
-      const tabId = sender.tab?.id;
+      const tabId = senderTabId(sender, message.type);
       if (tabId !== undefined) {
         await queueManager.handleFormFailed(tabId, message.reason);
       }
       return ACK;
     }
 
-    default:
+    // bg → list のメッセージ。chrome.tabs.sendMessage で一覧タブへ送るものなので
+    // ここには届かないが、下の網羅性チェックを成立させるために書いておく。
+    case MessageType.CLICK_RELIST:
+    case MessageType.CLICK_DELETE:
+    case MessageType.QUEUE_PROGRESS:
+      warn(`Background宛ではないメッセージを受け取りました: ${message.type}`);
       return ACK;
+
+    default: {
+      // 型の上では到達しない。到達したらハンドラの追加漏れなので、
+      // 黙ってACKを返さず記録する（送信側の待ち合わせのためACK自体は返す）。
+      const _exhaustive: never = message;
+      warn('未対応のメッセージ種別です', _exhaustive);
+      return ACK;
+    }
   }
 }
 
