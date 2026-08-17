@@ -1,4 +1,5 @@
 import { SELECTOR } from '../infra/constants';
+import { delay } from '../../wait';
 
 /**
  * 一覧ページのページ送りを扱うモジュール。
@@ -18,10 +19,6 @@ const POLL_INTERVAL_MS = 300;
 
 /** 「122件中 31 - 60件」から総件数を取り出す */
 const PAGE_INFO_RE = /^(\d+)件中\s*\d+\s*-\s*\d+件$/;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
 
 /** 現在表示中のページ番号。ページャが無ければ1 */
 export function getCurrentPage(): number {

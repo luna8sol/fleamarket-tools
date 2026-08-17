@@ -8,7 +8,7 @@ import {
   waitForFormSettled,
 } from './form-state';
 import { diffAgainstSource, formatDifferences } from './diff';
-import { delay } from './wait';
+import { delay } from '../wait';
 
 /** 各ボタンの出現を待つ最大時間 (ms) */
 const BUTTON_TIMEOUT_MS = 30000;

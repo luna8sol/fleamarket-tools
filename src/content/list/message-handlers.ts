@@ -18,6 +18,7 @@ import { queueState } from './logic/queue-state';
 import { updateProgress } from './ui/bulk-bar';
 import { setCheckboxesEnabled } from './ui/checkbox-manager';
 import { showToast } from './ui/notification';
+import { delay } from '../wait';
 
 /**
  * Backgroundから届くメッセージの処理。
@@ -28,10 +29,6 @@ import { showToast } from './ui/notification';
 
 type ClickSendResponse = (response: ClickResponse) => void;
 type AckSendResponse = (response: { ok: boolean }) => void;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
 
 /**
  * フリマアシストの再出品ボタンをクリックする。

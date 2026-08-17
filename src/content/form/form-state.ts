@@ -1,3 +1,5 @@
+import { delay } from '../wait';
+
 /**
  * 出品フォームの内容を読み取り、入力が落ち着くまで待つモジュール。
  *
@@ -125,10 +127,6 @@ export interface SettleResult {
   snapshot: FormSnapshot;
   /** 実際に待った時間 (ms) */
   waitedMs: number;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 /**

@@ -2,7 +2,7 @@ import { CheckAutoTabResponse, MessageType, SourceItem } from '../../common/mess
 import { detectFormPageMode } from '../../common/form-page';
 import { debug, log, setDebugMode, warn } from '../../common/logger';
 import { runAutoSubmit } from './auto-submit';
-import { delay } from './wait';
+import { delay } from '../wait';
 
 /**
  * 出品フォームページ用Content Scriptのエントリポイント。

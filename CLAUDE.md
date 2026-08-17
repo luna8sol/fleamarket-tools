@@ -54,6 +54,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 再出品元との差分チェック | [src/content/form/diff.ts](src/content/form/diff.ts) |
 | フォームのボタン特定 | [src/content/form/button-finder.ts](src/content/form/button-finder.ts) |
 | ポーリング待機ユーティリティ | [src/content/form/wait.ts](src/content/form/wait.ts) |
+| 一定時間の待機（一覧・フォーム共通） | [src/content/wait.ts](src/content/wait.ts) |
 | セレクタ・クラス名・ID・設定値（一覧ページ） | [src/content/list/infra/constants.ts](src/content/list/infra/constants.ts) |
 | ページ種別（`/sell` / `/draft`）の判定 | [src/content/list/infra/page-detector.ts](src/content/list/infra/page-detector.ts) |
 | 一覧の描画監視（MutationObserver） | [src/content/list/infra/list-observer.ts](src/content/list/infra/list-observer.ts) |
