@@ -184,14 +184,15 @@ export class QueueManager {
     if (!this.state.running || this.state.phase !== 'waiting-tab') return;
     if (tab.id === undefined) return;
 
-    // フリマアシストは一覧タブから開くため、opener が一覧タブでないものは除外する
-    if (
-      tab.openerTabId !== undefined &&
-      this.state.listTabId !== null &&
-      tab.openerTabId !== this.state.listTabId
-    ) {
-      return;
-    }
+    // フリマアシストは一覧タブから商品ページを開き、そこから出品ページへ進む。
+    // 出品ページのタブの opener は商品ページのタブになりうるため、一覧タブだけでなく
+    // 既に候補になっているタブから開かれたものも候補に含める。
+    const opener = tab.openerTabId;
+    const fromKnownTab =
+      opener === undefined ||
+      opener === this.state.listTabId ||
+      this.state.candidateTabIds.includes(opener);
+    if (!fromKnownTab) return;
 
     this.state.candidateTabIds.push(tab.id);
     await this.save();
@@ -296,7 +297,25 @@ export class QueueManager {
     if (alarmName === ALARM_WATCHDOG) {
       if (this.state.phase === 'idle') return;
       warn(`商品の処理が${Math.round(ITEM_WATCHDOG_MS / 1000)}秒以内に完了しませんでした`);
-      await this.failCurrent('処理がタイムアウトしました');
+      await this.failCurrent(this.describePhaseTimeout());
+    }
+  }
+
+  /**
+   * どの段階で止まったかを含むタイムアウト理由を返す。
+   * 失敗理由は一括操作バーのホバーで確認できるため、原因の切り分けに使う。
+   */
+  private describePhaseTimeout(): string {
+    const base = '処理がタイムアウトしました';
+    switch (this.state.phase) {
+      case 'waiting-tab':
+        return `${base}（出品フォームのタブを検出できませんでした）`;
+      case 'loading-form':
+        return `${base}（出品フォームの自動操作が始まりませんでした）`;
+      case 'submitting':
+        return `${base}（出品後の画面遷移を確認できませんでした）`;
+      default:
+        return base;
     }
   }
 
