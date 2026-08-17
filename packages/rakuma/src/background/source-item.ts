@@ -31,11 +31,17 @@ const OG_IMAGE_REVERSED_RE = /<meta[^>]+content=["']([^"']+)["'][^>]+property=["
 /** 商品画像URL中の商品番号 */
 const IMAGE_ITEM_NO_RE = /\/img\/(\d+)\//;
 
+/** `offers` の中身。ここで使うのは価格だけ */
+interface OfferJsonLd {
+  price?: number | string;
+}
+
 interface ProductJsonLd {
   name?: string;
   description?: string;
   brand?: { name?: string };
-  offers?: { price?: number | string };
+  /** schema.org では `Offer | Offer[]` のどちらでもよいので、両方受ける */
+  offers?: OfferJsonLd | OfferJsonLd[];
 }
 
 /**
@@ -70,6 +76,29 @@ function findProductJsonLd(html: string): ProductJsonLd | null {
     }
     const product = flattenNodes(parsed).find(isProductNode);
     if (product) return product;
+  }
+  return null;
+}
+
+/**
+ * JSON-LD の `offers` から価格を取り出す。見つからなければ null。
+ *
+ * schema.org では `offers` は `Offer | Offer[]` のどちらでもよい。オブジェクト決め打ちで
+ * `offers.price` を読むと、配列で来た瞬間に価格が null になる。差分チェック
+ * (src/content/form/diff.ts) は取得できなかった項目を比較しないため、価格の
+ * 突き合わせが黙って省略される。配列なら price を持つ最初の Offer を使う。
+ */
+function extractPrice(offers: ProductJsonLd['offers']): number | null {
+  for (const offer of Array.isArray(offers) ? offers : [offers]) {
+    const raw = offer?.price;
+    if (typeof raw === 'number') {
+      if (Number.isFinite(raw)) return raw;
+      continue;
+    }
+    // 空文字を弾く（Number('') は 0 になり、価格0として通ってしまう）
+    if (typeof raw !== 'string' || raw.trim() === '') continue;
+    const price = Number(raw);
+    if (Number.isFinite(price)) return price;
   }
   return null;
 }
@@ -114,12 +143,15 @@ export async function fetchSourceItem(itemId: string): Promise<SourceItem | null
       return null;
     }
 
-    const price = typeof ld.offers?.price === 'string' ? Number(ld.offers.price) : ld.offers?.price;
+    const price = extractPrice(ld.offers);
+    if (price === null) {
+      warn('商品ページのJSON-LDから価格を取得できません（価格の差分チェックを省略します）');
+    }
 
     return {
       name: ld.name ?? null,
       description: ld.description ?? null,
-      price: typeof price === 'number' && Number.isFinite(price) ? price : null,
+      price,
       brand: ld.brand?.name ?? null,
       imageCount: countImages(html),
     };
