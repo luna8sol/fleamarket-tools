@@ -3,27 +3,222 @@
 <head>
   <meta charset="UTF-8">
   <title>Rakuma Bulk Lister</title>
+  <!-- トークン（CSS 変数）と配色の属性を描画前に入れるため、head で同期的に読み込む -->
+  <script src="dist/popup.js"></script>
   <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    :root { color-scheme: light; }
+    @media (prefers-color-scheme: dark) { :root:not([data-rbl-theme="light"]) { color-scheme: dark; } }
+    :root[data-rbl-theme="dark"] { color-scheme: dark; }
+
     body {
-      width: 300px;
-      padding: 10px;
-      font-family: sans-serif;
+      width: 360px;
+      margin: 0;
+      font-family: var(--rbl-font);
+      font-size: 13px;
+      line-height: 1.5;
+      letter-spacing: 0.01em;
+      color: var(--rbl-text);
+      background: var(--rbl-surface-sunken);
+      -webkit-font-smoothing: antialiased;
+    }
+    h1, h2, p { margin: 0; }
+    .icon { flex: none; display: block; }
+    .num { font-variant-numeric: tabular-nums; }
+
+    /* 見出し */
+    .hero {
+      position: relative; overflow: hidden;
+      display: flex; align-items: center; gap: 12px;
+      padding: 18px 18px 16px;
+      background:
+        radial-gradient(140% 120% at 100% 0%, var(--rbl-accent-soft) 0%, transparent 60%),
+        var(--rbl-surface);
+      border-bottom: 1px solid var(--rbl-border);
+    }
+    .mark {
+      flex: none; display: grid; place-items: center;
+      width: 40px; height: 40px; border-radius: 12px; color: #fff;
+      background:
+        radial-gradient(120% 120% at 18% 0%, rgba(255, 255, 255, 0.35) 0%, transparent 42%),
+        linear-gradient(140deg, var(--rbl-brand-2) 0%, var(--rbl-brand) 48%, #b00000 100%);
+      box-shadow: 0 8px 18px -8px var(--rbl-ring), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+    .hero h1 { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
+    .hero p { font-size: 12px; color: var(--rbl-text-subtle); }
+    .version {
+      margin-left: auto; align-self: flex-start;
+      padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; color: var(--rbl-text-subtle);
+      background: var(--rbl-surface-sunken); box-shadow: inset 0 0 0 1px var(--rbl-border);
     }
 
-    h1 {
-      font-size: 16px;
+    main { display: grid; gap: 12px; padding: 14px; }
+    .card {
+      padding: 14px; border-radius: 16px;
+      background: var(--rbl-surface);
+      box-shadow: inset 0 0 0 1px var(--rbl-border), var(--rbl-shadow-sm);
+    }
+    .label {
+      display: block; margin-bottom: 10px;
+      font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: var(--rbl-text-subtle);
     }
 
-    p {
-      font-size: 12px;
-      color: #555;
+    /* 処理の状況 */
+    .status { display: grid; gap: 8px; }
+    .status__head { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+    .status__title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .status__count { font-size: 12px; font-weight: 700; color: var(--rbl-text-muted); }
+    .status__detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--rbl-text-subtle); }
+    .status__detail:empty { display: none; }
+    .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--rbl-text-subtle); }
+    .status[data-tone="active"] .dot { background: var(--rbl-brand); box-shadow: 0 0 0 0 var(--rbl-ring); animation: pulse 1.6s ease-out infinite; }
+    .status[data-tone="success"] .dot { background: var(--rbl-success); }
+    .status[data-tone="warning"] .dot { background: var(--rbl-warning); }
+    .status[data-tone="danger"] .dot { background: var(--rbl-danger); }
+    .track { height: 6px; border-radius: 999px; overflow: hidden; background: color-mix(in srgb, var(--rbl-text) 10%, transparent); }
+    .track[hidden] { display: none; }
+    .bar { height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--rbl-brand), var(--rbl-brand-2)); transition: width 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+    .status[data-tone="success"] .bar { background: var(--rbl-success); }
+    .status[data-tone="warning"] .bar { background: var(--rbl-warning); }
+    .status[data-tone="danger"] .bar { background: var(--rbl-danger); }
+
+    /* 一覧ページへの導線 */
+    .links { display: grid; gap: 8px; }
+    button.link {
+      all: unset; box-sizing: border-box;
+      display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
+      padding: 12px; border-radius: 13px; cursor: pointer;
+      background: var(--rbl-surface-sunken); box-shadow: inset 0 0 0 1px var(--rbl-border);
+      transition: background-color 160ms, box-shadow 160ms, transform 160ms;
+    }
+    button.link:hover { background: var(--rbl-surface-hover); box-shadow: inset 0 0 0 1px var(--rbl-border-strong); }
+    button.link:active { transform: scale(0.985); }
+    button.link:focus-visible { outline: 2px solid var(--rbl-ring); outline-offset: 2px; }
+    .link__icon {
+      display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px;
+      color: var(--rbl-accent-text); background: var(--rbl-accent-soft);
+    }
+    .link__title { display: block; font-size: 13px; font-weight: 800; color: var(--rbl-text); }
+    .link__desc { display: block; font-size: 11px; color: var(--rbl-text-subtle); }
+    .link__arrow { color: var(--rbl-text-subtle); transition: transform 160ms; }
+    button.link:hover .link__arrow { transform: translateX(2px); color: var(--rbl-text); }
+
+    /* 2 段構えの流れ */
+    .flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: start; gap: 4px; margin-top: 12px; }
+    .flow__step { display: grid; justify-items: center; gap: 4px; text-align: center; }
+    .flow__num {
+      display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px;
+      font-size: 11px; font-weight: 800; color: var(--rbl-accent-text); background: var(--rbl-accent-soft);
+    }
+    .flow__step:last-child .flow__num { color: var(--rbl-on-accent); background: var(--rbl-accent); }
+    .flow__text { font-size: 11px; line-height: 1.4; color: var(--rbl-text-muted); }
+    .flow__sep { margin-top: 10px; width: 14px; height: 1px; background: var(--rbl-border-strong); }
+
+    /* 配色 */
+    .row { display: grid; gap: 10px; }
+    .row__text { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 700; }
+    .row__hint { font-size: 11px; font-weight: 400; color: var(--rbl-text-subtle); }
+    .segmented {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 3px; border-radius: 11px;
+      background: var(--rbl-surface-sunken); box-shadow: inset 0 0 0 1px var(--rbl-border);
+    }
+    .segmented button {
+      all: unset; box-sizing: border-box;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; cursor: pointer;
+      white-space: nowrap; font-size: 12px; font-weight: 700; color: var(--rbl-text-muted);
+      transition: background-color 160ms, color 160ms, box-shadow 160ms;
+    }
+    .segmented button:hover { color: var(--rbl-text); }
+    .segmented button:focus-visible { outline: 2px solid var(--rbl-ring); outline-offset: 1px; }
+    .segmented button[aria-checked="true"] {
+      color: var(--rbl-text); background: var(--rbl-surface);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), inset 0 0 0 1px var(--rbl-border);
+    }
+
+    footer {
+      display: flex; gap: 8px; align-items: flex-start;
+      padding: 0 18px 16px; font-size: 11px; line-height: 1.6; color: var(--rbl-text-subtle);
+    }
+    footer .icon { margin-top: 2px; color: var(--rbl-success); }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 var(--rbl-ring); }
+      70%, 100% { box-shadow: 0 0 0 7px transparent; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
     }
   </style>
 </head>
 <body>
-  <h1>Rakuma Bulk Lister</h1>
-  <p>ラクマの「出品した商品」ページで商品を選択して一括再出品、「下書きの商品」ページで一括出品ができます。</p>
+  <header class="hero">
+    <span class="mark" data-icon="layers" data-icon-size="20"></span>
+    <div>
+      <h1>Rakuma Bulk Lister</h1>
+      <p>ラクマの出品作業をまとめて進める</p>
+    </div>
+    <span class="version num" id="version"></span>
+  </header>
 
-  <script src="dist/popup.js"></script>
+  <main>
+    <section class="card" aria-labelledby="status-label">
+      <span class="label" id="status-label">処理の状況</span>
+      <div class="status" id="status" data-tone="idle" role="status" aria-live="polite">
+        <div class="status__head">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="status__title" id="status-title">確認しています…</span>
+          <span class="status__count num" id="status-count"></span>
+        </div>
+        <div class="status__detail" id="status-detail"></div>
+        <div class="track" id="status-track" hidden><div class="bar" id="status-bar"></div></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="links-label">
+      <span class="label" id="links-label">一覧ページを開く</span>
+      <div class="links">
+        <button type="button" class="link" data-href="https://fril.jp/sell">
+          <span class="link__icon" data-icon="draft" data-icon-size="18"></span>
+          <span>
+            <span class="link__title">出品中の商品</span>
+            <span class="link__desc">下書きに保存・説明文の一括置換・削除</span>
+          </span>
+          <span class="link__arrow" data-icon="arrowRight" data-icon-size="16"></span>
+        </button>
+        <button type="button" class="link" data-href="https://fril.jp/draft">
+          <span class="link__icon" data-icon="publish" data-icon-size="18"></span>
+          <span>
+            <span class="link__title">下書きの商品</span>
+            <span class="link__desc">まとめて出品・削除</span>
+          </span>
+          <span class="link__arrow" data-icon="arrowRight" data-icon-size="16"></span>
+        </button>
+      </div>
+      <div class="flow" aria-label="再出品の流れ">
+        <div class="flow__step"><span class="flow__num">1</span><span class="flow__text">出品中から<br>下書きに保存</span></div>
+        <span class="flow__sep" aria-hidden="true"></span>
+        <div class="flow__step"><span class="flow__num">2</span><span class="flow__text">下書きで<br>内容を確かめる</span></div>
+        <span class="flow__sep" aria-hidden="true"></span>
+        <div class="flow__step"><span class="flow__num">3</span><span class="flow__text">まとめて<br>出品</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <span class="row__text"><span id="theme-label">配色</span><span class="row__hint">一覧ページのバーとこの画面に効きます</span></span>
+        <div class="segmented" role="radiogroup" aria-labelledby="theme-label" id="theme">
+          <button type="button" role="radio" data-theme-value="auto" aria-checked="true"><span data-icon="monitor" data-icon-size="13"></span>自動</button>
+          <button type="button" role="radio" data-theme-value="light" aria-checked="false"><span data-icon="sun" data-icon-size="13"></span>ライト</button>
+          <button type="button" role="radio" data-theme-value="dark" aria-checked="false"><span data-icon="moon" data-icon-size="13"></span>ダーク</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span data-icon="shield" data-icon-size="14"></span>
+    <span>出品中の一覧からは出品せず、いったん下書きに保存します。1 件ずつ間隔を空けて処理し、取り消せない操作の前には必ず確認を出します。</span>
+  </footer>
 </body>
 </html>

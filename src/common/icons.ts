@@ -89,6 +89,11 @@ const ICON_PATHS = {
 /** 使えるアイコン名 */
 export type IconName = keyof typeof ICON_PATHS;
 
+/** HTML の data 属性など、型の付かない文字列がアイコン名かどうか */
+export function isIconName(value: string | undefined): value is IconName {
+  return value !== undefined && Object.prototype.hasOwnProperty.call(ICON_PATHS, value);
+}
+
 /**
  * アイコンの SVG 要素を作る
  *

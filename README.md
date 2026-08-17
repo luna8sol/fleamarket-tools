@@ -220,6 +220,8 @@ URLを変えずにAJAXで一覧を差し替えるため、Content Script は再�
   Shift を押しながら選ぶと、直前に押した行からの範囲をまとめて選べる（選択順は表示順）
 - ドックは画面下に固定されるので、ページ末尾（ページャ）を覆わないよう body の末尾に同じ高さの余白を足す。
   トースト・パネルはドックの高さ（処理中は 2 段に伸びる）を `ResizeObserver` で追い、常にその上に置く
+- popup（ツールバーのアイコン）は、処理の状況（Background の進捗を 1.5 秒ごとに取得）・各一覧ページへの導線・
+  配色の切り替えを出す。配色は描画前に当てたいので、`chrome.storage.local` に加えて popup の `localStorage` にも控える
 
 ### 説明文の一括置換
 
@@ -425,11 +427,11 @@ npm run clean          # dist を削除
 ```
 src/
 ├── background/    # 処理キュー・タブ追跡・完了検知（Service Worker）
-├── common/        # Background ⇔ Content 共有（メッセージ型定義・URL判定・logger）
+├── common/        # Background ⇔ Content 共有（メッセージ型定義・URL判定・logger・デザイントークン・アイコン）
 ├── content/
 │   ├── list/      # 一覧ページ用（infra / logic / ui の3層）
 │   └── form/      # 出品フォーム用（/drafts/{hash}/edit と /item/new の自動出品）
-└── popup/
+└── popup/         # 処理の状況・一覧ページへの導線・配色の切り替え
 ```
 
 ## インストール（開発版）
