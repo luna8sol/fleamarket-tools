@@ -1,4 +1,5 @@
 import { CONFIG, ID_NAME } from '../infra/constants';
+import { ensureStyleSheet } from '@fleamarket/core/style';
 
 /**
  * メルカリのページへ注入する UI のデザインシステム（トークンと部品のスタイル）。
@@ -682,12 +683,8 @@ label.mdp-file input[type="file"] { position: absolute; inset: 0; width: 100%; h
  * テーマのスタイルシートを 1 度だけ注入する
  *
  * UI 部品を作る関数がそれぞれ呼ぶ（呼ばれる順序に依存しないため）。2 回目以降は何もしない。
+ * 注入の仕組みは共有部品 `@fleamarket/core/style`。CSS 本文と `<style>` の id はここで決める。
  */
 export function ensureTheme(): void {
-  if (document.getElementById(ID_NAME.THEME_STYLE)) return;
-
-  const style = document.createElement('style');
-  style.id = ID_NAME.THEME_STYLE;
-  style.textContent = THEME_CSS;
-  (document.head ?? document.documentElement).appendChild(style);
+  ensureStyleSheet({ id: ID_NAME.THEME_STYLE, css: THEME_CSS });
 }

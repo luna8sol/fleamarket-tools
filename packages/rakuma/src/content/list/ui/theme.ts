@@ -1,5 +1,6 @@
 import { buildTokenCss, syncThemePreference } from '../../../common/theme';
 import { CONFIG, ID_NAME } from '../infra/constants';
+import { ensureStyleSheet } from '@fleamarket/core/style';
 
 /**
  * 一覧ページへ注入する UI のスタイル。
@@ -512,14 +513,13 @@ const MOTION_CSS = `
  * テーマのスタイルシートを 1 度だけ注入し、配色の設定に追従させる。
  *
  * UI 部品を作る関数がそれぞれ呼ぶ（呼ばれる順序に依存しないため）。2 回目以降は何もしない。
+ * 注入の仕組みは共有部品 `@fleamarket/core/style`。CSS 本文（トークン + 動き + 部品）と
+ * `<style>` の id、注入後の配色設定への追従はここで決める。
  */
 export function ensureTheme(): void {
-  if (document.getElementById(ID_NAME.THEME_STYLE)) return;
-
-  const style = document.createElement('style');
-  style.id = ID_NAME.THEME_STYLE;
-  style.textContent = `${buildTokenCss()}\n${MOTION_CSS}\n${COMPONENT_CSS}`;
-  (document.head ?? document.documentElement).appendChild(style);
-
-  syncThemePreference();
+  ensureStyleSheet({
+    id: ID_NAME.THEME_STYLE,
+    css: () => `${buildTokenCss()}\n${MOTION_CSS}\n${COMPONENT_CSS}`,
+    afterInject: syncThemePreference,
+  });
 }
