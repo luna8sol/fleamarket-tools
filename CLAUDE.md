@@ -47,7 +47,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | ビルド構成 | [webpack.config.js](webpack.config.js), [tsconfig.json](tsconfig.json) |
 | lint / format 構成 | [eslint.config.js](eslint.config.js), [.prettierrc](.prettierrc) |
 
-### 既知の状態（2026-09-19 / `e0c9316` 時点）
+### 既知の状態（2026-09-19 / `d99546a` 時点）
 
 **文書とコードが食い違ったらコードが正。** 古い記述を見つけたらその場で直す。
 
@@ -55,6 +55,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **`manifest.json` の `https://fril.jp/draft*` は `/drafts/{hash}/edit`（編集ページ）にもマッチする。** 一覧用 content script が編集ページで動かないのは、[page-detector.ts](src/content/list/infra/page-detector.ts) が `/drafts` を `UNKNOWN` に落としているからで、manifest 側では除外していない。**片方だけ変えない。**
 - **キューの状態は Service Worker のメモリ上にのみ存在する**（[queue-manager.ts](src/background/queue-manager.ts) の NOTE）。拡張機能を再読み込みすると実行中のキューは失われる。待機に `chrome.alarms` を使っているのは SW の破棄を避けるため。
 - **自動テストは存在しない。** 「テストを回す」は型チェック・ビルド・静的解析を回すことを指す（下記「検証」）。
+- **ローカルの `main` は `origin/main` と分岐している。** 2026-09-19 にルートコミットの日時を揃えるためローカルで書き換え（`e0c9316` → `d99546a`）、手元の全ブランチを新しいルートに載せ替えた。`origin/main` は古い `e0c9316` のまま。**force push するかは人が判断する**ので、勝手に `git push --force` しない。
 
 ## コーディングルール
 
@@ -74,7 +75,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### ブランチ運用の補足（CONTRIBUTING.md に無い部分）
 
 - **統合ブランチは `develop`。ここで直接作業しない。** 各タスクは `develop` からトピックブランチを切る。
-  - `develop` は 2026-09-19 に `main`（`e0c9316`）から作った**ローカルブランチ**で、まだ origin には無い。push するかは人が判断する。
+  - `develop` は 2026-09-19 に `main`（`d99546a`）から作った**ローカルブランチ**で、まだ origin には無い。push するかは人が判断する。
 - 命名は CONTRIBUTING.md の規則（`feature/` / `fix/` / `docs/` / `refactor/` + ハイフン区切りの英小文字）。日付・イニシャル・連番は入れない。
   - **`feature/` を既定にしない。** 中身が修正なら `fix/`、ドキュメントなら `docs/`、挙動を変えない整理なら `refactor/`。コミットの prefix と同じく**中身で選ぶ**。
 - **エージェントが自動命名したブランチ（`claude/...`、`worktree-...`）のまま作業を終えない。** 規約名に直す。
@@ -83,7 +84,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   git branch -m <規約名>
   ```
 
-- **作業ブランチは origin に push しない**（ローカル限り）。`main` は origin と同期している。
+- **作業ブランチは origin に push しない**（ローカル限り）。`main` は現在 `origin/main` と分岐している（上記「既知の状態」）。
 - 統合は **rebase してから `--ff-only`** で行う。**マージコミットを作らない**（履歴を直線に保つ）。手順は [.claude/skills/merge/SKILL.md](.claude/skills/merge/SKILL.md)。
 - **マージ後に作業ブランチを削除する**（`git branch -d`）。
 - このリポジトリは **worktree を使っている。ブランチ 1 本につき worktree が 1 つ占有される。** ブランチを削除するときは worktree も片付ける（手順は [.claude/skills/local-setup/SKILL.md](.claude/skills/local-setup/SKILL.md)）。
@@ -131,7 +132,7 @@ perf: return to the recorded page when deleting instead of scanning from page 1
 ```
 feat: initial scaffold with bulk relist/publish core flow
 ```
-→ 件名 52 字で 50 字超過（`main` の `e0c9316`）。今後は踏襲しない。
+→ 件名 52 字で 50 字超過（`main` の `d99546a`）。今後は踏襲しない。
 
 ```
 fix: bug fix
@@ -149,7 +150,7 @@ update queue-manager.ts
 
 - **author date と committer date の両方**を揃える（`--date` だけでは author date しか変わらない）
 - 連続して複数コミットするときは 1 本ごとに 10 分進める
-- **push 済みのコミットには適用しない**（ハッシュが変わるため）。`main` は origin と同期しているので、そこに入ったコミットは対象外。必要なら実行前に確認を取る
+- **push 済みのコミットには適用しない**（ハッシュが変わるため）。必要なら**実行前に理由と影響範囲を報告して指示を仰ぐ**（2026-09-19 のルートコミット書き換えは、この手順で承認を得たうえで実施した）
 - 手順は [.claude/skills/commit/SKILL.md](.claude/skills/commit/SKILL.md) の「コミット日時を揃える」
 
 ## 検証
@@ -158,7 +159,7 @@ update queue-manager.ts
 
 パッケージは**ルート 1 つだけ**（モノレポではない）。すべてリポジトリルートで実行する。
 
-| 項目 | コマンド | 現状（2026-09-19 / `e0c9316` 実測） |
+| 項目 | コマンド | 現状（2026-09-19 / `d99546a` 実測） |
 | --- | --- | --- |
 | 型チェック | `npx tsc --noEmit` | **通過**（exit 0）。約 5 秒 |
 | ビルド | `npm run build` | **通過**（exit 0）。約 6 秒（webpack 自体は約 2 秒。初回は 30 秒以上かかることがある） |
