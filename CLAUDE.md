@@ -45,6 +45,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 拡張機能の権限・対象 URL・エントリーポイント | [manifest.json](manifest.json) |
 | Background ⇔ Content のメッセージ型・キューの型 | [src/common/messages.ts](src/common/messages.ts) |
 | メッセージ送信のラッパー（応答型の解決） | [src/common/send-message.ts](src/common/send-message.ts) |
+| キューのモードごとの性質表（一覧タブ依存・フォーム有無・完了判定・商品間の待機） | [src/common/queue-mode-traits.ts](src/common/queue-mode-traits.ts) |
 | 処理キュー・タブ追跡・完了検知・待機・ウォッチドッグ | [src/background/queue-manager.ts](src/background/queue-manager.ts) |
 | Background の配線（メッセージ・タブ・アラーム） | [src/background/index.ts](src/background/index.ts) |
 | 再出品元の商品ページの取得（JSON-LD / 画像枚数） | [src/background/source-item.ts](src/background/source-item.ts) |
@@ -76,14 +77,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | ビルド構成 | [webpack.config.js](webpack.config.js), [tsconfig.json](tsconfig.json) |
 | lint / format / 改行コード | [eslint.config.js](eslint.config.js), [.prettierrc](.prettierrc), [.gitattributes](.gitattributes) |
 
-### 既知の状態（2026-09-20 時点）
+### 既知の状態（2026-09-21 時点）
 
 **文書とコードが食い違ったらコードが正。** 古い記述を見つけたらその場で直す。
 
 - **一括削除はコードが入っているだけで、実行しての動作確認がされていない**（README の「未検証」）。DOM の構造と `data-confirm` の挙動までは実機確認済み。**取り消せない操作なので、変更するなら実機確認までを 1 単位にする。**
 - **`manifest.json` の `https://fril.jp/draft*` は `/drafts/{hash}/edit`（出品フォーム）にもマッチする。** 一覧用 content script がフォームで動かないのは、[page-detector.ts](src/content/list/infra/page-detector.ts) が `/drafts` を `UNKNOWN` に落としているからで、manifest 側では除外していない。**片方だけ変えない。**
 - **キューの状態は `chrome.storage.session` に保存され、Service Worker の破棄に耐える。** 変更のたびに書き戻し、各イベントハンドラの先頭で復元する。タイマーは `setTimeout` ではなく `chrome.alarms`（SW の破棄で消えるため）。**`chrome.alarms` は 30 秒未満の遅延がクランプされる**ので、短い待機には使えない。
-- **2026-09-19 に履歴を書き換えて push し直した。** ルートコミットの日時を揃えたうえで全コミットを 10 分刻みに並べ直し（旧ルート `e0c9316` → 新ルート `d99546a`）、`main` を force push した。現在 `main` と `develop` は `origin` と一致している。**この書き換えより前のクローンが手元にあれば `git fetch && git reset --hard origin/main` で追随させること**（そのままでは pull が失敗する）。
+- **2026-09-19 に履歴を書き換えて push し直した。** ルートコミットの日時を揃えたうえで全コミットを 10 分刻みに並べ直し（旧ルート `e0c9316` → 新ルート `d99546a`）、`main` を force push した。`main` は現在も `origin` と一致している（`develop` は origin/develop より先行しており、未 push のコミットがある）。**この書き換えより前のクローンが手元にあれば `git fetch && git reset --hard origin/main` で追随させること**（そのままでは pull が失敗する）。
 - **自動テストは存在しない。** 「テストを回す」は型チェック・ビルド・静的解析を回すことを指す（下記「検証」）。
 
 ## コーディングルール
@@ -97,6 +98,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Background ⇔ Content のやり取りは必ず [src/common/messages.ts](src/common/messages.ts) の型を経由する。新しいメッセージはまずここに型を足す
 - 送信は [src/common/send-message.ts](src/common/send-message.ts) の `sendToTab` / `sendToRuntime` を使う。`chrome.tabs.sendMessage` / `chrome.runtime.sendMessage` を呼び出し側から直接呼ばない（戻り値が `any` のため、呼び出し側ごとに型アサーションを書くと応答型の食い違いを検査できない）。応答型は `messages.ts` の `MessageResponses` に書く
 - 出品フォームページの URL 判定は [src/common/form-page.ts](src/common/form-page.ts) に集約する（Background と Content の双方から使うため、片側に直書きしない）
+- モードによって変わる振る舞いを増やすときは、`mode === 'delete'` のような個別の比較を書かずに [src/common/queue-mode-traits.ts](src/common/queue-mode-traits.ts) の `QUEUE_MODE_TRAITS` へ性質を足す（`Record<QueueMode, QueueModeTraits>` なので、モードを足したときに記入漏れがコンパイルエラーになる）
 - キューの状態を増やしたら `chrome.storage.session` に保存される形にする（Service Worker が破棄されても続きから処理できること）
 - 主要なマネージャークラスはファイル末尾でシングルトンとしてエクスポートする（例: `export const queueManager = new QueueManager()`）
 - ログは `console.log` を直接呼ばず [src/common/logger.ts](src/common/logger.ts) の `log` / `warn` / `debug` を使う
@@ -118,7 +120,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   git branch -m <規約名>
   ```
 
-- **トピックブランチは origin に push しない**（ローカル限り）。origin と同期するのは `main` と `develop` の 2 本だけで、どちらも現在 origin と一致している。
+- **トピックブランチは origin に push しない**（ローカル限り）。origin と同期するのは `main` と `develop` の 2 本だけ。
 - 統合は **rebase してから `--ff-only`** で行う。**マージコミットを作らない**（履歴を直線に保つ）。手順は [.claude/skills/merge/SKILL.md](.claude/skills/merge/SKILL.md)。
 - **マージ後に作業ブランチを削除する**（`git branch -d`）。
 - **対応済みのセッション・ブランチ・worktree がまとめて溜まったら整理する**（手順は [.claude/skills/cleanup/SKILL.md](.claude/skills/cleanup/SKILL.md)）。

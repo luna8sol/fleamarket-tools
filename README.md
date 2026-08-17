@@ -289,6 +289,7 @@ Content Script と Service Worker の console ログは拡張の外からは読�
 ## コマンド
 
 ```bash
+npm run typecheck      # tsc --noEmit で型チェック
 npm run build          # webpack でビルド（開発用）
 npm run build:prod     # 本番用ビルド
 npm run lint           # ESLint
