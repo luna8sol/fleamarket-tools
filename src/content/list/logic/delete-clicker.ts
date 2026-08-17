@@ -20,10 +20,7 @@ const DELETE_LABEL = '削除';
  * `data-method="delete"` で特定したうえで、ラベルが「削除」であることも確認する。
  * どちらか一方でも合わなければ null を返し、クリックしない。
  */
-export function findDeleteLink(
-  pageType: PageTypeValue,
-  itemId: string
-): HTMLAnchorElement | null {
+export function findDeleteLink(pageType: PageTypeValue, itemId: string): HTMLAnchorElement | null {
   const item = collectItems(pageType).find((i) => i.id === itemId);
   if (!item) return null;
 

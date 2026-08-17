@@ -1,48 +1,133 @@
 /**
- * 出品フォームの状態（入力済みか・バリデーションエラーが出ているか）を読むモジュール。
+ * 出品フォームの内容を読み取り、入力が落ち着くまで待つモジュール。
  *
- * relistモードでは、フリマアシストが /item/new へ遷移させたあとに
- * 元商品の内容をフォームへ流し込む。描画直後に「確認する」を押すと
- * 空のフォームを送ってしまうため、値が入るのを待ってからクリックする。
- * publishモード（下書き編集）でも、Reactがフォームに値を復元し終えた
- * ことの確認として同じ判定が使える。
+ * relistモードでは、フリマアシストが /item/new へ遷移させたあとに元商品の
+ * 内容を流し込む。テキストは速いが、**画像は img.fril.jp/tmp_img/ へ
+ * アップロードされるまで時間がかかる**。そのため「何か値が入ったか」では早すぎ、
+ * 一部が欠けたまま保存されてしまう。
+ *
+ * ここでは各項目のスナップショットを取り、一定時間まったく変化しなくなった
+ * ことをもって入力完了とみなす。
  */
 
-import { waitFor } from './wait';
+/** ポーリング間隔 (ms) */
+const POLL_INTERVAL_MS = 500;
 
 /**
- * フォームのテキスト入力欄に1つでも値が入っているか。
+ * 出品フォームの内容のスナップショット。
  *
- * NOTE: Chakra UIのハッシュクラスや動的なname属性には依存できないため、
- * 「テキスト系の入力欄に値があるか」という粗い判定にしている。
- * 実機では空の /item/new で false、入力済みの下書き編集ページで true になる。
+ * NOTE: カテゴリや配送方法はボタンのラベルとして表示されるが、
+ *       手数料の案内など内容が変わりうるボタンも混ざるため、
+ *       安定判定には含めない（変化し続けて落ち着かなくなるのを避ける）。
  */
-export function isFormFilled(): boolean {
-  const textareas = Array.from(document.querySelectorAll<HTMLTextAreaElement>('textarea'));
-  if (textareas.some((el) => el.value.trim() !== '')) {
-    return true;
-  }
-
-  const inputs = Array.from(
-    document.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])')
-  );
-  return inputs.some((el) => el.value.trim() !== '');
+export interface FormSnapshot {
+  itemName: string;
+  sellPrice: string;
+  description: string;
+  /** select の name → 選択値 */
+  selects: Record<string, string>;
+  /** アップロード済みの商品画像の枚数 */
+  imageCount: number;
 }
 
 /**
- * フォームに値が入るまで待機する。
- * タイムアウトしてもrejectせず false を返す（判定はあくまで粗い
- * ヒューリスティックであり、これを理由に出品を中断はしない）。
+ * アップロード済みの商品画像の枚数を数える。
+ *
+ * 画像は img.fril.jp 配下のURLとして現れる（/item/new では tmp_img/）。
+ * UIの素材画像は asset.fril.jp など別ホストなので混ざらない。
  */
-export async function waitForFormFilled(timeoutMs: number): Promise<boolean> {
-  try {
-    await waitFor(() => (isFormFilled() ? true : null), {
-      timeoutMs,
-      label: 'フォームへの入力',
-    });
-    return true;
-  } catch {
-    return false;
+export function countFormImages(): number {
+  const srcs = Array.from(document.querySelectorAll<HTMLImageElement>('img'))
+    .map((img) => img.src)
+    .filter((src) => src.includes('img.fril.jp/'));
+  return new Set(srcs).size;
+}
+
+export function collectFormSnapshot(): FormSnapshot {
+  const value = (selector: string): string =>
+    document.querySelector<HTMLInputElement>(selector)?.value ?? '';
+
+  const selects: Record<string, string> = {};
+  for (const select of Array.from(document.querySelectorAll<HTMLSelectElement>('select'))) {
+    if (select.name) {
+      selects[select.name] = select.value;
+    }
+  }
+
+  return {
+    itemName: value('input[name="itemName"]'),
+    sellPrice: value('input[name="sellPrice"]'),
+    description: document.querySelector<HTMLTextAreaElement>('textarea')?.value ?? '',
+    selects,
+    imageCount: countFormImages(),
+  };
+}
+
+/** 安定判定に使う、スナップショットの文字列表現 */
+function fingerprint(snapshot: FormSnapshot): string {
+  return JSON.stringify(snapshot);
+}
+
+/**
+ * 必須項目が埋まっているか。
+ * これが満たされないうちは、変化が止まっていても「入力完了」とはみなさない。
+ */
+function hasRequiredValues(snapshot: FormSnapshot, requireImages: boolean): boolean {
+  if (snapshot.itemName.trim() === '') return false;
+  if (snapshot.description.trim() === '') return false;
+  if (snapshot.sellPrice.trim() === '') return false;
+  if (requireImages && snapshot.imageCount === 0) return false;
+  return true;
+}
+
+export interface SettleOptions {
+  /** この時間だけ内容が変化しなければ入力完了とみなす (ms) */
+  stableMs: number;
+  /** 全体の最大待機時間 (ms) */
+  timeoutMs: number;
+  /** 画像が1枚以上あることを必須にするか */
+  requireImages: boolean;
+}
+
+export interface SettleResult {
+  /** 入力完了とみなせたか。false はタイムアウト */
+  settled: boolean;
+  snapshot: FormSnapshot;
+  /** 実際に待った時間 (ms) */
+  waitedMs: number;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+/**
+ * フォームの内容が変化しなくなるまで待つ。
+ * タイムアウトしてもrejectせず、settled: false を返す（呼び出し側で判断する）。
+ */
+export async function waitForFormSettled(options: SettleOptions): Promise<SettleResult> {
+  const startedAt = Date.now();
+  let snapshot = collectFormSnapshot();
+  let lastFingerprint = fingerprint(snapshot);
+  let lastChangedAt = Date.now();
+
+  for (;;) {
+    await delay(POLL_INTERVAL_MS);
+
+    snapshot = collectFormSnapshot();
+    const current = fingerprint(snapshot);
+    if (current !== lastFingerprint) {
+      lastFingerprint = current;
+      lastChangedAt = Date.now();
+    }
+
+    const stableFor = Date.now() - lastChangedAt;
+    if (stableFor >= options.stableMs && hasRequiredValues(snapshot, options.requireImages)) {
+      return { settled: true, snapshot, waitedMs: Date.now() - startedAt };
+    }
+    if (Date.now() - startedAt >= options.timeoutMs) {
+      return { settled: false, snapshot, waitedMs: Date.now() - startedAt };
+    }
   }
 }
 
@@ -52,7 +137,7 @@ const MAX_ERRORS = 4;
 /**
  * 画面に出ているバリデーションエラーの文言を集める。
  *
- * 入力不備で「確認する」が先へ進まない場合、失敗理由としてこれを添えると
+ * 入力不備で先へ進まない場合、失敗理由としてこれを添えると
  * どの商品がなぜ止まったのかがユーザー側で分かる
  * （例:「商品名を入力してください。」）。
  */

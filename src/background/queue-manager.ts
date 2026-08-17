@@ -8,8 +8,10 @@ import {
   QueueMode,
   QueueProgress,
   QueueProgressMessage,
+  SourceItem,
 } from '../common/messages';
 import { isFormPageUrl } from '../common/form-page';
+import { fetchSourceItem } from './source-item';
 import { log, warn } from '../common/logger';
 
 /** 次の商品を処理するまでの基本待機時間 (ms) */
@@ -20,7 +22,7 @@ const WAIT_RANDOM_MS = 15000;
  * 1商品の処理を打ち切るまでの時間 (ms)。
  * NOTE: chrome.alarms は30秒未満の遅延がクランプされるため、十分に長い値にすること。
  */
-const ITEM_WATCHDOG_MS = 180000;
+const ITEM_WATCHDOG_MS = 300000;
 
 /** 待機用アラーム名 */
 const ALARM_NEXT_ITEM = 'rakuma-bulk-lister:next-item';
@@ -55,6 +57,8 @@ interface QueueState {
   phase: QueuePhase;
   /** relistでボタンクリック後に開かれた、出品フォームになりうるタブのID */
   candidateTabIds: number[];
+  /** relistで処理中の商品の、再出品元の内容（差分チェック用） */
+  expectedSource: SourceItem | null;
 }
 
 function createInitialState(): QueueState {
@@ -68,6 +72,7 @@ function createInitialState(): QueueState {
     activeTabId: null,
     phase: 'idle',
     candidateTabIds: [],
+    expectedSource: null,
   };
 }
 
@@ -175,6 +180,15 @@ export class QueueManager {
    */
   isAutoTab(tabId: number): boolean {
     return this.state.running && this.state.activeTabId === tabId;
+  }
+
+  /**
+   * 自動処理中のタブに対して、再出品元の内容を返す。
+   * Content Script はこれとフォームの内容を突き合わせてから保存する。
+   */
+  getExpectedSource(tabId: number): SourceItem | null {
+    if (!this.isAutoTab(tabId)) return null;
+    return this.state.expectedSource;
   }
 
   /**
@@ -338,6 +352,7 @@ export class QueueManager {
     const item = this.state.items[this.state.currentIndex];
     this.state.activeTabId = null;
     this.state.candidateTabIds = [];
+    this.state.expectedSource = null;
     log(`処理開始 (${this.state.currentIndex + 1}/${this.state.items.length}): ${item.title}`);
 
     if (this.state.mode === 'delete') {
@@ -376,6 +391,13 @@ export class QueueManager {
       return;
     }
 
+    // フォームの内容を突き合わせるため、再出品元の内容を先に取得しておく。
+    // 取得できなくても処理は続ける（差分チェックが省略されるだけ）。
+    this.state.expectedSource = await fetchSourceItem(item.id);
+    if (this.state.expectedSource === null) {
+      warn(`再出品元の内容を取得できませんでした: ${item.title}`);
+    }
+
     this.state.phase = 'waiting-tab';
     await this.startWatchdog();
     await this.save();
@@ -410,8 +432,7 @@ export class QueueManager {
     const message: ClickDeleteMessage = { type: MessageType.CLICK_DELETE, item };
     try {
       const response = (await chrome.tabs.sendMessage(this.state.listTabId, message)) as
-        | ClickResponse
-        | undefined;
+        ClickResponse | undefined;
       if (!response?.clicked) {
         await this.failCurrent('削除リンクが見つかりません');
       }

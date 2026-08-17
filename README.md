@@ -40,6 +40,34 @@
 Content Script 側で遷移を監視しない理由は、遷移先が別オリジン（`item.fril.jp`）に
 なりうるため。その場合 Content Script は遷移前に破棄され、完了を見届けられない。
 
+### 入力が終わるまで待ってから保存する
+
+フリマアシストの流し込みはテキストが速く、**画像だけ遅い**
+（`img.fril.jp/tmp_img/` へアップロードされるまで時間がかかる）。
+「何か値が入ったか」で判断すると早すぎて、画像が欠けた下書きができる。
+
+そのため各項目のスナップショット（商品名・価格・説明・各 `select`・画像枚数）を
+0.5秒ごとに取り、**5秒間まったく変化しなくなるまで待つ**。最大2分待つ。
+
+カテゴリや配送方法はボタンのラベルとして出るが、手数料の案内など内容が
+変わりうるボタンも混ざるため、安定判定には含めない。
+
+### 再出品元との差分チェック
+
+保存の直前に、再出品元の商品ページ (`https://item.fril.jp/{hash}`) の内容と
+突き合わせる。**一致しない場合は保存せず、差分を失敗理由として残す。**
+
+商品ページはサーバーレンダリングされており、JSON-LD (Product) から
+商品名・説明・価格・ブランドが取れる。画像は JSON-LD に1枚しか無いため、
+og:image と同じ商品番号を持つ大サイズ (`/l/`) の画像URLを重複を除いて数える。
+
+実機で、JSON-LD とフォームの値は商品名・説明とも完全一致することを確認済み
+（ハッシュ一致）。そのため文字列は厳密に比較する。
+
+取得は Background で行う（`item.fril.jp` は別オリジンのため host_permissions が必要）。
+Service Worker には DOMParser が無いので正規表現で抜き出す。
+取得に失敗した場合は差分チェックを省略し、入力が落ち着いたかどうかだけで判断する。
+
 ### 一括削除はページ遷移をまたいで進む
 
 ラクマの削除は `jquery_ujs` のリンク（`data-method="delete"`）で、`data-remote` を
@@ -123,6 +151,12 @@ Chrome の実ページに対して読み取り専用で検証した結果。
 | 「下書きに保存する」ボタン | `/item/new` と `/drafts/{hash}/edit` の**両方**に存在する。そのためボタン名だけでページを判別してはいけない。`type="button"` |
 | 「下書きに保存する」押下後 | **`https://fril.jp/draft?status=created` へ実際にページ遷移する**。`/item/new` から離脱するため、BackgroundのURL監視で完了を検知できる |
 | フリマアシストの再出品ボタン | `href` も `target` も持たない `<a id="clone-item">`。クリックすると拡張がタブを開き、そのまま `https://fril.jp/item/new` に入力済みで到達する |
+| 出品フォームの項目 | `input[name="itemName"]` / `input[name="sellPrice"]` / `textarea`（説明）/ `select[name="status"|"carriage"|"deliveryDate"|"deliveryArea"|"requestRequired"]` |
+| 出品フォームの画像 | `img.fril.jp/tmp_img/...` として現れる。**アップロード完了まで遅れて増える**。UI素材は `asset.fril.jp` で別ホスト |
+| フリマアシストの流し込み | 同じタブで `item.fril.jp/{hash}`（商品ページ）→ `/item/new` と遷移する。テキストは1秒未満で入るが画像は遅れる |
+| 商品ページ | サーバーレンダリング。JSON-LD (Product) に `name` / `description` / `offers.price` / `brand.name`。`image` は1枚のみ |
+| 商品ページの画像枚数 | og:image と同じ商品番号の `img.fril.jp/img/{N}/l/...` を重複除去して数える（関連商品の画像が混ざるため番号で絞る） |
+| JSON-LD とフォームの一致 | 商品名・説明とも**完全一致**（ハッシュで確認）。価格・画像枚数も一致 |
 | `isFormFilled()` | 空の `/item/new` で false、入力済みの下書き編集ページで true |
 | 「削除」リンク | `/sell`・`/draft` の双方で `<a class="deal-item__button" data-method="delete" data-confirm="本当に削除してもよろしいですか？">`。href は `/item/{hash}`・`/drafts/{hash}` |
 | 削除の通信方式 | `data-remote` が**無い**ため AJAX ではなく**ページ遷移**が起きる |

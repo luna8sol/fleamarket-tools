@@ -129,9 +129,27 @@ export interface CheckAutoTabMessage {
   type: typeof MessageType.CHECK_AUTO_TAB;
 }
 
+/**
+ * 再出品元の商品ページから取得した、フォームに入っているべき内容。
+ * 取得できなかった項目は null（その項目は差分チェックの対象外になる）。
+ */
+export interface SourceItem {
+  name: string | null;
+  description: string | null;
+  price: number | null;
+  brand: string | null;
+  imageCount: number | null;
+}
+
 /** CHECK_AUTO_TAB への応答 */
 export interface CheckAutoTabResponse {
   isAutoTab: boolean;
+  /**
+   * relistモードのとき、再出品元の商品情報。
+   * フォームの内容がこれと一致するまで保存しないために使う。
+   * 取得できなかった場合は null（差分チェックは省略される）。
+   */
+  expected?: SourceItem | null;
 }
 
 export interface FormSubmittedMessage {

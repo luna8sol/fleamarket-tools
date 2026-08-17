@@ -45,8 +45,10 @@ async function handleMessage(
 
     case MessageType.CHECK_AUTO_TAB: {
       const tabId = sender.tab?.id;
+      const isAutoTab = tabId !== undefined && queueManager.isAutoTab(tabId);
       const response: CheckAutoTabResponse = {
-        isAutoTab: tabId !== undefined && queueManager.isAutoTab(tabId),
+        isAutoTab,
+        expected: isAutoTab && tabId !== undefined ? queueManager.getExpectedSource(tabId) : null,
       };
       return response;
     }
