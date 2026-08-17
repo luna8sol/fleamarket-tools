@@ -43,6 +43,28 @@ export function countFormImages(): number {
   return new Set(srcs).size;
 }
 
+/**
+ * 画像の枚数とURLの形を、失敗理由に載せられる短い文字列にする。
+ *
+ * 枚数の数え方（`img.fril.jp` の重複を除いたURL数）が実際のページとズレていた場合、
+ * 一致しない理由が分からず延々と待つことになる。1回の失敗でURLの形が分かるようにする。
+ */
+export function describeFormImages(): string {
+  const srcs = Array.from(document.querySelectorAll<HTMLImageElement>('img'))
+    .map((img) => img.src)
+    .filter((src) => src.includes('img.fril.jp/'));
+
+  const shapes = new Set(
+    srcs.map((src) =>
+      src
+        .replace('https://img.fril.jp/', '')
+        .split('?')[0]
+        .replace(/\d{4,}/g, 'N')
+    )
+  );
+  return `${new Set(srcs).size}枚 [${Array.from(shapes).slice(0, 4).join(' ')}]`;
+}
+
 export function collectFormSnapshot(): FormSnapshot {
   const value = (selector: string): string =>
     document.querySelector<HTMLInputElement>(selector)?.value ?? '';
@@ -87,6 +109,14 @@ export interface SettleOptions {
   timeoutMs: number;
   /** 画像が1枚以上あることを必須にするか */
   requireImages: boolean;
+  /**
+   * 入力完了の判定条件。再出品元の内容が分かっている場合に渡す。
+   *
+   * これがあるときは「変化が止まったか」ではなく「元と一致したか」で待つ。
+   * 画像は1枚ずつ間隔を空けてアップロードされるため、アップロードの合間が
+   * 安定時間を超えると、変化が止まっただけで完了と誤判定してしまうため。
+   */
+  matchesSource?: ((snapshot: FormSnapshot) => boolean) | null;
 }
 
 export interface SettleResult {
@@ -102,7 +132,13 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
- * フォームの内容が変化しなくなるまで待つ。
+ * フォームの入力が完了するまで待つ。
+ *
+ * - 再出品元の内容が分かっている場合（matchesSource あり）は、**元と一致するまで**待つ。
+ *   画像は1枚ずつ間隔を空けてアップロードされるので、その合間に「変化が止まった」と
+ *   判断すると、画像が足りないまま完了扱いになってしまう。
+ * - 分からない場合は、一定時間まったく変化しなくなるまで待つ。
+ *
  * タイムアウトしてもrejectせず、settled: false を返す（呼び出し側で判断する）。
  */
 export async function waitForFormSettled(options: SettleOptions): Promise<SettleResult> {
@@ -112,6 +148,21 @@ export async function waitForFormSettled(options: SettleOptions): Promise<Settle
   let lastChangedAt = Date.now();
 
   for (;;) {
+    if (options.matchesSource) {
+      if (options.matchesSource(snapshot)) {
+        return { settled: true, snapshot, waitedMs: Date.now() - startedAt };
+      }
+    } else {
+      const stableFor = Date.now() - lastChangedAt;
+      if (stableFor >= options.stableMs && hasRequiredValues(snapshot, options.requireImages)) {
+        return { settled: true, snapshot, waitedMs: Date.now() - startedAt };
+      }
+    }
+
+    if (Date.now() - startedAt >= options.timeoutMs) {
+      return { settled: false, snapshot, waitedMs: Date.now() - startedAt };
+    }
+
     await delay(POLL_INTERVAL_MS);
 
     snapshot = collectFormSnapshot();
@@ -119,14 +170,6 @@ export async function waitForFormSettled(options: SettleOptions): Promise<Settle
     if (current !== lastFingerprint) {
       lastFingerprint = current;
       lastChangedAt = Date.now();
-    }
-
-    const stableFor = Date.now() - lastChangedAt;
-    if (stableFor >= options.stableMs && hasRequiredValues(snapshot, options.requireImages)) {
-      return { settled: true, snapshot, waitedMs: Date.now() - startedAt };
-    }
-    if (Date.now() - startedAt >= options.timeoutMs) {
-      return { settled: false, snapshot, waitedMs: Date.now() - startedAt };
     }
   }
 }

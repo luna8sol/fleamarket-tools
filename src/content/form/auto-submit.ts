@@ -1,7 +1,12 @@
 import { FormMode, MessageType, SourceItem } from '../../common/messages';
 import { log, warn } from '../../common/logger';
 import { listRenderedButtonLabels, waitForButton } from './button-finder';
-import { collectValidationErrors, FormSnapshot, waitForFormSettled } from './form-state';
+import {
+  collectValidationErrors,
+  describeFormImages,
+  FormSnapshot,
+  waitForFormSettled,
+} from './form-state';
 import { diffAgainstSource, formatDifferences } from './diff';
 import { delay } from './wait';
 
@@ -100,7 +105,12 @@ function checkReadyToSubmit(
   if (expected) {
     const differences = diffAgainstSource(snapshot, expected);
     if (differences.length > 0) {
-      return `再出品元と内容が一致しません（${formatDifferences(differences)}）`;
+      // 画像がズレている場合は、数え方が実際と合っていない可能性もあるため
+      // URLの形まで添える
+      const images = differences.some((d) => d.field === '画像枚数')
+        ? ` / フォームの画像: ${describeFormImages()}`
+        : '';
+      return `再出品元と内容が一致しません（${formatDifferences(differences)}）${images}`;
     }
     // 差分が無いなら、多少変化が続いていても内容は揃っている
     return null;
@@ -128,6 +138,11 @@ export async function runAutoSubmit(mode: FormMode, expected: SourceItem | null)
       stableMs: FORM_STABLE_MS,
       timeoutMs: FORM_SETTLE_TIMEOUT_MS,
       requireImages: mode === 'relist',
+      // 元の内容が分かっているなら、変化が止まるのを待つのではなく
+      // 元と一致するまで待つ（画像のアップロードの合間で打ち切らないため）
+      matchesSource: expected
+        ? (form: FormSnapshot): boolean => diffAgainstSource(form, expected).length === 0
+        : null,
     });
     log(
       `入力待ち終了: settled=${settled}, ${Math.round(waitedMs / 1000)}秒, ` +
