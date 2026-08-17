@@ -6,6 +6,7 @@ import {
   QueueProgress,
   StartQueueMessage,
 } from '../../../common/messages';
+import { warn } from '../../../common/logger';
 import { sendToRuntime } from '../../../common/send-message';
 import { PageTypeValue } from '../infra/page-detector';
 import { collectItems } from './item-collector';
@@ -13,6 +14,10 @@ import { getTotalItemCount } from './pager';
 
 /**
  * 一覧ページから Background へ送るメッセージをまとめたモジュール。
+ *
+ * sendToRuntime は送信の失敗をそのまま reject で伝える（送れなかったことを
+ * 失敗として扱うかは呼び出し側の判断）。応答を待たない送信はここで catch して
+ * warn に出し、unhandled rejection にしない。
  */
 
 /**
@@ -25,7 +30,7 @@ export function sendListReady(pageType: PageTypeValue): void {
     ids: collectItems(pageType).map((item) => item.id),
     totalCount: getTotalItemCount(),
   };
-  void sendToRuntime(message);
+  sendToRuntime(message).catch((e) => warn('一覧の状態の送信に失敗しました', e));
 }
 
 /**
@@ -36,14 +41,16 @@ export function sendListReady(pageType: PageTypeValue): void {
  */
 export function sendStartQueue(mode: QueueMode, items: QueueItem[], listPage?: number): void {
   const message: StartQueueMessage = { type: MessageType.START_QUEUE, mode, items, listPage };
-  void sendToRuntime(message);
+  sendToRuntime(message).catch((e) => warn('キューの開始依頼に失敗しました', e));
 }
 
 /**
  * キューの停止をBackgroundへ依頼する。
  */
 export function sendStopQueue(): void {
-  void sendToRuntime({ type: MessageType.STOP_QUEUE });
+  sendToRuntime({ type: MessageType.STOP_QUEUE }).catch((e) =>
+    warn('キューの停止依頼に失敗しました', e)
+  );
 }
 
 /**
