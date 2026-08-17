@@ -1,4 +1,0 @@
-# 改行コードは LF に統一する。
-# Prettier の endOfLine 既定値が "lf" のため、作業ツリーが CRLF になると
-# 中身が整形済みでも format:check が全ファイルを差分として報告する。
-* text=auto eol=lf

@@ -1,4 +1,4 @@
-// eslint.config.js
+// eslint.config.js（ルートで 1 つ。各パッケージの `eslint src` は親ディレクトリを遡ってこの設定を読む）
 import typescriptESLint from '@typescript-eslint/eslint-plugin';
 import typescriptParser from '@typescript-eslint/parser';
 import unusedImports from 'eslint-plugin-unused-imports';

@@ -1,0 +1,37 @@
+{
+  "name": "fleamarket-tools",
+  "private": true,
+  "description": "フリマサイト向け Chrome 拡張機能（メルカリ用・ラクマ用）のモノレポ",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces",
+    "build": "npm run build --workspaces",
+    "build:dev": "npm run build:dev --workspaces",
+    "build:prod": "npm run build:prod --workspaces",
+    "lint": "npm run lint --workspaces",
+    "lint:fix": "npm run lint:fix --workspaces",
+    "format": "npm run format --workspaces",
+    "format:check": "npm run format:check --workspaces",
+    "check": "npm run typecheck && npm run build && npm run lint",
+    "clean": "npm run clean --workspaces"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.1",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "eslint": "^9.32.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.3",
+    "eslint-plugin-unused-imports": "^4.2.0",
+    "globals": "^15.0.0",
+    "prettier": "~3.6.2",
+    "rimraf": "^6.0.1",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.8.3",
+    "webpack": "^5.101.0",
+    "webpack-cli": "^6.0.1"
+  }
+}
