@@ -6,6 +6,7 @@
 | --- | --- | --- | --- |
 | [packages/mercari](packages/mercari/) | Mercari Draft Publisher | jp.mercari.com | 下書きの一括出品・一括再出品・一括削除・説明文の一括置換・AI 説明文生成（Claude API） |
 | [packages/rakuma](packages/rakuma/) | Rakuma Bulk Lister | fril.jp | 出品中商品の一括下書き保存・下書きの一括出品・一括削除・説明文の一括置換 |
+| [packages/core](packages/core/) | （`@fleamarket/core`。拡張ではない） | — | 両拡張から使う、サイトに依存しない純粋なユーティリティ（待機・ハッシュなど） |
 
 機能の詳細・設計判断・実機で確認済みの DOM 前提は、各パッケージの README を参照してください。
 
@@ -25,6 +26,7 @@ fleamarket-tools/
 ├── CONTRIBUTING.md       # ブランチ運用・コミットメッセージ
 ├── .claude/skills/       # 作業手順（commit / merge / quality-check など）
 └── packages/
+    ├── core/             # @fleamarket/core。両拡張から import する純粋なユーティリティ（1 ファイル 1 部品）
     ├── mercari/          # メルカリ用拡張（manifest.json・webpack.config.js・src/・dist/）
     └── rakuma/           # ラクマ用拡張（同上）
 ```

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | --- | --- | --- | --- |
 | [packages/mercari](packages/mercari/) | Mercari Draft Publisher | jp.mercari.com | [packages/mercari/CLAUDE.md](packages/mercari/CLAUDE.md) |
 | [packages/rakuma](packages/rakuma/) | Rakuma Bulk Lister | fril.jp | [packages/rakuma/CLAUDE.md](packages/rakuma/CLAUDE.md) |
-| `packages/core`（予定） | 両拡張から使う純粋なユーティリティ | — | — |
+| [packages/core](packages/core/) | `@fleamarket/core`。両拡張から使う純粋なユーティリティ | — | このファイルの「共有部品」 |
 
 このファイルは**共通規約の正本**。サイト固有の方針・一次資料の索引・既知のズレ・落とし穴は各パッケージの CLAUDE.md に置く。手順はスキル（[.claude/skills/](.claude/skills/)）に置く。同じ規約を複数の場所に書かない（片方だけ育ってズレる）。
 
@@ -21,7 +21,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 同名のファイル（selection-manager / checkbox-manager / notification / logger / replace-store / replace-panel / page-detector）はどれもほぼ全行が異なる独立実装。片方を直しても、もう片方に同じ変更を入れる義務はない（入れるなら別コミット）。
 - 共通点は、再出品が外部拡張「フリマアシスト」の `#clone-item` に乗っていることと、説明文置換の手順・安全装置を揃えてあること。
 
-共有部品（`packages/core`）に移してよいのは**サイトに依存しない純粋なユーティリティ**だけ（logger / 待機 / ハッシュと改行正規化 / 置換記録ストア / 通知 / 確認ダイアログ / テーマのトークンと部品 / 型付きメッセージの枠組み）。移すときはログの接頭辞やストレージのキー名を**注入できる形**にし、**既存の文字列は 1 文字も変えない**。1 部品 1 コミットで、移すたびに両パッケージの型チェック・ビルド・lint を通す。実機での動作に影響しうるもの（通知・確認ダイアログ・テーマ）は、移したあと実機確認を依頼してから次に進む。
+### 共有部品（`packages/core` = `@fleamarket/core`）
+
+移してよいのは**サイトに依存しない純粋なユーティリティ**だけ。2026-10-05 の調査で対象を 5 つに絞った: **待機・ポーリング・FNV-1a・改行正規化・debounce・randomInt**（移行済み）/ logger / アイコン / `ensureTheme` とボタン・進捗部品 / 通知。次の 4 つは見送り（移すと分岐だらけになるか、片側にコードを足すことになる）: 確認ダイアログ（答えの確定方式が 2 系統）、テーマ CSS 本体（値・クラス体系・ダーク切替がサイト固有）、置換記録ストア（キー・検証・完了判定がすべて違う）、型付きメッセージの枠組み（メルカリ側に枠組みが無い）。
+
+- **1 ファイル 1 部品**で `packages/core/<name>.ts` に置き、`@fleamarket/core/<name>` のサブパスで import する（`src/` も `index.ts` も無い。npm workspace のシンボリックリンク経由で TS ソースを直接読むので、core 側にビルド工程は無い）。
+- **各パッケージ側は従来のファイルを薄いラッパーとして残し、呼び出し側の import を変えない。** 拡張ごとに違うもの（`sleep` の秒単位、FNV-1a の 10 進 / 16 進表記、ログの接頭辞、ストレージのキー名）はラッパー側で付けるか、core に**注入できる形**にする。**既存の文字列・キー名・保存される値は 1 文字も変えない。**
+- 1 部品 1 コミットで、移すたびに 3 ワークスペースの型チェック・ビルド・lint を通す。出力値を持つもの（ハッシュなど）は旧実装と同じ入力で出力が一致することを確かめてからコミットする。
+- 実機での動作に影響しうるもの（通知・テーマ部品）は、移したあと実機確認を依頼してから次に進む。
+- core は `chrome.*` に依存してよいが、サイトの DOM・URL・文言には依存しない。
 
 ## 最重要方針（両拡張に共通）
 
@@ -40,6 +48,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | ラクマ用拡張の方針・索引・既知の状態・落とし穴 | [packages/rakuma/CLAUDE.md](packages/rakuma/CLAUDE.md) |
 | ブランチ運用・コミットメッセージ・コードスタイル | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | リポジトリ構成・開発コマンド・Chrome への読み込み | [README.md](README.md) |
+| 共有部品（待機・ポーリング・FNV-1a・改行正規化・debounce・randomInt） | [packages/core/](packages/core/)（[wait.ts](packages/core/wait.ts), [text-hash.ts](packages/core/text-hash.ts), [debounce.ts](packages/core/debounce.ts), [random.ts](packages/core/random.ts)） |
 | 共通のビルド・lint・format・改行コード設定 | [package.json](package.json), [tsconfig.base.json](tsconfig.base.json), [eslint.config.js](eslint.config.js), [.prettierrc](.prettierrc), [.gitattributes](.gitattributes) |
 | 各パッケージのビルド構成（webpack のエントリと target は 2 つで違う） | `packages/*/webpack.config.js`, `packages/*/tsconfig.json`, `packages/*/package.json`, `packages/*/manifest.json` |
 
@@ -146,7 +155,7 @@ update queue-manager.ts
 
 **このリポジトリには自動テストが存在しない。** どのパッケージにも `test` スクリプトは無く、テストフレームワークも依存に入っていない。「テストを回す」は現状**型チェック・ビルド・静的解析を回す**ことを指す。
 
-**すべてリポジトリルートで実行する。** npm workspaces なので `node_modules` はルートにだけあり、ルートのスクリプトが両パッケージを順に回す。
+**すべてリポジトリルートで実行する。** npm workspaces なので `node_modules` はルートにだけあり、ルートのスクリプトが 3 つのワークスペース（core / mercari / rakuma）を順に回す。core には `build` が無いので `--if-present` で飛ばされる。
 
 | 項目 | コマンド | 現状（2026-10-05 / `40f0179` 実測） |
 | --- | --- | --- |

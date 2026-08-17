@@ -5,7 +5,13 @@
  * 文字数だけでは置換の取りこぼしを見分けられず、本文そのものを
  * メッセージや記録に載せると肥大化するため、この組で比べる。
  * Background と Content Script の双方から使う。
+ *
+ * ハッシュの計算と改行の正規化は共有部品 `@fleamarket/core` にある。
+ * 8 桁 16 進という表記は保存済みの記録と照合するための値なので、ここで付けて変えない。
  */
+import { fnv1a32 as fnv1a32Number } from '@fleamarket/core/text-hash';
+
+export { normalizeLineBreaks } from '@fleamarket/core/text-hash';
 
 export interface TextFingerprint {
   length: number;
@@ -13,14 +19,9 @@ export interface TextFingerprint {
   hash: string;
 }
 
-/** FNV-1a（32bit）。依存を増やさずに済む軽量なハッシュ */
+/** FNV-1a（32bit）を 8 桁の 16 進で返す */
 export function fnv1a32(text: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash.toString(16).padStart(8, '0');
+  return fnv1a32Number(text).toString(16).padStart(8, '0');
 }
 
 export function fingerprint(text: string): TextFingerprint {
@@ -29,14 +30,4 @@ export function fingerprint(text: string): TextFingerprint {
 
 export function sameFingerprint(a: TextFingerprint, b: TextFingerprint): boolean {
   return a.length === b.length && a.hash === b.hash;
-}
-
-/**
- * 改行コードだけを LF に揃える（CRLF / CR → LF）。改行以外の文字は一切変えない。
- *
- * 確定版は LF で持っているが、サーバーから返る本文は CRLF になりうるため、
- * 照合の前にこれを通す。
- */
-export function normalizeLineBreaks(text: string): string {
-  return text.replace(/\r\n?/g, '\n');
 }

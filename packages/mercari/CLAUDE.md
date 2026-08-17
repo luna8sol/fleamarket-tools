@@ -35,6 +35,7 @@
 | 拡張機能の権限・対象ページ・エントリーポイント | [manifest.json](manifest.json) |
 | セレクタ・クラス名・ID・待機時間・既定設定 | [src/content/infra/constants.ts](src/content/infra/constants.ts) |
 | 型定義 | [src/content/infra/types.ts](src/content/infra/types.ts) |
+| 待機（秒単位の `sleep`）・ポーリング（`waitFor`）・乱数・FNV-1a（10 進表記）・debounce | [src/common/utils.ts](src/common/utils.ts), [src/content/infra/debounce.ts](src/content/infra/debounce.ts)（実装は `@fleamarket/core`。この 2 ファイルは従来のシグネチャと表記を保つラッパー） |
 | ページ種別（下書き / 出品中 / 編集・出品フォーム）の判定 | [src/content/infra/page-detector.ts](src/content/infra/page-detector.ts) |
 | 永続化（`chrome.storage.local`） | [src/common/ext-storage.ts](src/common/ext-storage.ts) |
 | ユーザー設定の読み書き | [src/content/infra/user-settings.ts](src/content/infra/user-settings.ts) |

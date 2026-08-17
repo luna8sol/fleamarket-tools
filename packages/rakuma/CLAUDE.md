@@ -69,13 +69,13 @@
 | 説明文の置換の入力 JSON の検証・処理対象の振り分け | [src/content/list/logic/replace-plan.ts](src/content/list/logic/replace-plan.ts) |
 | 説明文の置換パネル（ファイル選択 → 件数 → 確認 → 開始 / 停止 / 結果出力） | [src/content/list/ui/replace-panel.ts](src/content/list/ui/replace-panel.ts) |
 | 説明文の置換の処理記録（`chrome.storage.local`） | [src/common/replace-store.ts](src/common/replace-store.ts) |
-| 文字数 + FNV-1a による本文の照合 | [src/common/text-fingerprint.ts](src/common/text-fingerprint.ts) |
+| 文字数 + FNV-1a（8 桁 16 進表記）による本文の照合 | [src/common/text-fingerprint.ts](src/common/text-fingerprint.ts)（ハッシュの計算と改行正規化は `@fleamarket/core/text-hash`。16 進表記はここで付ける） |
 | フォーム内容の読み取り・入力完了の待機 | [src/content/form/form-state.ts](src/content/form/form-state.ts) |
 | 再出品元との差分チェック | [src/content/form/diff.ts](src/content/form/diff.ts) |
 | フォームのボタン特定 | [src/content/form/button-finder.ts](src/content/form/button-finder.ts) |
 | 出品フォームのボタンラベル・設定値 | [src/content/form/constants.ts](src/content/form/constants.ts) |
 | ポーリング待機ユーティリティ | [src/content/form/wait.ts](src/content/form/wait.ts) |
-| 一定時間の待機（一覧・フォーム共通） | [src/content/wait.ts](src/content/wait.ts) |
+| 一定時間の待機・ポーリング（一覧・フォーム共通） | [src/content/wait.ts](src/content/wait.ts)（`@fleamarket/core/wait` の再エクスポート） |
 | セレクタ・クラス名・ID・設定値（一覧ページ） | [src/content/list/infra/constants.ts](src/content/list/infra/constants.ts) |
 | ページ種別（`/sell` / `/draft`）の判定 | [src/content/list/infra/page-detector.ts](src/content/list/infra/page-detector.ts) |
 | 一覧の描画監視（MutationObserver） | [src/content/list/infra/list-observer.ts](src/content/list/infra/list-observer.ts) |

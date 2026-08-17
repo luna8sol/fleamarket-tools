@@ -1,10 +1,14 @@
 /**
  * 共通ユーティリティ関数集
  *
- * - アプリ全体でimportして使える汎用関数をまとめています。
- * - 非同期待機・ランダム整数生成・null/空判定など、どのレイヤーからも利用可能です。
- * - 新たな共通処理はこのファイルに追加してください。
+ * - 実装は共有部品 `@fleamarket/core` にある。このファイルは、この拡張の従来の
+ *   シグネチャ（秒単位の sleep、引数を並べる waitFor、10 進表記の fnv1a32）を保つための
+ *   薄いラッパー。呼び出し側はこれまでどおりここから import する。
  */
+import { fnv1a32 as fnv1a32Number } from '@fleamarket/core/text-hash';
+import { delay, pollUntilTruthy } from '@fleamarket/core/wait';
+
+export { randomInt } from '@fleamarket/core/random';
 
 /**
  * 指定秒数だけ非同期で待機する。
@@ -15,23 +19,8 @@
  *   await sleep(2); // 2秒待機
  */
 export function sleep(seconds: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, seconds * 1000));
+  return delay(seconds * 1000);
 }
-
-/**
- * 指定範囲内のランダム整数を返す。
- *
- * @param min 最小値（含む）
- * @param max 最大値（含む）
- * @returns {number} min以上max以下のランダム整数
- * @example
- *   const n = randomInt(1, 5); // 1〜5のどれか
- */
-export function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-// 今後も共通化したい関数があればここに追加してください
 
 /**
  * 条件が満たされるまでポーリングで待つ。
@@ -48,29 +37,19 @@ export function randomInt(min: number, max: number): number {
  * @example
  *   const input = await waitFor(() => document.querySelector('input[name="name"]'), 20000, 250);
  */
-export async function waitFor<T>(
+export function waitFor<T>(
   probe: () => T | null | undefined | false,
   timeoutMs: number,
   intervalMs: number
 ): Promise<T | null> {
-  const deadline = Date.now() + timeoutMs;
-
-  for (;;) {
-    const value = probe();
-    if (value) return value;
-    if (Date.now() >= deadline) return null;
-    await sleep(intervalMs / 1000);
-  }
+  return pollUntilTruthy(probe, { timeoutMs, intervalMs });
 }
 
 /**
  * FNV-1a（32bit）ハッシュを 10 進文字列で返す。
  *
  * - 説明文の一括置換で、原本・確定版・保存後の本文が**一字一句同じか**を照合するために使います。
- *   文字数だけでは並び替えや置換の取りこぼしを見分けられないため、文字数と併せて比較します。
- * - `charCodeAt` 単位（UTF-16 コードユニット）で畳み込みます。サロゲートペアも 2 単位として
- *   一貫して扱われるので、同じ実装同士で比べる限り結果は一致します。
- * - 暗号用途ではありません。改ざん検知ではなく「取得後に変わっていないか」の判定に使います。
+ * - 10 進表記は保存済みの置換記録（`expectedHash` など）と照合するための値なので変えないこと。
  *
  * @param value ハッシュを取る文字列
  * @returns 32bit 符号なし整数を 10 進表記した文字列
@@ -78,10 +57,5 @@ export async function waitFor<T>(
  *   fnv1a32('abc'); // '440920331'
  */
 export function fnv1a32(value: string): string {
-  let hash = 2166136261;
-  for (let i = 0; i < value.length; i++) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 16777619) >>> 0;
-  }
-  return String(hash);
+  return String(fnv1a32Number(value));
 }

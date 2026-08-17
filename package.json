@@ -7,16 +7,16 @@
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "npm run typecheck --workspaces",
-    "build": "npm run build --workspaces",
-    "build:dev": "npm run build:dev --workspaces",
-    "build:prod": "npm run build:prod --workspaces",
-    "lint": "npm run lint --workspaces",
-    "lint:fix": "npm run lint:fix --workspaces",
-    "format": "npm run format --workspaces",
-    "format:check": "npm run format:check --workspaces",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "build:dev": "npm run build:dev --workspaces --if-present",
+    "build:prod": "npm run build:prod --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "lint:fix": "npm run lint:fix --workspaces --if-present",
+    "format": "npm run format --workspaces --if-present",
+    "format:check": "npm run format:check --workspaces --if-present",
     "check": "npm run typecheck && npm run build && npm run lint",
-    "clean": "npm run clean --workspaces"
+    "clean": "npm run clean --workspaces --if-present"
   },
   "devDependencies": {
     "@types/chrome": "^0.1.1",

@@ -1,0 +1,14 @@
+{
+  "name": "@fleamarket/core",
+  "version": "0.1.0",
+  "description": "メルカリ用・ラクマ用の両拡張から使う、サイトに依存しない純粋なユーティリティ",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"*.ts\"",
+    "format:check": "prettier --check \"*.ts\""
+  }
+}
