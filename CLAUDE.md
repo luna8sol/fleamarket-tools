@@ -98,7 +98,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### ブランチ運用の補足（CONTRIBUTING.md に無い部分）
 
 - **統合ブランチは `develop`。ここで直接作業しない。** 各タスクは `develop` からトピックブランチを切る。
-  - `develop` は 2026-09-19 に `main` から作った**ローカルブランチ**で、まだ origin には無い。push するかは人が判断する。
+  - `develop` は 2026-09-19 に `main` から作ったブランチで、`origin/develop` と同期している。
 - 命名は CONTRIBUTING.md の規則（`feature/` / `fix/` / `docs/` / `refactor/` + ハイフン区切りの英小文字）。日付・イニシャル・連番は入れない。
   - **`feature/` を既定にしない。** 中身が修正なら `fix/`、ドキュメントなら `docs/`、挙動を変えない整理なら `refactor/`。コミットの prefix と同じく**中身で選ぶ**。
 - **エージェントが自動命名したブランチ（`claude/...`、`worktree-...`）のまま作業を終えない。** 規約名に直す。
@@ -107,7 +107,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   git branch -m <規約名>
   ```
 
-- **作業ブランチは origin に push しない**（ローカル限り）。`main` は現在 `origin/main` と分岐している（上記「既知の状態」）。
+- **トピックブランチは origin に push しない**（ローカル限り）。origin と同期するのは `main` と `develop` の 2 本だけで、どちらも現在 origin と一致している。
 - 統合は **rebase してから `--ff-only`** で行う。**マージコミットを作らない**（履歴を直線に保つ）。手順は [.claude/skills/merge/SKILL.md](.claude/skills/merge/SKILL.md)。
 - **マージ後に作業ブランチを削除する**（`git branch -d`）。
 - このリポジトリは **worktree を使っている。ブランチ 1 本につき worktree が 1 つ占有される。** ブランチを削除するときは worktree も片付ける（手順は [.claude/skills/local-setup/SKILL.md](.claude/skills/local-setup/SKILL.md)）。

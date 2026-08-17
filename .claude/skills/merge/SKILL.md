@@ -22,13 +22,16 @@ description: 作業ブランチを統合ブランチ develop に取り込む。�
 **マージコミットを作らない。** 履歴は直線に保つ。
 
 ```bash
+git fetch origin develop
+git switch develop && git pull --ff-only  # origin と同期しているので先に追いつかせる
 git switch <作業ブランチ>
-git rebase develop                       # develop が進んでいれば載せ替える
+git rebase develop                        # develop が進んでいれば載せ替える
 git switch develop
-git merge --ff-only <作業ブランチ>       # 早送りのみ。マージコミットは作られない
+git merge --ff-only <作業ブランチ>        # 早送りのみ。マージコミットは作られない
 ```
 
-- **`develop` は origin に無いローカルブランチ**（2026-09-19 時点）なので `git fetch` / `git pull` は不要。origin に push した後は、rebase の前に `git fetch origin develop` と `git pull --ff-only` を入れる。`git pull --ff-only` が失敗したら `develop` が分岐している。**勝手にマージせず、報告して指示を仰ぐ。**
+- **`develop` は `origin/develop` と同期している。** rebase の前に追いつかせること。`git pull --ff-only` が失敗したら `develop` が分岐している。**勝手にマージせず、報告して指示を仰ぐ。**
+- **取り込んだ `develop` を origin へ push するかは人が判断する。** 頼まれていないなら push しない。
 - **`--ff-only` を使い、`--no-ff` を付けない。** `--no-ff` は早送りできる場合でもマージコミットを作るオプション。
 - **`git merge --ff-only` が失敗したら、rebase が済んでいないサイン。** その場でマージに切り替えず、`git rebase develop` に戻る。
 - **rebase 中にコンフリクトしたら、解消して `git rebase --continue`。** 手に負えなければ `git rebase --abort` で戻して報告する（下記「4. コンフリクトしたとき」と同じ判断）。

@@ -26,11 +26,11 @@ description: このリポジトリのタスクに着手する。一次資料と�
 `develop` が統合ブランチ。**`develop` と `main` で直接作業しない。**
 
 ```bash
-git switch develop
+git switch develop && git pull --ff-only
 git switch -c <feature|fix|docs|refactor>/<英小文字の短い説明>
 ```
 
-`develop` は origin に無いローカルブランチなので `git pull` は不要（origin に push した後は `git pull --ff-only` を先に実行し、失敗したら**勝手にマージせず報告して指示を仰ぐ**）。
+`develop` は `origin/develop` と同期しているので、切る前に追いつかせる。`git pull --ff-only` が失敗したら `develop` が分岐している。**勝手にマージせず、報告して指示を仰ぐ。**
 
 命名規約は [CLAUDE.md](../../../CLAUDE.md) の「ブランチ運用の補足」にある（`feature/` を既定にせず、中身で選ぶ）。
 

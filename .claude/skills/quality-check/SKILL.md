@@ -45,7 +45,7 @@ git ls-files --others --exclude-standard              # 未追跡の新規ファ
 ```
 
 - **`...`（3 点）を使う。** `develop..HEAD`（2 点）にすると、`develop` 側が進んでいるときに相手側の変更まで差分に出る。3 点なら**分岐点からこのブランチが入れた変更だけ**になる。
-- **`develop` はローカルブランチで origin には無い**（2026-09-19 時点）。`git fetch` で最新化されるのは `main` 側だけなので、比較元は手元の `develop` をそのまま使う。origin に `develop` を push した後は、比較の前に `git log develop..origin/develop` が空か確かめる。
+- **比較元を最新にしてから実行する。** `develop` は `origin/develop` と同期しているので、`git fetch origin develop` のあと `git log develop..origin/develop` が空か確かめる。空でなければ先に `git switch develop && git pull --ff-only` で追いつかせる（手元の `develop` が古いまま比較すると、差分に相手側の変更が混ざる）。
 - **`--no-renames` を省かない。** 既定ではリネームが畳まれて移動後のパスしか出ず、移動元のディレクトリを対象から落とす。
 - **`| sort -u` のような 1 本のパイプにまとめない。** どれかが失敗してもパイプ全体は成功し、「変更なし」に見えたまま未検証で進む。3 回別々に実行して、それぞれの結果を見る。
 - **`git status --porcelain` は使わない。** リネームが `R old -> new` の 1 行になりパスとして取り出せない。
