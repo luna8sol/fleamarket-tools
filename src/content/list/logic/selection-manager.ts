@@ -21,6 +21,18 @@ export class SelectionManager {
     this.selections.clear();
   }
 
+  /**
+   * 指定IDに含まれない選択を破棄する。
+   * ページ送りなどで一覧から消えた商品を選択したままにしないため。
+   */
+  retain(ids: Set<string>): void {
+    for (const id of this.selections.keys()) {
+      if (!ids.has(id)) {
+        this.selections.delete(id);
+      }
+    }
+  }
+
   getCount(): number {
     return this.selections.size;
   }
