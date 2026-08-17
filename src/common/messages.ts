@@ -108,16 +108,23 @@ export interface ClickDeleteMessage {
 /** CLICK_RELIST / CLICK_DELETE への応答 */
 export interface ClickResponse {
   clicked: boolean;
+  /**
+   * クリック直前の一覧全体の件数。削除の成否判定に使う。
+   * 読み取れないページでは null。
+   */
+  totalCount?: number | null;
 }
 
 /**
  * 一覧の描画完了通知。
- * deleteモードでは、削除後に再読込された一覧にその商品が残っていないかで
- * 削除の成否を判定するため、現在表示中の商品IDを添える。
+ * deleteモードでは削除の成否判定に使う。件数が読めるページでは件数の減少で、
+ * 読めないページでは表示中の商品IDに対象が残っていないかで判定する。
  */
 export interface ListReadyMessage {
   type: typeof MessageType.LIST_READY;
   ids: string[];
+  /** 一覧全体の件数。読み取れないページでは null */
+  totalCount?: number | null;
 }
 
 export interface QueueProgressMessage {

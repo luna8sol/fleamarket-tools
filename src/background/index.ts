@@ -56,7 +56,7 @@ async function handleMessage(
     case MessageType.LIST_READY: {
       const tabId = sender.tab?.id;
       if (tabId !== undefined) {
-        await queueManager.handleListReady(tabId, message.ids);
+        await queueManager.handleListReady(tabId, message.ids, message.totalCount ?? null);
       }
       return ACK;
     }

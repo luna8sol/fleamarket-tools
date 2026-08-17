@@ -12,6 +12,7 @@ import { detectCurrentPage, PageType } from './infra/page-detector';
 import { observeListChanges } from './infra/list-observer';
 import { collectItems, findRelistButton } from './logic/item-collector';
 import { clickDeleteLink, findDeleteLink } from './logic/delete-clicker';
+import { getCurrentPage, getMaxPage, getTotalItemCount, gotoPage } from './logic/pager';
 import { selectionManager } from './logic/selection-manager';
 import { addCheckboxes, setCheckboxesEnabled } from './ui/checkbox-manager';
 import { renderBulkBar, updateCount, updateProgress } from './ui/bulk-bar';
@@ -25,6 +26,10 @@ import { showToast } from './ui/notification';
 const DELETE_DELAY_MS = 2000;
 /** 削除の待機時間に加算するランダム値の最大 (ms) */
 const DELETE_RANDOM_MS = 2000;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
 
 function main(): void {
   setDebugMode(true);
@@ -94,8 +99,29 @@ function main(): void {
     const message: ListReadyMessage = {
       type: MessageType.LIST_READY,
       ids: collectItems(pageType).map((item) => item.id),
+      totalCount: getTotalItemCount(),
     };
     void chrome.runtime.sendMessage(message);
+  };
+
+  /**
+   * 指定商品の削除リンクを、必要ならページを移動して探す。
+   *
+   * 削除するとページ全体が遷移して1ページ目に戻るため、2ページ目以降の商品を
+   * 続けて削除するには、そのつど探しに行く必要がある。
+   */
+  const locateDeleteLink = async (itemId: string): Promise<HTMLAnchorElement | null> => {
+    const onCurrentPage = findDeleteLink(pageType, itemId);
+    if (onCurrentPage) return onCurrentPage;
+
+    const maxPage = getMaxPage();
+    for (let page = getCurrentPage() + 1; page <= maxPage; page++) {
+      if (!(await gotoPage(page))) break;
+      log(`${page}ページ目を確認します`);
+      const link = findDeleteLink(pageType, itemId);
+      if (link) return link;
+    }
+    return null;
   };
 
   const startQueue = (mode: QueueMode, items: { id: string; title: string }[]): void => {
@@ -169,6 +195,9 @@ function main(): void {
 
   // Backgroundからのメッセージを処理
   chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
+    /** 非同期に応答する場合のみ、メッセージチャネルを開いたままにする */
+    let keepChannelOpen = false;
+
     switch (message.type) {
       case MessageType.CLICK_RELIST: {
         const btn = findRelistButton(message.item.id);
@@ -184,17 +213,20 @@ function main(): void {
       }
 
       case MessageType.CLICK_DELETE: {
-        if (!findDeleteLink(pageType, message.item.id)) {
-          warn(`削除リンクが見つかりません: ${message.item.title}`);
-          sendResponse({ clicked: false });
-          break;
-        }
-        // リンクが見つかったことだけ先に返し、少し間を置いてからクリックする。
-        // クリックするとページ遷移が始まり、応答を返せなくなるため。
-        sendResponse({ clicked: true });
+        // 商品を探すためにページを移動することがあるので応答は非同期になる
+        keepChannelOpen = true;
+        void (async (): Promise<void> => {
+          if (!(await locateDeleteLink(message.item.id))) {
+            warn(`削除リンクが見つかりません: ${message.item.title}`);
+            sendResponse({ clicked: false });
+            return;
+          }
+          // 見つかったことと現在の件数を先に返す。クリックするとページ遷移が
+          // 始まり、応答を返せなくなるため。
+          sendResponse({ clicked: true, totalCount: getTotalItemCount() });
 
-        const waitMs = DELETE_DELAY_MS + Math.floor(Math.random() * DELETE_RANDOM_MS);
-        window.setTimeout(() => {
+          await delay(DELETE_DELAY_MS + Math.floor(Math.random() * DELETE_RANDOM_MS));
+
           // 待っている間に一覧が再描画されて要素が差し替わっている可能性があるため、
           // クリック直前に取り直す
           const link = findDeleteLink(pageType, message.item.id);
@@ -206,7 +238,7 @@ function main(): void {
           }
           log(`削除リンクをクリック: ${message.item.title}`);
           clickDeleteLink(link);
-        }, waitMs);
+        })();
         break;
       }
 
@@ -232,8 +264,7 @@ function main(): void {
         sendResponse({ ok: true });
         break;
     }
-    // すべての分岐で同期的に応答済みのため、チャネルは開いたままにしない
-    return undefined;
+    return keepChannelOpen ? true : undefined;
   });
 }
 

@@ -59,6 +59,8 @@ interface QueueState {
   candidateTabIds: number[];
   /** relistで処理中の商品の、再出品元の内容（差分チェック用） */
   expectedSource: SourceItem | null;
+  /** deleteで削除リンクをクリックする直前の一覧全体の件数 */
+  countBeforeDelete: number | null;
 }
 
 function createInitialState(): QueueState {
@@ -73,6 +75,7 @@ function createInitialState(): QueueState {
     phase: 'idle',
     candidateTabIds: [],
     expectedSource: null,
+    countBeforeDelete: null,
   };
 }
 
@@ -353,6 +356,7 @@ export class QueueManager {
     this.state.activeTabId = null;
     this.state.candidateTabIds = [];
     this.state.expectedSource = null;
+    this.state.countBeforeDelete = null;
     log(`処理開始 (${this.state.currentIndex + 1}/${this.state.items.length}): ${item.title}`);
 
     if (this.state.mode === 'delete') {
@@ -425,6 +429,7 @@ export class QueueManager {
     }
 
     this.state.phase = 'deleting';
+    this.state.countBeforeDelete = null;
     await this.startWatchdog();
     await this.save();
     await this.notifyProgress();
@@ -434,8 +439,11 @@ export class QueueManager {
       const response = (await chrome.tabs.sendMessage(this.state.listTabId, message)) as
         ClickResponse | undefined;
       if (!response?.clicked) {
-        await this.failCurrent('削除リンクが見つかりません');
+        await this.failCurrent('削除リンクが見つかりません（どのページにもありませんでした）');
+        return;
       }
+      this.state.countBeforeDelete = response.totalCount ?? null;
+      await this.save();
     } catch (e) {
       warn('一覧タブへのメッセージ送信に失敗しました', e);
       await this.failCurrent('一覧タブとの通信に失敗しました');
@@ -446,15 +454,30 @@ export class QueueManager {
    * 一覧の描画完了通知を受け取る。
    *
    * deleteモードでは、削除リンクをクリックするとページが遷移して一覧が
-   * 再読み込みされる。その一覧に対象商品が残っていなければ削除成功とみなす。
+   * 再読み込みされ、**1ページ目に戻る**。そのため「表示中の一覧に残っていないこと」は
+   * 削除の証拠にならない（別ページにいるだけかもしれない）。
+   *
+   * 件数が読めるページ（/sell）では件数の減少で判定する。
+   * 読めないページ（/draft はページャが無く全件表示）では、
+   * 対象IDが残っていないことで判定する。
    */
-  async handleListReady(tabId: number, ids: string[]): Promise<void> {
+  async handleListReady(tabId: number, ids: string[], totalCount: number | null): Promise<void> {
     if (!this.state.running) return;
     if (this.state.mode !== 'delete' || this.state.phase !== 'deleting') return;
     if (tabId !== this.state.listTabId) return;
 
     const item = this.state.items[this.state.currentIndex];
     if (!item) return;
+
+    const before = this.state.countBeforeDelete;
+    if (before !== null && totalCount !== null) {
+      if (totalCount < before) {
+        await this.completeCurrent();
+      } else {
+        await this.failCurrent(`削除されませんでした（件数が${before}件のままです）`);
+      }
+      return;
+    }
 
     if (ids.includes(item.id)) {
       await this.failCurrent('削除されませんでした（一覧に残っています）');

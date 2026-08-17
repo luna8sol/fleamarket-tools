@@ -24,6 +24,14 @@ export const SELECTOR = {
   /** コメント数 */
   COMMENT_COUNT: '[data-test="item_comment_count"]',
 
+  // ページ送り用（/sell にのみ存在。/draft は全件表示でページャが無い）
+  /** 現在表示中のページ番号 */
+  PAGER_CURRENT: '.pagination .page.current',
+  /** 他ページへのリンク */
+  PAGER_LINK: '.pagination a',
+  /** 「122件中 31 - 60件」の情報行。タブごとに存在するため表示中のものだけ使う */
+  PAGE_INFO: '.page-info',
+
   /**
    * 削除リンク（jquery_ujs）。/sell・/draft の双方で同じ形。
    * ラベルではなく data-method で特定する。
