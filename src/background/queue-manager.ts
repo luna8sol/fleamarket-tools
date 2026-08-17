@@ -11,6 +11,7 @@ import {
 } from '../common/messages';
 import { sendToTab } from '../common/send-message';
 import { isFormPageUrl } from '../common/form-page';
+import { QUEUE_MODE_TRAITS } from '../common/queue-mode-traits';
 import { fetchSourceItem } from './source-item';
 import { log, warn } from '../common/logger';
 
@@ -321,10 +322,10 @@ export class QueueManager {
   async handleTabRemoved(tabId: number): Promise<void> {
     if (!this.state.running) return;
 
-    // relist・deleteは一覧タブのボタンに依存しているため、閉じられたら続行できない
+    // 一覧タブのクリックに依存するモード（relist・delete）は、閉じられたら続行できない
     if (this.state.listTabId === tabId) {
       this.state.listTabId = null;
-      if (this.state.mode === 'relist' || this.state.mode === 'delete') {
+      if (QUEUE_MODE_TRAITS[this.state.mode].requiresListTab) {
         warn('一覧タブが閉じられたためキューを停止します');
         await this.stop();
         return;
@@ -550,7 +551,8 @@ export class QueueManager {
    */
   async handleListReady(tabId: number, ids: string[], totalCount: number | null): Promise<void> {
     if (!this.state.running) return;
-    if (this.state.mode !== 'delete' || this.state.phase !== 'deleting') return;
+    if (!QUEUE_MODE_TRAITS[this.state.mode].completesOnListReady) return;
+    if (this.state.phase !== 'deleting') return;
     if (tabId !== this.state.listTabId) return;
 
     const item = this.state.items[this.state.currentIndex];
@@ -578,8 +580,8 @@ export class QueueManager {
    */
   private async completeCurrent(): Promise<void> {
     const item = this.state.items[this.state.currentIndex];
-    const action = this.state.mode === 'delete' ? '削除完了' : '出品完了';
-    log(`${action}: ${item?.title ?? ''}`);
+    const action = QUEUE_MODE_TRAITS[this.state.mode].actionLabel;
+    log(`${action}完了: ${item?.title ?? ''}`);
 
     // このあとタブを閉じるのに使うので、リセットする前に控えておく。
     const tabId = this.state.activeTabId;
@@ -609,7 +611,8 @@ export class QueueManager {
   private async failCurrent(reason: string): Promise<void> {
     const item = this.state.items[this.state.currentIndex];
     if (item) {
-      warn(`出品失敗: ${item.title} (${reason})`);
+      const action = QUEUE_MODE_TRAITS[this.state.mode].actionLabel;
+      warn(`${action}失敗: ${item.title} (${reason})`);
       this.state.failed.push({ item, reason });
     }
     this.state.currentIndex++;
@@ -660,10 +663,10 @@ export class QueueManager {
       return;
     }
 
-    // deleteは一覧ページ内で完結し、ページ遷移そのものが間隔になる。
-    // クリック前の待機はContent Script側で入れるため、ここでは待たない
+    // 待機を挟まないモード（delete）は一覧ページ内で完結し、ページ遷移そのものが
+    // 間隔になる。クリック前の待機はContent Script側で入れるため、ここでは待たない
     // （chrome.alarms は短い遅延を指定できないため）。
-    if (this.state.mode === 'delete') {
+    if (!QUEUE_MODE_TRAITS[this.state.mode].waitsBetweenItems) {
       await this.save();
       await this.notifyProgress();
       await this.processCurrent();

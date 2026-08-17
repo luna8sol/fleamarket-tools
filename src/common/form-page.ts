@@ -9,6 +9,7 @@
  */
 
 import { FormMode, QueueMode } from './messages';
+import { QUEUE_MODE_TRAITS } from './queue-mode-traits';
 
 /** ラクマ本体のオリジン。商品ページの item.fril.jp とは別ホストである点に注意 */
 const FRIL_ORIGIN = 'https://fril.jp';
@@ -46,7 +47,7 @@ export function detectFormPageMode(url: string): FormMode | null {
  * URLが指定モードの出品フォームページかどうか
  */
 export function isFormPageUrl(mode: QueueMode, url: string): boolean {
-  // deleteモードは出品フォームを使わない
-  if (mode === 'delete') return false;
+  // 出品フォームを持たないモード（delete）には一致しようがない
+  if (!QUEUE_MODE_TRAITS[mode].usesFormPage) return false;
   return detectFormPageMode(url) === mode;
 }
