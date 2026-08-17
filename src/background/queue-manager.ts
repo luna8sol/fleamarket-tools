@@ -381,66 +381,83 @@ export class QueueManager {
     this.state.countBeforeDelete = null;
     log(`処理開始 (${this.state.currentIndex + 1}/${this.state.items.length}): ${item.title}`);
 
-    if (this.state.mode === 'delete') {
-      await this.startDelete(item);
-      return;
-    }
+    // モードごとの分岐は switch で網羅する。QueueMode にモードを追加したとき、
+    // default の never 代入がコンパイルエラーになって取りこぼしに気付ける。
+    const mode = this.state.mode;
+    switch (mode) {
+      case 'delete':
+        await this.startDelete(item);
+        return;
 
-    if (this.state.mode === 'publish') {
-      // 下書きの編集ページを直接開く
-      this.state.phase = 'loading-form';
-      await this.startWatchdog();
-      await this.save();
-      await this.notifyProgress();
+      case 'publish': {
+        // 下書きの編集ページを直接開く
+        this.state.phase = 'loading-form';
+        await this.startWatchdog();
+        await this.save();
+        await this.notifyProgress();
 
-      try {
-        const tab = await chrome.tabs.create({
-          url: `https://fril.jp/drafts/${item.id}/edit`,
-          active: false,
-        });
-        if (tab.id === undefined) {
+        try {
+          const tab = await chrome.tabs.create({
+            url: `https://fril.jp/drafts/${item.id}/edit`,
+            active: false,
+          });
+          if (tab.id === undefined) {
+            await this.failCurrent('編集ページのタブを開けませんでした');
+            return;
+          }
+          this.state.activeTabId = tab.id;
+          await this.save();
+        } catch (e) {
+          warn('編集ページのタブ作成に失敗しました', e);
           await this.failCurrent('編集ページのタブを開けませんでした');
+        }
+        return;
+      }
+
+      case 'relist': {
+        // 一覧タブへ再出品ボタンのクリックを指示し、新規タブを待つ
+        if (this.state.listTabId === null) {
+          await this.failCurrent('一覧タブが見つかりません');
           return;
         }
-        this.state.activeTabId = tab.id;
+
+        // フォームの内容を突き合わせるため、再出品元の内容を先に取得しておく。
+        // 取得できなくても処理は続ける（差分チェックが省略されるだけ）。
+        this.state.expectedSource = await fetchSourceItem(item.id);
+        if (this.state.expectedSource === null) {
+          warn(`再出品元の内容を取得できませんでした: ${item.title}`);
+        }
+
+        this.state.phase = 'waiting-tab';
+        await this.startWatchdog();
         await this.save();
-      } catch (e) {
-        warn('編集ページのタブ作成に失敗しました', e);
-        await this.failCurrent('編集ページのタブを開けませんでした');
+        await this.notifyProgress();
+
+        const message: ClickRelistMessage = { type: MessageType.CLICK_RELIST, item };
+        try {
+          const response = (await chrome.tabs.sendMessage(this.state.listTabId, message)) as
+            ClickResponse | undefined;
+          // クリックできていなければタブは開かない。ウォッチドッグで
+          // 「タブを検出できませんでした」と出るのを待たず、ここで失敗にする。
+          if (!response?.clicked) {
+            await this.failCurrent(
+              '再出品ボタンが見つかりません（一覧が更新された可能性があります）'
+            );
+          }
+        } catch (e) {
+          warn('一覧タブへのメッセージ送信に失敗しました', e);
+          await this.failCurrent('一覧タブとの通信に失敗しました');
+        }
+        return;
       }
-      return;
-    }
 
-    // relist: 一覧タブへ再出品ボタンのクリックを指示し、新規タブを待つ
-    if (this.state.listTabId === null) {
-      await this.failCurrent('一覧タブが見つかりません');
-      return;
-    }
-
-    // フォームの内容を突き合わせるため、再出品元の内容を先に取得しておく。
-    // 取得できなくても処理は続ける（差分チェックが省略されるだけ）。
-    this.state.expectedSource = await fetchSourceItem(item.id);
-    if (this.state.expectedSource === null) {
-      warn(`再出品元の内容を取得できませんでした: ${item.title}`);
-    }
-
-    this.state.phase = 'waiting-tab';
-    await this.startWatchdog();
-    await this.save();
-    await this.notifyProgress();
-
-    const message: ClickRelistMessage = { type: MessageType.CLICK_RELIST, item };
-    try {
-      const response = (await chrome.tabs.sendMessage(this.state.listTabId, message)) as
-        ClickResponse | undefined;
-      // クリックできていなければタブは開かない。ウォッチドッグで
-      // 「タブを検出できませんでした」と出るのを待たず、ここで失敗にする。
-      if (!response?.clicked) {
-        await this.failCurrent('再出品ボタンが見つかりません（一覧が更新された可能性があります）');
+      default: {
+        // 型の上では到達しない。到達したらモードの追加漏れなので、
+        // 既存モードの処理へ流し込まず、記録だけして止まる。
+        const _exhaustive: never = mode;
+        warn(`未対応のキューモードです: ${String(_exhaustive)}`);
+        return;
       }
-    } catch (e) {
-      warn('一覧タブへのメッセージ送信に失敗しました', e);
-      await this.failCurrent('一覧タブとの通信に失敗しました');
     }
   }
 
