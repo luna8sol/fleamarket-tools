@@ -88,7 +88,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **文書とコードが食い違ったらコードが正。** 古い記述を見つけたらその場で直す。
 
 - **一括削除はコードが入っているだけで、実行しての動作確認がされていない**（README の「未検証」）。DOM の構造と `data-confirm` の挙動までは実機確認済み。**取り消せない操作なので、変更するなら実機確認までを 1 単位にする。**
-- **説明文の一括置換（replace モード）は 1 件のみ通しで実機確認済み**（2026-09-28。README の「未検証」）。その検証で完了処理の再入（次の商品を飛ばす）を見つけて直したが、修正後の通しは未確認。**数件で実機検証してから全件に流す。**
+- **説明文の一括置換（replace モード）は 3 件で通しの実機確認済み**（2026-09-28。README の「未検証」）。最初の実行で完了処理の再入（次の商品を飛ばす）を見つけて直し、修正後に 2/2 成功。全件（123 件）の実行はまだ。
 - **`manifest.json` の content-form の `matches` に `https://fril.jp/item/*/edit*` を足した**（2026-09-28）。`/item/{hash}/edit` は [form-page.ts](src/common/form-page.ts) で `replace` に判定される。`/item/new` は従来どおり `relist`。
 - **`manifest.json` の `https://fril.jp/draft*` は `/drafts/{hash}/edit`（出品フォーム）にもマッチする。** 一覧用 content script がフォームで動かないのは、[page-detector.ts](src/content/list/infra/page-detector.ts) が `/drafts` を `UNKNOWN` に落としているからで、manifest 側では除外していない。**片方だけ変えない。**
 - **キューの状態は `chrome.storage.session` に保存され、Service Worker の破棄に耐える。** 変更のたびに書き戻し、各イベントハンドラの先頭で復元する。タイマーは `setTimeout` ではなく `chrome.alarms`（SW の破棄で消えるため）。**`chrome.alarms` は 30 秒未満の遅延がクランプされる**ので、短い待機には使えない。
