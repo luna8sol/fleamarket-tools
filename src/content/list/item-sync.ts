@@ -27,6 +27,9 @@ function handleCheckboxChange(item: ListItem, checked: boolean): void {
  * DOMが変化するたびに呼び、増えた分だけ付与する。
  */
 export function createItemSync(pageType: PageTypeValue): () => void {
+  /** LIST_READY はページ読み込みごとに1回だけ送る */
+  let listReadySent = false;
+
   return (): void => {
     const items = collectItems(pageType);
     const added = addCheckboxes(items, handleCheckboxChange);
@@ -48,8 +51,8 @@ export function createItemSync(pageType: PageTypeValue): () => void {
     }
 
     // 削除キューの成否判定に使うため、描画が終わったことをBackgroundへ伝える
-    if (!queueState.isListReadySent()) {
-      queueState.markListReadySent();
+    if (!listReadySent) {
+      listReadySent = true;
       sendListReady(pageType);
     }
   };

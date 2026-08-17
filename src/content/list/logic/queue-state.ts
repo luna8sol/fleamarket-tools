@@ -9,8 +9,6 @@
 export class QueueState {
   /** キュー実行中は、後から現れたチェックボックスも無効にしておく */
   private queueRunning = false;
-  /** LIST_READY はページ読み込みごとに1回だけ送る */
-  private listReadySent = false;
 
   isQueueRunning(): boolean {
     return this.queueRunning;
@@ -18,14 +16,6 @@ export class QueueState {
 
   setQueueRunning(running: boolean): void {
     this.queueRunning = running;
-  }
-
-  isListReadySent(): boolean {
-    return this.listReadySent;
-  }
-
-  markListReadySent(): void {
-    this.listReadySent = true;
   }
 }
 
