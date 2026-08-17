@@ -12,8 +12,18 @@ import { warn } from '../common/logger';
  * NOTE: Service Worker には DOMParser が無いため、正規表現で抜き出す。
  */
 
-/** JSON-LD ブロック */
-const LD_JSON_RE = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i;
+/**
+ * JSON-LD ブロック。
+ *
+ * 1ページに複数ある（BreadcrumbList など）ことを前提に全部を走査し、
+ * `@type` が Product のものを選ぶ。先頭のブロックを決め打ちすると、
+ * ラクマ側が Product より前に別の JSON-LD を足した瞬間に全項目が null になり、
+ * 差分チェックが黙って省略される。
+ *
+ * NOTE: g フラグ付きだが、matchAll は内部で正規表現を複製するため lastIndex は汚れない。
+ * exec で書き直すとモジュール定数の lastIndex が持ち越されて2回目以降が壊れる。
+ */
+const LD_JSON_RE = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
 /** og:image（属性の順序が逆のこともあるため2パターン見る） */
 const OG_IMAGE_RE = /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i;
 const OG_IMAGE_REVERSED_RE = /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i;
@@ -26,6 +36,42 @@ interface ProductJsonLd {
   description?: string;
   brand?: { name?: string };
   offers?: { price?: number | string };
+}
+
+/**
+ * JSON-LD のルート値から、型を判定する対象になるノードを平坦に取り出す。
+ * ルートが配列のこともあれば、`@graph` の下にまとめられていることもある。
+ */
+function flattenNodes(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value.flatMap(flattenNodes);
+  if (typeof value !== 'object' || value === null) return [];
+  const graph = (value as { '@graph'?: unknown })['@graph'];
+  return graph === undefined ? [value] : [value, ...flattenNodes(graph)];
+}
+
+/** `@type` が Product か（複数の型を配列で持つこともある） */
+function isProductNode(value: unknown): value is ProductJsonLd {
+  if (typeof value !== 'object' || value === null) return false;
+  const type = (value as { '@type'?: unknown })['@type'];
+  return Array.isArray(type) ? type.includes('Product') : type === 'Product';
+}
+
+/** HTML中のJSON-LDから Product のものを探す。見つからなければ null */
+function findProductJsonLd(html: string): ProductJsonLd | null {
+  for (const match of html.matchAll(LD_JSON_RE)) {
+    const block = match[1].trim();
+    if (block === '') continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(block);
+    } catch {
+      // 壊れたブロックがあっても、他に Product があるかもしれないので続ける
+      continue;
+    }
+    const product = flattenNodes(parsed).find(isProductNode);
+    if (product) return product;
+  }
+  return null;
 }
 
 function extractOgImage(html: string): string | null {
@@ -62,12 +108,11 @@ export async function fetchSourceItem(itemId: string): Promise<SourceItem | null
     }
     const html = await response.text();
 
-    const ldBlock = html.match(LD_JSON_RE)?.[1];
-    if (!ldBlock) {
-      warn('商品ページにJSON-LDが見つかりません');
+    const ld = findProductJsonLd(html);
+    if (!ld) {
+      warn('商品ページにProductのJSON-LDが見つかりません（差分チェックを省略します）');
       return null;
     }
-    const ld = JSON.parse(ldBlock.trim()) as ProductJsonLd;
 
     const price = typeof ld.offers?.price === 'string' ? Number(ld.offers.price) : ld.offers?.price;
 
