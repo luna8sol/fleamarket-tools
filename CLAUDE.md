@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **自動クリックは、Background への `CHECK_AUTO_TAB` 問い合わせで `isAutoTab: true` が返ったタブでのみ実行する**（[src/content/form/index.ts](src/content/form/index.ts)）。ユーザーが手動で開いた出品ページでは何もしない。この確認を外すと、ユーザーが自分で開いた下書きが勝手に出品される。
 - **`/sell` の一括処理は出品せず「下書きに保存する」で止める。** 再出品は「`/sell` で下書きに溜める → 内容を確認 → `/draft` で公開する」の 2 段構え。この分離が誤出品に対する最大の防御なので、`/sell` 側から直接出品する経路を作らない。
 - **保存前の差分チェックを弱めない**（[src/content/form/diff.ts](src/content/form/diff.ts)）。再出品元の商品ページと突き合わせ、**内容が欠けていれば保存しない**。フリマアシストの画像アップロードは遅れるため、待たずに保存すると画像の欠けた下書きができる。
-- **一括削除の確認を外さない。** 開始前に拡張側で件数を出して `window.confirm` を取る（[src/content/list/index.ts](src/content/list/index.ts)）。削除リンクは `data-method="delete"` と**ラベルが「削除」であること**の両方を確認してからクリックし、`data-confirm` は**クリック直前だけ外して直後に必ず戻す**（[src/content/list/logic/delete-clicker.ts](src/content/list/logic/delete-clicker.ts)）。
+- **一括削除の確認を外さない。** 開始前に拡張側で件数を出して `window.confirm` を取る（[src/content/list/bulk-bar-handlers.ts](src/content/list/bulk-bar-handlers.ts)）。削除リンクは `data-method="delete"` と**ラベルが「削除」であること**の両方を確認してからクリックし、`data-confirm` は**クリック直前だけ外して直後に必ず戻す**（[src/content/list/logic/delete-clicker.ts](src/content/list/logic/delete-clicker.ts)）。
 - **失敗時は処理中のタブを閉じない。** バリデーションエラーの内容をユーザーが確認できなくなる。
 - **商品間の待機を縮めない・外さない**（`WAIT_BETWEEN_ITEMS_MS` + `WAIT_RANDOM_MS` = 60〜75 秒。削除のみ `DELETE_DELAY_MS` + `DELETE_RANDOM_MS` = 2〜4 秒）。
 
@@ -63,8 +63,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | ページ送り（削除後に 1 ページ目へ戻る問題の対処） | [src/content/list/logic/pager.ts](src/content/list/logic/pager.ts) |
 | 選択状態・選択順の管理 | [src/content/list/logic/selection-manager.ts](src/content/list/logic/selection-manager.ts) |
 | Background へ送るメッセージ（LIST_READY・キューの開始/停止・進捗取得） | [src/content/list/logic/queue-client.ts](src/content/list/logic/queue-client.ts) |
-| 一覧ページの組み立て・一括削除の確認 | [src/content/list/index.ts](src/content/list/index.ts) |
-| Background から届くメッセージの処理（再出品ボタン・削除リンクのクリック） | [src/content/list/message-handlers.ts](src/content/list/message-handlers.ts) |
+| 一覧ページ側のキュー実行中状態（`queueRunning` / `listReadySent`） | [src/content/list/logic/queue-state.ts](src/content/list/logic/queue-state.ts) |
+| 一覧ページの組み立て（配線のみ） | [src/content/list/index.ts](src/content/list/index.ts) |
+| 一括操作バーのボタン処理・一括削除の確認 | [src/content/list/bulk-bar-handlers.ts](src/content/list/bulk-bar-handlers.ts) |
+| 一覧の描画に追従したチェックボックスの付与 | [src/content/list/item-sync.ts](src/content/list/item-sync.ts) |
+| Background から届くメッセージの処理（クリック指示・進捗の反映） | [src/content/list/message-handlers.ts](src/content/list/message-handlers.ts) |
 | 一括操作バー・チェックボックス・トースト | [ui/bulk-bar.ts](src/content/list/ui/bulk-bar.ts), [ui/checkbox-manager.ts](src/content/list/ui/checkbox-manager.ts), [ui/notification.ts](src/content/list/ui/notification.ts) |
 | ログ出力 | [src/common/logger.ts](src/common/logger.ts) |
 | ビルド構成 | [webpack.config.js](webpack.config.js), [tsconfig.json](tsconfig.json) |
