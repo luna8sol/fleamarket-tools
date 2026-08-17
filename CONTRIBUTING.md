@@ -59,22 +59,20 @@ git branch -d feature/your-feature-name
 
 ```
 # 例
-feat: add bulk publish button to draft page
-fix: correct selector for relist button
+feat(mercari): add bulk publish button to draft page
+fix(rakuma): correct selector for relist button
 docs: update CLAUDE.md with branch strategy
 ```
 
-scope の付け方・件名の字数・コミット日時の扱いは [CLAUDE.md](CLAUDE.md) の「件名の書き方の補足」と「コミット日時」を参照。
+scope の付け方（`mercari` / `rakuma` / `core` / `build` / `docs` の 5 つ）・件名の字数・コミット日時の扱いは [CLAUDE.md](CLAUDE.md) の「件名の書き方の補足」と「コミット日時」を参照。
 
 ## コードスタイル
 
-コミット前に以下を実行してください。
+コミット前にリポジトリルートで以下を実行してください。
 
 ```bash
-npm run lint           # ESLint（通るのが正常）
-npm run typecheck      # 型チェック（通るのが正常）
-npm run build          # ビルド（通るのが正常）
-npm run format:check   # Prettier（通るのが正常）
+npm run check          # 型チェック・ビルド・ESLint をまとめて（通るのが正常）
+npm run format:check   # Prettier（ラクマは通るのが正常。メルカリは既存コードの未通過分だけ落ちる）
 ```
 
 `format:check` が落ちたら、**自分が触ったファイルだけ**直す。
