@@ -4,12 +4,18 @@ import { collectItems, ListItem } from './logic/item-collector';
 import { sendListReady } from './logic/queue-client';
 import { selectionManager } from './logic/selection-manager';
 import { updateCount } from './ui/bulk-bar';
-import { addCheckboxes, setCheckboxesEnabled } from './ui/checkbox-manager';
+import { addCheckboxes, renderSelectionOrder, setCheckboxesEnabled } from './ui/checkbox-manager';
 import { listRunState } from './run-state';
 
 /**
  * 一覧の描画に追従してチェックボックスを付け直すモジュール。
  */
+
+/** 選択件数と各行の選択順を、選択状態に合わせて描き直す */
+export function renderSelection(): void {
+  updateCount(selectionManager.getCount());
+  renderSelectionOrder(selectionManager.getOrderedItems().map((item) => item.id));
+}
 
 function handleCheckboxChange(item: ListItem, checked: boolean): void {
   if (checked) {
@@ -17,7 +23,7 @@ function handleCheckboxChange(item: ListItem, checked: boolean): void {
   } else {
     selectionManager.remove(item.id);
   }
-  updateCount(selectionManager.getCount());
+  renderSelection();
 }
 
 /**
@@ -39,13 +45,13 @@ export function createItemSync(pageType: PageTypeValue): () => void {
 
     if (items.length === 0) {
       // 再描画の途中で一時的に0件になることがあるため、この時点では何もしない
-      updateCount(selectionManager.getCount());
+      renderSelection();
       return;
     }
 
     // ページ送りで一覧から消えた商品の選択は破棄する
     selectionManager.retain(new Set(items.map((item) => item.id)));
-    updateCount(selectionManager.getCount());
+    renderSelection();
     if (listRunState.isQueueRunning()) {
       setCheckboxesEnabled(false);
     }

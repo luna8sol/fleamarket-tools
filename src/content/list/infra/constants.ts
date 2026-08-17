@@ -60,6 +60,21 @@ export const LABEL = {
  */
 export const CLASS_NAME = {
   BULK_CHECKBOX: 'rbl-bulk-checkbox',
+  /** チェックボックスと選択順を入れる列（商品行の先頭に差し込む label） */
+  ROW_PICK: 'rbl-pick',
+  /** 選択順の数字 */
+  ROW_ORDER: 'rbl-order',
+  /** 拡張が手を入れた商品行 */
+  ROW: 'rbl-row',
+  /** 選択中の商品行 */
+  ROW_SELECTED: 'rbl-row--selected',
+  /** ボタンの文言（アイコンを残して文言だけ差し替えるため） */
+  BTN_LABEL: 'rbl-btn__label',
+  PROGRESS_HEAD: 'rbl-progress__head',
+  PROGRESS_LABEL: 'rbl-progress__label',
+  PROGRESS_PCT: 'rbl-progress__pct',
+  PROGRESS_BAR: 'rbl-progress__bar',
+  PROGRESS_DETAIL: 'rbl-progress__detail',
 };
 
 /**
@@ -73,7 +88,15 @@ export const ID_NAME = {
   BULK_STOP_BTN: 'rbl-bulk-stop-btn',
   BULK_STATUS_SPAN: 'rbl-bulk-status',
   BULK_REPLACE_BTN: 'rbl-bulk-replace-btn',
+  BULK_CLEAR_BTN: 'rbl-bulk-clear-btn',
+  BULK_META: 'rbl-bulk-meta',
+  BULK_FAILURES: 'rbl-bulk-failures',
+  BULK_DISMISS_BTN: 'rbl-bulk-dismiss-btn',
+  /** ドックがページの末尾を覆わないよう、body の末尾に置く余白 */
+  DOCK_SPACER: 'rbl-dock-spacer',
   TOAST: 'rbl-toast',
+  THEME_STYLE: 'rbl-theme-style',
+  CONFIRM_DIALOG: 'rbl-confirm-dialog',
 
   // 説明文の一括置換パネル（/sell のみ）
   REPLACE_PANEL: 'rbl-replace-panel',
@@ -87,6 +110,7 @@ export const ID_NAME = {
   REPLACE_EXPORT_BTN: 'rbl-replace-export-btn',
   REPLACE_SUMMARY: 'rbl-replace-summary',
   REPLACE_STATUS: 'rbl-replace-status',
+  REPLACE_COUNTS: 'rbl-replace-counts',
 };
 
 /**
@@ -94,6 +118,21 @@ export const ID_NAME = {
  */
 export const CONFIG = {
   TOAST_DURATION_MS: 3000,
+  /** 失敗・警告のトーストは読み切れるよう長めに出す (ms) */
+  TOAST_DURATION_LONG_MS: 6000,
+  /**
+   * 浮遊 UI の重なり順。ラクマ側のヘッダーやフリマアシストの注入要素より手前に出す。
+   * 確認ダイアログは top layer（showModal）なのでここには含めない。
+   */
+  ZINDEX: {
+    DOCK: 2147480000,
+    PANEL: 2147480001,
+    TOAST: 2147480002,
+  },
+  /** 確認ダイアログに並べる商品名の上限（超えた分は「ほか N 件」にまとめる） */
+  CONFIRM_MAX_ITEMS: 8,
+  /** ドックに並べる失敗の上限 */
+  DOCK_MAX_FAILURES: 3,
   /** 削除リンクをクリックするまでの基本待機時間 (ms) */
   DELETE_DELAY_MS: 2000,
   /** 削除の待機時間に加算するランダム値の最大 (ms) */

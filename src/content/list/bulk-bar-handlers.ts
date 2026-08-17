@@ -4,9 +4,13 @@ import { findRelistButton } from './logic/item-collector';
 import { getCurrentPage } from './logic/pager';
 import { sendStartQueue, sendStopQueue } from './logic/queue-client';
 import { selectionManager } from './logic/selection-manager';
+import { CONFIG } from './infra/constants';
 import { BulkBarHandlers } from './ui/bulk-bar';
+import { uncheckAll } from './ui/checkbox-manager';
+import { confirmAction } from './ui/confirm-dialog';
 import { showToast } from './ui/notification';
 import { showReplacePanel } from './ui/replace-panel';
+import { renderSelection } from './item-sync';
 import { listRunState } from './run-state';
 
 /**
@@ -55,7 +59,45 @@ export function openReplacePanel(): void {
 }
 
 /**
- * 開始・削除・停止（と、使えるページでは説明文の一括置換）のハンドラを作る。
+ * 削除してよいかを利用者に確認する。
+ *
+ * ラクマ側の確認ダイアログ（data-confirm）は自動化の都合で抑止するため、
+ * その代わりにここで必ず確認を取る。件数だけでなく処理順の商品名も出す。
+ */
+function confirmDelete(pageType: PageTypeValue, items: QueueItem[]): Promise<boolean> {
+  const target = pageType === PageType.SELL ? '出品中の商品' : '下書き';
+  const minSeconds = CONFIG.DELETE_DELAY_MS / 1000;
+  const maxSeconds = (CONFIG.DELETE_DELAY_MS + CONFIG.DELETE_RANDOM_MS) / 1000;
+  return confirmAction({
+    tone: 'danger',
+    icon: 'trash',
+    title: `${target}を${items.length}件削除します`,
+    message: '選んだ順に 1 件ずつ削除します。処理中のタブは閉じずにそのままにしてください。',
+    facts: [
+      { label: '削除する件数', value: `${items.length}件`, emphasis: true },
+      { label: '1件ごとの間隔', value: `${minSeconds}〜${maxSeconds}秒` },
+    ],
+    items: items.map((item) => item.title),
+    note: '削除すると元に戻せません。',
+    confirmLabel: `${items.length}件を削除`,
+  });
+}
+
+/**
+ * 選択をすべて外す。ラクマ側には何もしないので確認は取らない（選び直せば戻る）。
+ */
+function clearSelection(): void {
+  const count = selectionManager.getCount();
+  if (count === 0) return;
+  uncheckAll();
+  // 行ごとに change を発火させず、選択状態をまとめて消してから 1 回だけ描き直す
+  selectionManager.clear();
+  renderSelection();
+  showToast(`${count}件の選択を解除しました`, 'info');
+}
+
+/**
+ * 開始・削除・停止・選択の解除（と、使えるページでは説明文の一括置換）のハンドラを作る。
  */
 export function createBulkBarHandlers(
   pageType: PageTypeValue,
@@ -90,16 +132,15 @@ export function createBulkBarHandlers(
         showToast('商品を選択してください', 'warning');
         return;
       }
-      // 削除は取り消せない。ラクマ側の確認ダイアログは自動化の都合で
-      // 抑止するため、その代わりにここで必ず確認を取る。
-      const target = pageType === PageType.SELL ? '出品中の商品' : '下書き';
-      const ok = window.confirm(
-        `${target}を${selected.length}件削除します。\n削除すると元に戻せません。実行しますか？`
-      );
-      if (!ok) return;
-      // 削除のたびに1ページ目へ戻されるため、対象が居るページを覚えておく
-      void startQueue('delete', selected, getCurrentPage());
+      // 削除は取り消せないので、確認で承諾されたときだけ始める。
+      // 削除のたびに1ページ目へ戻されるため、対象が居るページを確認前に覚えておく。
+      const page = getCurrentPage();
+      void confirmDelete(pageType, selected).then((ok) => {
+        if (ok) void startQueue('delete', selected, page);
+      });
     },
+
+    onClear: clearSelection,
 
     onStop: stopQueue,
 

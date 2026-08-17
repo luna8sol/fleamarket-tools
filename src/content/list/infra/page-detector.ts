@@ -2,6 +2,7 @@
  * 現在のページタイプを判定するモジュール。
  */
 
+import { IconName } from '../../../common/icons';
 import { FormMode } from '../../../common/messages';
 
 export const PageType = {
@@ -60,6 +61,12 @@ export interface ListPageTraits {
   /** 一括操作バーの開始ボタンに出す文言 */
   startLabel: string;
 
+  /** 開始ボタンのアイコン */
+  startIcon: IconName;
+
+  /** 一括操作バーの件数の下に出す、何を選んでいるかの説明 */
+  pageLabel: string;
+
   /**
    * 説明文の一括置換（replace）を使えるか。
    * 対象は出品中の商品（編集ページ /item/{hash}/edit）だけなので /sell のみ true。
@@ -78,12 +85,16 @@ export const LIST_PAGE_TRAITS: Record<
 > = {
   [PageType.SELL]: {
     primaryMode: 'relist',
-    startLabel: '選択した商品を下書きに保存',
+    startLabel: '下書きに保存',
+    startIcon: 'draft',
+    pageLabel: '出品中の商品',
     supportsReplace: true,
   },
   [PageType.DRAFT]: {
     primaryMode: 'publish',
-    startLabel: '選択した下書きをまとめて出品',
+    startLabel: 'まとめて出品',
+    startIcon: 'publish',
+    pageLabel: '下書き',
     supportsReplace: false,
   },
 };

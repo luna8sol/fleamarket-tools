@@ -22,10 +22,14 @@ function main(): void {
     return;
   }
 
-  const { primaryMode, startLabel, supportsReplace } = LIST_PAGE_TRAITS[pageType];
+  const { primaryMode, startLabel, startIcon, pageLabel, supportsReplace } =
+    LIST_PAGE_TRAITS[pageType];
 
   // 一括操作バーを描画
-  renderBulkBar({ startLabel }, createBulkBarHandlers(pageType, primaryMode, supportsReplace));
+  renderBulkBar(
+    { startLabel, startIcon, pageLabel },
+    createBulkBarHandlers(pageType, primaryMode, supportsReplace)
+  );
 
   const syncItems = createItemSync(pageType);
   syncItems();

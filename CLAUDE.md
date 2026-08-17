@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **自動クリックは、Background への `CHECK_AUTO_TAB` 問い合わせで `isAutoTab: true` が返ったタブでのみ実行する**（[src/content/form/index.ts](src/content/form/index.ts)）。ユーザーが手動で開いた出品ページでは何もしない。この確認を外すと、ユーザーが自分で開いた下書きが勝手に出品される。
 - **`/sell` の一括処理は出品せず「下書きに保存する」で止める。** 再出品は「`/sell` で下書きに溜める → 内容を確認 → `/draft` で公開する」の 2 段構え。この分離が誤出品に対する最大の防御なので、`/sell` 側から直接出品する経路を作らない。
 - **保存前の差分チェックを弱めない**（[src/content/form/diff.ts](src/content/form/diff.ts)）。再出品元の商品ページと突き合わせ、**内容が欠けていれば保存しない**。フリマアシストの画像アップロードは遅れるため、待たずに保存すると画像の欠けた下書きができる。
-- **一括削除の確認を外さない。** 開始前に拡張側で件数を出して `window.confirm` を取る（[src/content/list/bulk-bar-handlers.ts](src/content/list/bulk-bar-handlers.ts)）。削除リンクは `data-method="delete"` と**ラベルが「削除」であること**の両方を確認してからクリックし、`data-confirm` は**クリック直前だけ外して直後に必ず戻す**（[src/content/list/logic/delete-clicker.ts](src/content/list/logic/delete-clicker.ts)）。
+- **一括削除の確認を外さない。** 開始前に拡張側で件数と処理順を出して確認ダイアログ（[ui/confirm-dialog.ts](src/content/list/ui/confirm-dialog.ts)。初期フォーカスはキャンセル、`<dialog>` が使えなければ `window.confirm`）を取る（[src/content/list/bulk-bar-handlers.ts](src/content/list/bulk-bar-handlers.ts)）。削除リンクは `data-method="delete"` と**ラベルが「削除」であること**の両方を確認してからクリックし、`data-confirm` は**クリック直前だけ外して直後に必ず戻す**（[src/content/list/logic/delete-clicker.ts](src/content/list/logic/delete-clicker.ts)）。
 - **失敗時は処理中のタブを閉じない。** バリデーションエラーの内容をユーザーが確認できなくなる。
 - **説明文の一括置換は、保存前の 4 段の照合（商品名一致 / 現在値が原本と一致 / 書き込み後の値が確定版と一致 / 商品名が変わっていない）を弱めない**（[src/content/form/replace.ts](src/content/form/replace.ts)）。編集ページ `/item/{hash}/edit` で押すのは「確認する」→「更新する」だけで、同じページにある「下書きに保存する」（出品中の商品が下書きへ落ちる）・「出品する」・「削除」には触れない。説明欄以外の項目を変えない。
 - **商品間の待機を縮めない・外さない**（`WAIT_BETWEEN_ITEMS_MS` + `WAIT_RANDOM_MS` = 60〜75 秒。削除のみ `DELETE_DELAY_MS` + `DELETE_RANDOM_MS` = 2〜4 秒）。
@@ -78,7 +78,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 一覧の描画に追従したチェックボックスの付与 | [src/content/list/item-sync.ts](src/content/list/item-sync.ts) |
 | Background から届くメッセージの処理（クリック指示・進捗の反映） | [src/content/list/message-handlers.ts](src/content/list/message-handlers.ts) |
 | 一覧ページ側のキュー実行中状態（`queueRunning`。チェックボックスの有効/無効も同時に切り替える） | [src/content/list/run-state.ts](src/content/list/run-state.ts) |
-| 一括操作バー・チェックボックス・トースト | [ui/bulk-bar.ts](src/content/list/ui/bulk-bar.ts), [ui/checkbox-manager.ts](src/content/list/ui/checkbox-manager.ts), [ui/notification.ts](src/content/list/ui/notification.ts) |
+| 一括操作ドック・チェックボックス・トースト | [ui/bulk-bar.ts](src/content/list/ui/bulk-bar.ts), [ui/checkbox-manager.ts](src/content/list/ui/checkbox-manager.ts), [ui/notification.ts](src/content/list/ui/notification.ts) |
+| 確認ダイアログ（削除・置換の前） | [ui/confirm-dialog.ts](src/content/list/ui/confirm-dialog.ts) |
+| 注入 UI のスタイル・共通部品 | [ui/theme.ts](src/content/list/ui/theme.ts), [ui/components.ts](src/content/list/ui/components.ts) |
+| デザイントークン・ライト/ダークの設定（注入 UI と popup で共有） | [src/common/theme.ts](src/common/theme.ts), [src/common/icons.ts](src/common/icons.ts) |
 | ログ出力 | [src/common/logger.ts](src/common/logger.ts) |
 | ビルド構成 | [webpack.config.js](webpack.config.js), [tsconfig.json](tsconfig.json) |
 | lint / format / 改行コード | [eslint.config.js](eslint.config.js), [.prettierrc](.prettierrc), [.gitattributes](.gitattributes) |

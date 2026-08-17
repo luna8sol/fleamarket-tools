@@ -1,3 +1,4 @@
+import { createIcon } from '../../../common/icons';
 import { QueueProgress, ReplaceCounts } from '../../../common/messages';
 import { loadReplaceRecords } from '../../../common/replace-store';
 import { log, warn } from '../../../common/logger';
@@ -8,7 +9,10 @@ import {
   parseDescriptionEntries,
   ReplacePlan,
 } from '../logic/replace-plan';
+import { buildProgress, decorateButton, decorateIconButton, renderProgress } from './components';
+import { confirmAction } from './confirm-dialog';
 import { showToast } from './notification';
+import { ensureTheme } from './theme';
 
 /**
  * 説明文の一括置換パネル（/sell のみ）。
@@ -38,36 +42,8 @@ interface PanelState {
 
 const state: PanelState = { finals: null, originals: null, plan: null, running: false };
 
-function applyStyles(el: HTMLElement, styles: Record<string, string>): void {
-  Object.assign(el.style, styles);
-}
-
 function byId<T extends HTMLElement>(id: string): T | null {
   return document.getElementById(id) as T | null;
-}
-
-function styleButton(button: HTMLButtonElement, variant: 'primary' | 'secondary'): void {
-  applyStyles(button, {
-    padding: '6px 12px',
-    borderRadius: '4px',
-    fontWeight: 'bold',
-    fontSize: '13px',
-    cursor: 'pointer',
-    backgroundColor: variant === 'primary' ? '#ef2a2a' : '#fff',
-    color: variant === 'primary' ? '#fff' : '#333',
-    border: variant === 'primary' ? 'none' : '1px solid #999',
-  });
-}
-
-function labeledRow(labelText: string, control: HTMLElement): HTMLLabelElement {
-  const row = document.createElement('label');
-  applyStyles(row, { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' });
-  const label = document.createElement('span');
-  label.textContent = labelText;
-  applyStyles(label, { flex: '0 0 110px', color: '#333', fontWeight: 'bold' });
-  row.appendChild(label);
-  row.appendChild(control);
-  return row;
 }
 
 /** 実行中かどうかで入力欄とボタンの有効・無効を切り替える */
@@ -76,7 +52,11 @@ function syncControls(): void {
   const hasTargets = (state.plan?.targets.length ?? 0) > 0;
   const set = (id: string, disabled: boolean): void => {
     const el = byId<HTMLInputElement | HTMLButtonElement>(id);
-    if (el) el.disabled = disabled;
+    if (!el) return;
+    el.disabled = disabled;
+    // ファイル選択は label で包んでいるので、見た目は label 側で切り替える
+    const file = el.closest<HTMLElement>('label.rbl-file');
+    if (file) file.dataset.disabled = disabled ? 'true' : 'false';
   };
   set(ID_NAME.REPLACE_FINAL_FILE, running);
   set(ID_NAME.REPLACE_ORIGINAL_FILE, running);
@@ -86,56 +66,107 @@ function syncControls(): void {
   set(ID_NAME.REPLACE_STOP_BTN, !running);
 }
 
+/** 手順の見出しに「済み」の印を付ける */
+function markSection(id: string, done: boolean): void {
+  const section = byId(id);
+  if (section) section.dataset.done = done ? 'true' : 'false';
+}
+
+function fact(label: string, value: number, emphasis = false): HTMLDivElement {
+  const tile = document.createElement('div');
+  tile.className = 'rbl-fact';
+  if (emphasis) tile.dataset.emphasis = 'true';
+  const v = document.createElement('span');
+  v.className = 'rbl-fact__value rbl-num';
+  v.textContent = String(value);
+  const l = document.createElement('span');
+  l.className = 'rbl-fact__label';
+  l.textContent = label;
+  tile.append(v, l);
+  return tile;
+}
+
 function renderSummary(plan: ReplacePlan | null): void {
   const summary = byId<HTMLDivElement>(ID_NAME.REPLACE_SUMMARY);
   if (!summary) return;
-  summary.textContent = '';
+  summary.replaceChildren();
+  markSection(`${ID_NAME.REPLACE_PANEL}-step1`, plan !== null);
+  markSection(`${ID_NAME.REPLACE_PANEL}-step3`, plan !== null);
 
   if (!plan) {
-    summary.textContent = '確定版と原本の JSON を選んで「読み込む」を押してください。';
+    const empty = document.createElement('div');
+    empty.className = 'rbl-empty';
+    empty.appendChild(createIcon('fileJson', 18));
+    const text = document.createElement('span');
+    text.textContent = '確定版と原本の JSON を選ぶと、処理する件数をここに出します。';
+    empty.appendChild(text);
+    summary.appendChild(empty);
     return;
   }
 
-  const lines = [
-    `対象 ${plan.total}件 / 適用済み ${plan.alreadyDone.length}件 / 対象外 ${plan.excluded.length}件`,
-    `これから処理: ${plan.targets.length}件`,
-  ];
-  for (const line of lines) {
-    const div = document.createElement('div');
-    div.textContent = line;
-    summary.appendChild(div);
-  }
+  const stats = document.createElement('div');
+  stats.className = 'rbl-stats';
+  stats.append(
+    fact('これから処理', plan.targets.length, true),
+    fact('確定版の件数', plan.total),
+    fact('適用済み', plan.alreadyDone.length),
+    fact('対象外', plan.excluded.length)
+  );
+  summary.appendChild(stats);
 
   if (plan.excluded.length > 0) {
-    const head = document.createElement('div');
-    head.textContent = '対象外の内訳:';
-    applyStyles(head, { marginTop: '4px', color: '#d32f2f' });
-    summary.appendChild(head);
+    const list = document.createElement('ul');
+    list.className = 'rbl-exclusions';
+    const head = document.createElement('li');
+    head.className = 'rbl-exclusions__head';
+    head.textContent = `対象外 ${plan.excluded.length}件（処理しません）`;
+    list.appendChild(head);
     for (const exclusion of plan.excluded.slice(0, MAX_EXCLUSION_LINES)) {
-      const div = document.createElement('div');
-      div.textContent = `・${exclusion.id} ${exclusion.name}: ${exclusion.reason}`;
-      applyStyles(div, { fontSize: '12px', color: '#555' });
-      summary.appendChild(div);
+      const li = document.createElement('li');
+      const id = document.createElement('code');
+      id.textContent = exclusion.id.slice(0, 8);
+      id.title = exclusion.id;
+      li.append(id, ` ${exclusion.name}: ${exclusion.reason}`);
+      list.appendChild(li);
     }
     if (plan.excluded.length > MAX_EXCLUSION_LINES) {
-      const rest = document.createElement('div');
+      const rest = document.createElement('li');
       rest.textContent = `…ほか${plan.excluded.length - MAX_EXCLUSION_LINES}件`;
-      applyStyles(rest, { fontSize: '12px', color: '#555' });
-      summary.appendChild(rest);
+      list.appendChild(rest);
     }
+    summary.appendChild(list);
   }
 }
 
-function formatCounts(counts: ReplaceCounts): string {
-  return (
-    `[成功 ${counts.applied} / 適用済み ${counts.already} / スキップ ${counts.skipped}` +
-    ` / 失敗 ${counts.failed} / 未確認 ${counts.unverified}]`
-  );
+/** 結果種別ごとの件数を丸いバッジで並べる */
+function renderCounts(counts: ReplaceCounts | undefined): void {
+  const wrap = byId(ID_NAME.REPLACE_COUNTS);
+  if (!wrap) return;
+  wrap.replaceChildren();
+  if (!counts) return;
+
+  const items: { label: string; value: number; tone: string }[] = [
+    { label: '成功', value: counts.applied, tone: 'success' },
+    { label: '適用済み', value: counts.already, tone: 'info' },
+    { label: 'スキップ', value: counts.skipped, tone: 'warning' },
+    { label: '失敗', value: counts.failed, tone: 'danger' },
+    { label: '未確認', value: counts.unverified, tone: 'warning' },
+  ];
+  for (const item of items) {
+    const badge = document.createElement('span');
+    badge.className = 'rbl-badge';
+    badge.dataset.tone = item.tone;
+    badge.dataset.nonzero = item.value > 0 ? 'true' : 'false';
+    const value = document.createElement('b');
+    value.textContent = String(item.value);
+    badge.append(`${item.label} `, value);
+    wrap.appendChild(badge);
+  }
 }
 
 /**
  * キューの進捗をパネルに表示する。
- * 商品名が長いと 1 行に収まらないため、何件目かと内訳を行で分ける。
+ * 商品名が長いと 1 行に収まらないため、見出しと商品名を行で分ける。
  */
 export function renderReplaceProgress(progress: QueueProgress): void {
   if (progress.mode !== 'replace') return;
@@ -144,22 +175,46 @@ export function renderReplaceProgress(progress: QueueProgress): void {
   const status = byId<HTMLDivElement>(ID_NAME.REPLACE_STATUS);
   if (!status) return;
 
-  const counts = progress.replaceCounts ? formatCounts(progress.replaceCounts) : '';
-  let headline: string;
+  status.hidden = progress.total === 0;
+  const counter = `${progress.done} / ${progress.total}`;
+  const ratio = progress.total > 0 ? progress.done / progress.total : 0;
   if (progress.haltedReason) {
-    headline = `停止しました: ${progress.haltedReason}（${progress.done}/${progress.total}件）`;
+    renderProgress(status, {
+      tone: 'danger',
+      icon: 'error',
+      label: '停止しました',
+      detail: progress.haltedReason,
+      counter,
+      ratio,
+    });
   } else if (progress.running) {
-    headline = progress.current
-      ? `置換中 ${progress.done + 1}/${progress.total}件 ${progress.current.title}`
-      : `${progress.done}/${progress.total}件 完了 — 次の商品を待機中`;
+    renderProgress(status, {
+      tone: 'active',
+      label: progress.current ? `置換中 — ${progress.done + 1}件目` : '次の商品まで待機しています',
+      detail: progress.current?.title,
+      counter,
+      ratio,
+    });
   } else if (progress.total > 0 && progress.done >= progress.total) {
-    headline = `置換完了: ${progress.total}件`;
+    const needsReview = progress.failed.length > 0;
+    renderProgress(status, {
+      tone: needsReview ? 'warning' : 'success',
+      icon: needsReview ? 'warning' : 'success',
+      label: needsReview ? `置換が完了 — 要確認 ${progress.failed.length}件` : '置換が完了しました',
+      counter: `${progress.total}件`,
+      ratio: 1,
+    });
   } else {
-    headline = `中断しました: ${progress.done}/${progress.total}件まで処理`;
+    renderProgress(status, {
+      tone: 'idle',
+      icon: 'stop',
+      label: `中断しました（${progress.done}件まで処理）`,
+      counter,
+      ratio,
+    });
   }
-  status.textContent = `${headline}\n${counts}`;
-  status.style.color = progress.haltedReason ? '#d32f2f' : '#333';
   status.title = progress.failed.map((f) => `${f.item.title}: ${f.reason}`).join('\n');
+  renderCounts(progress.replaceCounts);
 
   syncControls();
 
@@ -220,17 +275,27 @@ function readWaitBaseSeconds(): number | null {
  * 実行してよいかを利用者に確認する。**ここが唯一の人の止め時。**
  * 押したあとは 1 件ずつ自動で保存に向かう。
  */
-function confirmStart(plan: ReplacePlan, waitBaseSeconds: number): boolean {
-  return window.confirm(
-    `出品中の商品の説明文を ${plan.targets.length}件 置き換えて保存します。\n` +
-      `（対象 ${plan.total}件 / 適用済み ${plan.alreadyDone.length}件は処理しません / 対象外 ${plan.excluded.length}件）\n\n` +
-      `1件ごとに ${waitBaseSeconds}〜${waitBaseSeconds + CONFIG.REPLACE_WAIT_RANDOM_SECONDS}秒待ちます。\n` +
-      '保存した内容は元に戻せません（原本ファイルから手で戻す必要があります）。\n\n' +
-      '実行しますか？'
-  );
+function confirmStart(plan: ReplacePlan, waitBaseSeconds: number): Promise<boolean> {
+  const maxWait = waitBaseSeconds + CONFIG.REPLACE_WAIT_RANDOM_SECONDS;
+  return confirmAction({
+    tone: 'primary',
+    icon: 'replace',
+    title: `説明文を${plan.targets.length}件置き換えて保存します`,
+    message:
+      '出品中の商品の編集ページを 1 件ずつ開き、原本と一致することを確かめてから確定版に書き換えて保存します。適用済みの商品は開きません。',
+    facts: [
+      { label: 'これから処理', value: `${plan.targets.length}件`, emphasis: true },
+      { label: '適用済み', value: `${plan.alreadyDone.length}件` },
+      { label: '対象外', value: `${plan.excluded.length}件` },
+      { label: '1件ごとの待機', value: `${waitBaseSeconds}〜${maxWait}秒` },
+    ],
+    items: plan.targets.map((item) => item.title),
+    note: '保存した内容は元に戻せません（原本ファイルから手で戻す必要があります）。',
+    confirmLabel: `${plan.targets.length}件を置換`,
+  });
 }
 
-function handleStart(handlers: ReplacePanelHandlers): void {
+async function handleStart(handlers: ReplacePanelHandlers): Promise<void> {
   const plan = state.plan;
   if (!plan || plan.targets.length === 0) {
     showToast('処理する商品がありません。先に読み込んでください', 'warning');
@@ -248,8 +313,13 @@ function handleStart(handlers: ReplacePanelHandlers): void {
     );
     return;
   }
-  if (!confirmStart(plan, waitBaseSeconds)) {
+  if (!(await confirmStart(plan, waitBaseSeconds))) {
     log('説明文の一括置換は確認で中止されました');
+    return;
+  }
+  // 確認の間に別の経路で実行が始まっていたら積まない（二重に積むと Background が断る）
+  if (state.running) {
+    showToast('すでに実行中です', 'warning');
     return;
   }
   state.running = true;
@@ -289,128 +359,218 @@ async function handleExport(): Promise<void> {
   }
 }
 
+function section(id: string, step: number, title: string): HTMLElement {
+  const el = document.createElement('section');
+  el.id = id;
+  el.className = 'rbl-section';
+  const head = document.createElement('h3');
+  head.className = 'rbl-section__title';
+  const badge = document.createElement('span');
+  badge.className = 'rbl-step';
+  badge.textContent = String(step);
+  head.append(badge, title);
+  el.appendChild(head);
+  return el;
+}
+
+/** ファイル選択（label の中に透明な input を重ね、選んだファイル名を出す） */
+function filePicker(
+  id: string,
+  label: string,
+  hint: string,
+  onPicked: () => void
+): HTMLLabelElement {
+  const wrap = document.createElement('label');
+  wrap.className = 'rbl-file';
+
+  const text = document.createElement('span');
+  text.className = 'rbl-file__text';
+  const title = document.createElement('span');
+  title.className = 'rbl-file__label';
+  title.textContent = label;
+  const name = document.createElement('span');
+  name.className = 'rbl-file__name';
+  name.textContent = hint;
+  text.append(title, name);
+
+  const input = document.createElement('input');
+  input.id = id;
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.addEventListener('change', () => {
+    const file = input.files?.[0];
+    wrap.dataset.filled = file ? 'true' : 'false';
+    name.textContent = file?.name ?? hint;
+    onPicked();
+  });
+
+  wrap.append(createIcon('fileJson', 20), text, input);
+  return wrap;
+}
+
 function createPanel(handlers: ReplacePanelHandlers): HTMLDivElement {
+  ensureTheme();
+
   const panel = document.createElement('div');
   panel.id = ID_NAME.REPLACE_PANEL;
-  applyStyles(panel, {
-    position: 'fixed',
-    top: '170px',
-    left: '8px',
-    zIndex: '9999',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-    width: '460px',
-    maxWidth: 'calc(100vw - 16px)',
-    padding: '14px',
-    backgroundColor: '#f8f8f8',
-    borderRadius: '8px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-    fontSize: '13px',
-  });
+  panel.className = 'rbl-panel rbl-scope';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-labelledby', `${ID_NAME.REPLACE_PANEL}-title`);
 
-  const header = document.createElement('div');
-  applyStyles(header, { display: 'flex', alignItems: 'center', justifyContent: 'space-between' });
-  const title = document.createElement('span');
+  const close = (): void => {
+    panel.hidden = true;
+  };
+
+  // 見出し
+  const head = document.createElement('div');
+  head.className = 'rbl-panel__head';
+  const mark = document.createElement('span');
+  mark.className = 'rbl-mark rbl-mark--sm';
+  mark.appendChild(createIcon('replace', 15));
+  const titles = document.createElement('div');
+  titles.className = 'rbl-panel__titles';
+  const title = document.createElement('h2');
+  title.id = `${ID_NAME.REPLACE_PANEL}-title`;
+  title.className = 'rbl-panel__title';
   title.textContent = '説明文の一括置換';
-  applyStyles(title, { fontWeight: 'bold', fontSize: '14px', color: '#333' });
+  const subtitle = document.createElement('p');
+  subtitle.className = 'rbl-panel__subtitle';
+  subtitle.textContent = '出品中の商品の説明文を 1 件ずつ書き換えて保存します';
+  titles.append(title, subtitle);
   const closeBtn = document.createElement('button');
   closeBtn.id = ID_NAME.REPLACE_CLOSE_BTN;
-  closeBtn.type = 'button';
-  closeBtn.textContent = '×';
-  closeBtn.title = '閉じる（読み込んだデータと実行中の処理は保持されます）';
-  applyStyles(closeBtn, {
-    background: 'transparent',
-    border: 'none',
-    fontSize: '18px',
-    cursor: 'pointer',
-    color: '#555',
+  decorateIconButton(closeBtn, 'close', '閉じる（読み込んだデータと実行中の処理は保持されます）');
+  closeBtn.addEventListener('click', close);
+  head.append(mark, titles, closeBtn);
+
+  const body = document.createElement('div');
+  body.className = 'rbl-panel__body';
+
+  // ① データ
+  const step1 = section(`${ID_NAME.REPLACE_PANEL}-step1`, 1, 'データを選ぶ');
+  const autoLoad = (): void => {
+    const finals = byId<HTMLInputElement>(ID_NAME.REPLACE_FINAL_FILE)?.files?.length;
+    const originals = byId<HTMLInputElement>(ID_NAME.REPLACE_ORIGINAL_FILE)?.files?.length;
+    // 両方そろった時点で読み込む（読み込みだけでは何も保存しない）
+    if (finals && originals) void handleLoad();
+  };
+  const files = document.createElement('div');
+  files.className = 'rbl-field-row';
+  files.append(
+    filePicker(ID_NAME.REPLACE_FINAL_FILE, '確定版 JSON', '置き換え後の本文', autoLoad),
+    filePicker(ID_NAME.REPLACE_ORIGINAL_FILE, '原本 JSON', '取得時点の本文', autoLoad)
+  );
+  const loadBtn = decorateButton(document.createElement('button'), {
+    label: '読み込み直す',
+    variant: 'ghost',
+    icon: 'upload',
+    size: 'sm',
   });
-  closeBtn.addEventListener('click', () => {
-    panel.style.display = 'none';
-  });
-  header.appendChild(title);
-  header.appendChild(closeBtn);
-  panel.appendChild(header);
+  loadBtn.id = ID_NAME.REPLACE_LOAD_BTN;
+  loadBtn.title = '同じファイルを選び直さずに、もう一度読み込んで件数を数え直します';
+  loadBtn.addEventListener('click', () => void handleLoad());
+  const loadRow = document.createElement('div');
+  loadRow.className = 'rbl-actions';
+  const loadHint = document.createElement('span');
+  loadHint.className = 'rbl-inline-field__hint';
+  loadHint.textContent = '形式: [{ id, name, desc }]（id はラクマの商品ID）';
+  loadRow.append(
+    loadHint,
+    Object.assign(document.createElement('span'), { className: 'rbl-spacer' }),
+    loadBtn
+  );
+  step1.append(files, loadRow);
 
-  const finalInput = document.createElement('input');
-  finalInput.id = ID_NAME.REPLACE_FINAL_FILE;
-  finalInput.type = 'file';
-  finalInput.accept = '.json,application/json';
-  panel.appendChild(labeledRow('確定版 JSON', finalInput));
-
-  const originalInput = document.createElement('input');
-  originalInput.id = ID_NAME.REPLACE_ORIGINAL_FILE;
-  originalInput.type = 'file';
-  originalInput.accept = '.json,application/json';
-  panel.appendChild(labeledRow('原本 JSON', originalInput));
-
+  // ② 待機
+  const step2 = section(`${ID_NAME.REPLACE_PANEL}-step2`, 2, '間隔を決める');
+  const waitRow = document.createElement('div');
+  waitRow.className = 'rbl-inline-field';
+  const waitText = document.createElement('div');
+  const waitLabel = document.createElement('label');
+  waitLabel.className = 'rbl-inline-field__label';
+  waitLabel.htmlFor = ID_NAME.REPLACE_WAIT_INPUT;
+  waitLabel.textContent = '1件ごとの待機';
+  const waitHint = document.createElement('div');
+  waitHint.className = 'rbl-inline-field__hint';
+  waitHint.textContent = `下限 ${CONFIG.REPLACE_WAIT_MIN_SECONDS} 秒。これに 0〜${CONFIG.REPLACE_WAIT_RANDOM_SECONDS} 秒のランダム分を足します`;
+  waitText.append(waitLabel, waitHint);
+  const number = document.createElement('span');
+  number.className = 'rbl-number';
   const waitInput = document.createElement('input');
   waitInput.id = ID_NAME.REPLACE_WAIT_INPUT;
   waitInput.type = 'number';
+  waitInput.inputMode = 'numeric';
   waitInput.min = String(CONFIG.REPLACE_WAIT_MIN_SECONDS);
   waitInput.step = '1';
   waitInput.value = String(CONFIG.REPLACE_WAIT_BASE_SECONDS);
-  applyStyles(waitInput, { width: '80px', padding: '4px' });
-  const waitNote = document.createElement('span');
-  waitNote.textContent = `秒（下限 ${CONFIG.REPLACE_WAIT_MIN_SECONDS}。これに 0〜${CONFIG.REPLACE_WAIT_RANDOM_SECONDS} 秒のランダム分が足されます）`;
-  applyStyles(waitNote, { color: '#555', fontSize: '12px' });
-  const waitWrap = document.createElement('span');
-  applyStyles(waitWrap, { display: 'flex', alignItems: 'center', gap: '6px' });
-  waitWrap.appendChild(waitInput);
-  waitWrap.appendChild(waitNote);
-  panel.appendChild(labeledRow('1件ごとの待機', waitWrap));
+  number.append(waitInput, '秒');
+  waitRow.append(waitText, number);
+  step2.appendChild(waitRow);
+  // 既定値が入っているので最初から済みにする（まだ DOM に無いので ID では探せない）
+  step2.dataset.done = 'true';
 
+  // ③ 確認
+  const step3 = section(`${ID_NAME.REPLACE_PANEL}-step3`, 3, '件数を確かめる');
   const summary = document.createElement('div');
   summary.id = ID_NAME.REPLACE_SUMMARY;
-  applyStyles(summary, { color: '#333', lineHeight: '1.5' });
-  panel.appendChild(summary);
+  summary.className = 'rbl-section';
+  step3.appendChild(summary);
 
-  const buttons = document.createElement('div');
-  applyStyles(buttons, { display: 'flex', gap: '8px', flexWrap: 'wrap' });
-
-  const loadBtn = document.createElement('button');
-  loadBtn.id = ID_NAME.REPLACE_LOAD_BTN;
-  loadBtn.type = 'button';
-  loadBtn.textContent = '読み込む';
-  styleButton(loadBtn, 'secondary');
-  loadBtn.addEventListener('click', () => void handleLoad());
-
-  const startBtn = document.createElement('button');
+  // ④ 実行
+  const step4 = section(`${ID_NAME.REPLACE_PANEL}-step4`, 4, '実行する');
+  const actions = document.createElement('div');
+  actions.className = 'rbl-actions';
+  const startBtn = decorateButton(document.createElement('button'), {
+    label: '開始',
+    variant: 'primary',
+    icon: 'play',
+  });
   startBtn.id = ID_NAME.REPLACE_START_BTN;
-  startBtn.type = 'button';
-  startBtn.textContent = '開始';
-  styleButton(startBtn, 'primary');
-  startBtn.addEventListener('click', () => handleStart(handlers));
-
-  const stopBtn = document.createElement('button');
+  startBtn.addEventListener('click', () => void handleStart(handlers));
+  const stopBtn = decorateButton(document.createElement('button'), {
+    label: '停止',
+    variant: 'secondary',
+    icon: 'stop',
+  });
   stopBtn.id = ID_NAME.REPLACE_STOP_BTN;
-  stopBtn.type = 'button';
-  stopBtn.textContent = '停止';
-  styleButton(stopBtn, 'secondary');
   stopBtn.addEventListener('click', () => {
     handlers.onStop();
     state.running = false;
     syncControls();
   });
-
-  const exportBtn = document.createElement('button');
+  const exportBtn = decorateButton(document.createElement('button'), {
+    label: '結果を出力',
+    variant: 'ghost',
+    icon: 'download',
+  });
   exportBtn.id = ID_NAME.REPLACE_EXPORT_BTN;
-  exportBtn.type = 'button';
-  exportBtn.textContent = '結果を出力';
-  styleButton(exportBtn, 'secondary');
+  exportBtn.title = 'これまでの処理記録を JSON でダウンロードします';
   exportBtn.addEventListener('click', () => void handleExport());
+  const spacer = document.createElement('span');
+  spacer.className = 'rbl-spacer';
+  actions.append(startBtn, stopBtn, spacer, exportBtn);
 
-  buttons.appendChild(loadBtn);
-  buttons.appendChild(startBtn);
-  buttons.appendChild(stopBtn);
-  buttons.appendChild(exportBtn);
-  panel.appendChild(buttons);
-
-  const status = document.createElement('div');
+  const run = document.createElement('div');
+  run.className = 'rbl-run';
+  const status = buildProgress(document.createElement('div'));
   status.id = ID_NAME.REPLACE_STATUS;
-  applyStyles(status, { whiteSpace: 'pre-line', color: '#333', minHeight: '1.5em' });
-  panel.appendChild(status);
+  status.hidden = true;
+  const counts = document.createElement('div');
+  counts.id = ID_NAME.REPLACE_COUNTS;
+  counts.className = 'rbl-badges';
+  run.append(status, counts);
+  step4.append(actions, run);
+
+  body.append(step1, step2, step3, step4);
+  panel.append(head, body);
+
+  // パネルの中で Esc を押したら閉じる（実行中の処理は止めない）
+  panel.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      close();
+    }
+  });
 
   document.body.appendChild(panel);
   renderSummary(null);
@@ -423,5 +583,5 @@ function createPanel(handlers: ReplacePanelHandlers): HTMLDivElement {
  */
 export function showReplacePanel(handlers: ReplacePanelHandlers): void {
   const panel = byId<HTMLDivElement>(ID_NAME.REPLACE_PANEL) ?? createPanel(handlers);
-  panel.style.display = 'flex';
+  panel.hidden = false;
 }
