@@ -13,7 +13,13 @@ import { FormMode, QueueMode } from './messages';
 /** ラクマ本体のオリジン。商品ページの item.fril.jp とは別ホストである点に注意 */
 const FRIL_ORIGIN = 'https://fril.jp';
 
-/** 下書き編集ページのパス */
+/**
+ * 下書き編集ページのパス。
+ *
+ * /drafts 配下のページ種別判定は src/content/list/infra/page-detector.ts の
+ * detectCurrentPage も参照すること。あちらは /drafts 配下を一律 UNKNOWN に落とし、
+ * 一覧側のContent Scriptの担当から外している。
+ */
 const DRAFT_EDIT_PATH = /^\/drafts\/[^/]+\/edit(?:\/|$)/;
 /** 新規出品ページのパス */
 const ITEM_NEW_PATH = /^\/item\/new(?:\/|$)/;

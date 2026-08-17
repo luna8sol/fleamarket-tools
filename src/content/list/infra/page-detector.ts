@@ -18,6 +18,10 @@ export type PageTypeValue = (typeof PageType)[keyof typeof PageType];
  * NOTE: manifestのmatchesパターン "https://fril.jp/draft*" は
  * /drafts/{hash}/edit（編集ページ）にもマッチしてしまうため、
  * /drafts/ 配下はUNKNOWNとして除外する。
+ *
+ * /drafts 配下のパス判定を変える場合は src/common/form-page.ts の
+ * DRAFT_EDIT_PATH も合わせて確認すること。片方だけ変えると、
+ * 一覧側とフォーム側のどちらも担当しないページができる。
  */
 export function detectCurrentPage(): PageTypeValue {
   const path = window.location.pathname;
