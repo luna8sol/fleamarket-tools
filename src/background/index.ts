@@ -4,6 +4,7 @@ import {
   ExtensionMessage,
   MessageType,
   MessageTypeValue,
+  StartQueueResponse,
 } from '../common/messages';
 import { log, warn } from '../common/logger';
 import { queueManager } from './queue-manager';
@@ -54,10 +55,14 @@ async function handleMessage(
   switch (message.type) {
     case MessageType.START_QUEUE: {
       const listTabId = senderTabId(sender, message.type);
-      if (listTabId !== undefined) {
-        await queueManager.start(message.mode, message.items, listTabId, message.listPage);
+      if (listTabId === undefined) {
+        const response: StartQueueResponse = {
+          started: false,
+          reason: '送信元のタブを特定できないため開始できません',
+        };
+        return response;
       }
-      return ACK;
+      return queueManager.start(message.mode, message.items, listTabId, message.listPage);
     }
 
     case MessageType.STOP_QUEUE:

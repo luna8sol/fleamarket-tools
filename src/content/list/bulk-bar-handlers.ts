@@ -12,8 +12,18 @@ import { listRunState } from './run-state';
  * 一括操作バーのボタンを押したときの処理。
  */
 
-function startQueue(mode: QueueMode, items: QueueItem[], listPage?: number): void {
-  sendStartQueue(mode, items, listPage);
+/**
+ * Background に開始を依頼し、受け付けられたときだけ実行中表示にする。
+ *
+ * 別タブで実行中のときなど、依頼が断られることがある。応答を待たずに
+ * 実行中にすると、選んだ商品が処理されない理由がユーザーに分からない。
+ */
+async function startQueue(mode: QueueMode, items: QueueItem[], listPage?: number): Promise<void> {
+  const response = await sendStartQueue(mode, items, listPage);
+  if (!response.started) {
+    showToast(response.reason ?? '処理を開始できませんでした', 'error');
+    return;
+  }
   listRunState.setQueueRunning(true);
   showToast(`${items.length}件の処理を開始しました`, 'info');
 }
@@ -44,7 +54,7 @@ export function createBulkBarHandlers(
           return;
         }
       }
-      startQueue(primaryMode, selected);
+      void startQueue(primaryMode, selected);
     },
 
     onDelete: (): void => {
@@ -61,7 +71,7 @@ export function createBulkBarHandlers(
       );
       if (!ok) return;
       // 削除のたびに1ページ目へ戻されるため、対象が居るページを覚えておく
-      startQueue('delete', selected, getCurrentPage());
+      void startQueue('delete', selected, getCurrentPage());
     },
 
     onStop: (): void => {

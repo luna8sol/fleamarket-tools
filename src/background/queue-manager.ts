@@ -8,6 +8,7 @@ import {
   QueueProgress,
   QueueProgressMessage,
   SourceItem,
+  StartQueueResponse,
 } from '../common/messages';
 import { sendToTab } from '../common/send-message';
 import { isFormPageUrl } from '../common/form-page';
@@ -155,17 +156,23 @@ export class QueueManager {
   }
 
   /**
-   * キューを開始する
+   * キューを開始する。
+   *
+   * 既に実行中のときは開始しない（別タブの処理を上書きしない）。
+   * 黙って戻ると依頼した一覧側に伝わらないため、受け付けなかった理由を返す。
    */
   async start(
     mode: QueueMode,
     items: QueueItem[],
     listTabId: number,
     listPage?: number
-  ): Promise<void> {
+  ): Promise<StartQueueResponse> {
     if (this.state.running) {
       warn('キューは既に実行中です');
-      return;
+      return {
+        started: false,
+        reason: '他のタブで処理が実行中のため開始できません',
+      };
     }
     this.state = {
       ...createInitialState(),
@@ -179,6 +186,7 @@ export class QueueManager {
     log(`キュー開始: mode=${mode}, ${items.length}件`);
     await this.save();
     await this.processCurrent();
+    return { started: true };
   }
 
   /**

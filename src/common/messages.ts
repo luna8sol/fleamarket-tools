@@ -95,6 +95,19 @@ export interface StartQueueMessage {
   listPage?: number;
 }
 
+/**
+ * START_QUEUE への応答。
+ *
+ * Background は既にキューが実行中のとき開始を受け付けない。
+ * ACK だけを返すと一覧側が開始したと誤解して実行中表示になるため、
+ * 受け付けたかどうかと、受け付けなかった理由（ユーザーへ提示する文言）を返す。
+ */
+export interface StartQueueResponse {
+  started: boolean;
+  /** started が false のときの理由 */
+  reason?: string;
+}
+
 export interface StopQueueMessage {
   type: typeof MessageType.STOP_QUEUE;
 }
@@ -241,7 +254,7 @@ type ResponseMap<T extends Record<ExtensionMessage['type'], unknown>> = T;
  *       応答を使う側は期待した内容が入っていない場合に耐えること。
  */
 export type MessageResponses = ResponseMap<{
-  [MessageType.START_QUEUE]: AckResponse;
+  [MessageType.START_QUEUE]: StartQueueResponse;
   [MessageType.STOP_QUEUE]: AckResponse;
   [MessageType.GET_PROGRESS]: QueueProgress;
   [MessageType.CLICK_RELIST]: ClickRelistResponse;
