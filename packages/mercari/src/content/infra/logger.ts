@@ -4,11 +4,15 @@
  * - デバッグ・エラー調査用途で利用します。
  * - すべてのログに拡張機能名のプレフィックスが自動付与されます。
  * - どのレイヤーからもimportして利用可能です。
+ * - レベル制御の骨格は共有部品 `@fleamarket/core/logger`。接頭辞・時刻・`[LOG]` などの
+ *   タグの付け方（出力形式）はこの拡張固有のものなので、このファイルで決める。
  *
  * @example
  *   log('初期化完了', obj);
  *   warn('異常値検出', value);
  */
+import { createLogger, LogLevelName } from '@fleamarket/core/logger';
+
 const LOG_PREFIX = '[Mercari Draft Publisher]';
 
 /**
@@ -22,37 +26,21 @@ export enum LogLevel {
   ERROR = 4,
 }
 
-// 現在のログレベル（環境に応じて変更可能）
-let currentLogLevel = LogLevel.LOG;
+const LEVEL_NAME: Record<LogLevel, LogLevelName> = {
+  [LogLevel.DEBUG]: 'debug',
+  [LogLevel.LOG]: 'log',
+  [LogLevel.INFO]: 'info',
+  [LogLevel.WARN]: 'warn',
+  [LogLevel.ERROR]: 'error',
+};
 
-/**
- * ログレベルを設定
- * @param level 設定するログレベル
- */
-export function setLogLevel(level: LogLevel): void {
-  currentLogLevel = level;
-}
-
-/**
- * デバッグモードに基づいてログレベルを設定
- * @param isDebugMode デバッグモードかどうか
- */
-export function setDebugMode(isDebugMode: boolean): void {
-  currentLogLevel = isDebugMode ? LogLevel.DEBUG : LogLevel.LOG;
-  if (isDebugMode) {
-    debug('デバッグモードが有効になりました');
-  } else {
-    log('通常モードに戻りました');
-  }
-}
-
-/**
- * 現在のデバッグモードステータスを取得
- * @returns デバッグモードが有効かどうか
- */
-export function isDebugModeEnabled(): boolean {
-  return currentLogLevel <= LogLevel.DEBUG;
-}
+const LEVEL_TAG: Record<LogLevelName, string> = {
+  debug: '[DEBUG]',
+  log: '[LOG]',
+  info: '[INFO]',
+  warn: '[WARN]',
+  error: '[ERROR]',
+};
 
 /**
  * タイムスタンプ付きメッセージを取得
@@ -65,7 +53,7 @@ function getTimestampedMessage(message: string): string {
   const timeStr = now.toLocaleTimeString('ja-JP', {
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit'
+    second: '2-digit',
   });
 
   // ミリ秒を手動で追加
@@ -75,15 +63,50 @@ function getTimestampedMessage(message: string): string {
   return `${LOG_PREFIX} [${timestamp}] ${message}`;
 }
 
+// 現在のログレベルは共有部品側が持つ（既定は LOG）
+const logger = createLogger({
+  format: (level, [message, ...optionalParams]) => [
+    getTimestampedMessage(`${LEVEL_TAG[level]} ${message}`),
+    ...optionalParams,
+  ],
+});
+
+/**
+ * ログレベルを設定
+ * @param level 設定するログレベル
+ */
+export function setLogLevel(level: LogLevel): void {
+  logger.setLevel(LEVEL_NAME[level]);
+}
+
+/**
+ * デバッグモードに基づいてログレベルを設定
+ * @param isDebugMode デバッグモードかどうか
+ */
+export function setDebugMode(isDebugMode: boolean): void {
+  logger.setLevel(isDebugMode ? 'debug' : 'log');
+  if (isDebugMode) {
+    debug('デバッグモードが有効になりました');
+  } else {
+    log('通常モードに戻りました');
+  }
+}
+
+/**
+ * 現在のデバッグモードステータスを取得
+ * @returns デバッグモードが有効かどうか
+ */
+export function isDebugModeEnabled(): boolean {
+  return logger.isEnabled('debug');
+}
+
 /**
  * デバッグログ出力
  * @param message ログメッセージ
  * @param optionalParams 追加パラメータ
  */
 export function debug(message: string, ...optionalParams: unknown[]): void {
-  if (currentLogLevel <= LogLevel.DEBUG) {
-    console.debug(getTimestampedMessage(`[DEBUG] ${message}`), ...optionalParams);
-  }
+  logger.emit('debug', [message, ...optionalParams]);
 }
 
 /**
@@ -92,9 +115,7 @@ export function debug(message: string, ...optionalParams: unknown[]): void {
  * @param optionalParams 追加パラメータ
  */
 export function log(message: string, ...optionalParams: unknown[]): void {
-  if (currentLogLevel <= LogLevel.LOG) {
-    console.log(getTimestampedMessage(`[LOG] ${message}`), ...optionalParams);
-  }
+  logger.emit('log', [message, ...optionalParams]);
 }
 
 /**
@@ -103,9 +124,7 @@ export function log(message: string, ...optionalParams: unknown[]): void {
  * @param optionalParams 追加パラメータ
  */
 export function warn(message: string, ...optionalParams: unknown[]): void {
-  if (currentLogLevel <= LogLevel.WARN) {
-    console.warn(getTimestampedMessage(`[WARN] ${message}`), ...optionalParams);
-  }
+  logger.emit('warn', [message, ...optionalParams]);
 }
 
 /**
@@ -114,9 +133,7 @@ export function warn(message: string, ...optionalParams: unknown[]): void {
  * @param optionalParams 追加パラメータ
  */
 export function error(message: string, ...optionalParams: unknown[]): void {
-  if (currentLogLevel <= LogLevel.ERROR) {
-    console.error(getTimestampedMessage(`[ERROR] ${message}`), ...optionalParams);
-  }
+  logger.emit('error', [message, ...optionalParams]);
 }
 
 /**
@@ -125,7 +142,7 @@ export function error(message: string, ...optionalParams: unknown[]): void {
  * @param params オプションのパラメータ
  */
 export function debugMethodStart(methodName: string, params?: Record<string, unknown>): void {
-  if (currentLogLevel <= LogLevel.DEBUG) {
+  if (logger.isEnabled('debug')) {
     if (params) {
       debug(`[開始] ${methodName}`, params);
     } else {
@@ -140,8 +157,12 @@ export function debugMethodStart(methodName: string, params?: Record<string, unk
  * @param result オプションの結果データ
  * @param durationMs 実行時間（ミリ秒）
  */
-export function debugMethodEnd(methodName: string, result?: Record<string, unknown>, durationMs?: number): void {
-  if (currentLogLevel <= LogLevel.DEBUG) {
+export function debugMethodEnd(
+  methodName: string,
+  result?: Record<string, unknown>,
+  durationMs?: number
+): void {
+  if (logger.isEnabled('debug')) {
     const message = durationMs
       ? `[終了] ${methodName} (所要時間: ${durationMs}ms)`
       : `[終了] ${methodName}`;

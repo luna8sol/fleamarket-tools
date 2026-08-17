@@ -95,7 +95,7 @@
 | 注入 UI のスタイル・共通部品 | [ui/theme.ts](src/content/list/ui/theme.ts), [ui/components.ts](src/content/list/ui/components.ts) |
 | デザイントークン・ライト/ダークの設定（注入 UI と popup で共有） | [src/common/theme.ts](src/common/theme.ts), [src/common/icons.ts](src/common/icons.ts) |
 | ポップアップ（キュー状態の表示・テーマ切替） | [popup.html](popup.html), [src/popup/index.ts](src/popup/index.ts) |
-| ログ出力 | [src/common/logger.ts](src/common/logger.ts) |
+| ログ出力 | [src/common/logger.ts](src/common/logger.ts)（レベル制御は `@fleamarket/core/logger`。接頭辞と出力形式はここ） |
 | ビルド構成（エントリ 4 つ） | [webpack.config.js](webpack.config.js), [tsconfig.json](tsconfig.json)（ルートの `tsconfig.base.json` を extends。`types: ["chrome"]` はここで指定） |
 | lint / format / 改行コード | ルートの [eslint.config.js](../../eslint.config.js), [.prettierrc](../../.prettierrc), [.gitattributes](../../.gitattributes) |
 
@@ -122,7 +122,7 @@
 - 出品フォームページの URL 判定は [src/common/form-page.ts](src/common/form-page.ts) に集約する（Background と Content の双方から使うため、片側に直書きしない）
 - モードによって変わる振る舞いを増やすときは、`mode === 'delete'` のような個別の比較を書かずに [src/common/queue-mode-traits.ts](src/common/queue-mode-traits.ts) の `QUEUE_MODE_TRAITS` へ性質を足す（`Record<QueueMode, QueueModeTraits>` なので、モードを足したときに記入漏れがコンパイルエラーになる）
 - キューの状態を増やしたら `chrome.storage.session` に保存される形にする（Service Worker が破棄されても続きから処理できること）
-- ログは [src/common/logger.ts](src/common/logger.ts) の `log` / `warn` / `debug` を使う。接頭辞は `[RakumaBulkLister]`（共有部品へ移すときもこの文字列を変えない）
+- ログは [src/common/logger.ts](src/common/logger.ts) の `log` / `warn` / `debug` を使う。接頭辞 `[RakumaBulkLister]` を別引数で渡す出力形式と、`debug` を `console.log` で出す点はこのファイルで決めている（レベル制御の骨格だけ `@fleamarket/core/logger`）。**この出力形式を変えない**
 - 拡張の外から挙動を切り分けられるようにする。出品フォーム側の状態は `<html data-rbl-form="checking|auto|manual">` に出す（console ログは拡張の外からは読めない）
 
 ## 落とし穴（このパッケージ固有）
