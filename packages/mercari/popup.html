@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Mercari Draft Publisher</title>
+  <link rel="stylesheet" href="extension-pages.css">
+  <style>
+    body { width: 360px; }
+    .popup { display: grid; gap: 12px; padding: 16px; }
+    .popup__head { display: flex; align-items: center; gap: 12px; padding: 2px 2px 4px; }
+    .popup__foot {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 2px 2px 0;
+    }
+    .popup__version { font-size: 11px; color: var(--mdp-text-subtle); font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <main class="popup">
+    <header class="popup__head">
+      <div class="brand">
+        <span class="brand__tile" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
+        </span>
+        <div>
+          <h1 class="brand__name">Draft Publisher</h1>
+          <p class="brand__caption">メルカリの下書きをまとめて出品</p>
+        </div>
+      </div>
+      <span class="saved" id="saved-indicator" role="status" aria-live="polite">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>保存しました</span>
+      </span>
+    </header>
+
+    <!-- 再出品後の自動保存 -->
+    <section class="card" aria-labelledby="auto-save-title">
+      <div class="card__head">
+        <h2 class="card__title" id="auto-save-title">再出品後の自動下書き保存</h2>
+      </div>
+      <div class="card__body">
+        <label class="switch-row" for="auto-save-enabled">
+          <span>
+            <span class="switch-row__title">比較して問題なければ下書きに保存</span>
+            <span class="switch-row__desc">再出品フォームを元の商品と突き合わせ、一致したら下書き保存まで進めます</span>
+          </span>
+          <input type="checkbox" class="switch" role="switch" id="auto-save-enabled">
+        </label>
+
+        <label class="switch-row switch-row--nested" for="auto-save-dry-run">
+          <span>
+            <span class="switch-row__title">ドライラン</span>
+            <span class="switch-row__desc">比較だけ行い、下書き保存ボタンは押しません</span>
+          </span>
+          <input type="checkbox" class="switch" role="switch" id="auto-save-dry-run">
+        </label>
+
+        <div class="callout">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <div>
+            <p><strong>「出品する」は押しません。</strong>公開は下書き一覧からの一括出品で行ってください。</p>
+            <p>項目が正しく読み取れているか確かめてから、ドライランを解除してください。結果は出品フォームのコンソールログに出力されます。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- デバッグモード切り替え -->
+    <section class="card" aria-labelledby="developer-title">
+      <div class="card__head">
+        <h2 class="card__title" id="developer-title">開発者向け</h2>
+      </div>
+      <div class="card__body">
+        <label class="switch-row" for="debug-mode">
+          <span>
+            <span class="switch-row__title">デバッグモード</span>
+            <span class="switch-row__desc">詳しい動作ログをコンソールに出力します</span>
+          </span>
+          <input type="checkbox" class="switch" role="switch" id="debug-mode">
+        </label>
+      </div>
+    </section>
+
+    <footer class="popup__foot">
+      <button type="button" class="btn btn--ghost" id="open-options">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0Z"/></svg>
+        <span>AI の設定（APIキー）</span>
+      </button>
+      <span class="popup__version" id="version"></span>
+    </footer>
+  </main>
+
+  <script src="dist/popup.js"></script>
+</body>
+</html>

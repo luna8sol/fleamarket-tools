@@ -1,0 +1,30 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# TypeScript
+dist/
+build/
+*.tsbuildinfo
+
+# VSCode
+.vscode/
+
+# Chrome Extension build artifacts
+*.crx
+*.pem
+
+# OSごとの不要ファイル
+.DS_Store
+Thumbs.db
+
+# Claude Code（ホワイトリスト方式: ディレクトリごと除外すると中の個別解除が効かないため .claude/* と書く）
+.claude/*
+!.claude/skills/
+!.claude/settings.json
+
+# その他
+.env
