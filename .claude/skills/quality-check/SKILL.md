@@ -16,7 +16,7 @@ description: このリポジトリの型チェック・ビルド・静的解析�
 パッケージはルート 1 つだけ（モノレポではない）。**全部回しても合計 20 秒程度**なので、影響範囲を考える時間のほうが高くつく。絞り込みの判断はしない。
 
 ```bash
-npx tsc --noEmit        # 型チェック（約 5 秒 / 通過するのが正常）
+npm run typecheck       # 型チェック（約 5 秒 / 通過するのが正常）
 npm run build           # ビルド（約 6 秒 / 通過するのが正常）
 npm run lint            # 静的解析（約 6 秒 / 通過するのが正常）
 npm run format:check    # フォーマット（約 3 秒 / 通過するのが正常）
@@ -29,7 +29,6 @@ npm run format:check    # フォーマット（約 3 秒 / 通過するのが正
 - **4 つとも通るのが正常。落ちたらそれは自分の変更のせい。** 直してから再実行する。**通っている状態を壊さないこと。**
 - `npm run format:check` が落ちたら、触ったファイルだけ `npx prettier --write <そのファイル>` で直す。**`npm run format` でリポジトリ全体を一括整形しない**（差分が膨れて本来の変更が埋もれる）。
 - **`format:check` が全ファイルで落ちたら、まず改行コードを疑う。** 改行は [.gitattributes](../../../.gitattributes) で LF に固定してある。作業ツリーが CRLF になっていると、中身が整形済みでも全ファイルが差分として報告される。確認は `git ls-files --eol <パス>` で、`w/` が `lf` かどうか。
-- **型チェックに `npm run build:tsc` を使わない。** `--noEmit` が無く `dist/` を汚す。
 - **`npm run build` が通っても、動作確認にはならない。** 自動テストが無いので、挙動を変えたなら Chrome に読み込んで確かめる（`local-setup` スキル）。確かめていないなら**報告に「未検証」と書く**。
 
 ## 絞り込む判断をするとき（ドキュメントだけ触った場合など）
@@ -60,7 +59,7 @@ CI は存在しない（`.github/workflows/` 無し）。CI を追加・変更�
 - **実行したコマンドと結果を控えて、報告にそのまま書く。**
 
 ```
-npx tsc --noEmit      → 通過
+npm run typecheck     → 通過
 npm run build         → 通過
 npm run lint          → 通過
 npm run format:check  → 通過

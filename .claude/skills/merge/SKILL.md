@@ -54,7 +54,7 @@ git worktree list    # どの worktree がどのブランチを持っている�
 **ここを飛ばさない。** それぞれのブランチで通っていても、合流した状態では通らないことがある（意味的な衝突）。
 
 ```bash
-npx tsc --noEmit
+npm run typecheck
 npm run build
 npm run lint
 ```

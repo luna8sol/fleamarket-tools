@@ -72,7 +72,7 @@ scope の付け方・件名の字数・コミット日時の扱いは [CLAUDE.md
 
 ```bash
 npm run lint           # ESLint（通るのが正常）
-npx tsc --noEmit       # 型チェック（通るのが正常）
+npm run typecheck      # 型チェック（通るのが正常）
 npm run build          # ビルド（通るのが正常）
 npm run format:check   # Prettier（通るのが正常）
 ```

@@ -65,7 +65,7 @@ git ls-files --others --exclude-standard  # 未追跡の新規ファイル
 
 ### 4. 出す前の形式
 
-- **型チェック・ビルド・lint・フォーマットを実際に通したか**（`npx tsc --noEmit` / `npm run build` / `npm run lint` / `npm run format:check`）。**4 つとも通るのが正常。**
+- **型チェック・ビルド・lint・フォーマットを実際に通したか**（`npm run typecheck` / `npm run build` / `npm run lint` / `npm run format:check`）。**4 つとも通るのが正常。**
 - 一時設定・デバッグ出力・コメントアウトした旧コードが残っていないか。
 - 依頼されていない変更が混ざっていないか（既存コードの一括整形を含む）。
 - **README との食い違いを作っていないか。** 設計判断の一次資料は README なので、挙動を変えたら該当する節も直す。

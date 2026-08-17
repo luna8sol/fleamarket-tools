@@ -196,7 +196,7 @@ update queue-manager.ts
 
 | 項目 | コマンド | 現状（2026-09-19 実測） |
 | --- | --- | --- |
-| 型チェック | `npx tsc --noEmit` | **通過**（exit 0）。約 5 秒 |
+| 型チェック | `npm run typecheck` | **通過**（exit 0）。約 5 秒 |
 | ビルド | `npm run build` | **通過**（exit 0）。約 6 秒（初回は 30 秒以上かかることがある） |
 | 静的解析 | `npm run lint` | **通過**（exit 0）。約 4 秒 |
 | フォーマット | `npm run format:check` | **通過**（exit 0）。約 3 秒 |
@@ -208,8 +208,7 @@ update queue-manager.ts
 
 - **改行コードは [.gitattributes](.gitattributes) で LF に固定している。** Prettier の `endOfLine` 既定値が `"lf"` のため、作業ツリーが CRLF になると中身が整形済みでも `format:check` が全ファイルを差分として報告する（2026-09-19 まで実際にそうなっていた）。`core.autocrlf` の設定に関わらず LF でチェックアウトされる。**`format:check` が全ファイルで落ちたら、まず改行コードを疑う**（`git ls-files --eol <パス>` の `w/` が `lf` か）。
 - **`npm run format` でリポジトリ全体を一括整形しない。** 触ったファイルだけ `npx prettier --write <パス>` で直す（差分が膨れて本来の変更が埋もれる）。
-- **型チェックに `npm run build:tsc` を使わない。** これは `tsc`（`--noEmit` なし）なので `dist/` に成果物を吐いてビルド出力を汚す。型チェックは必ず `npx tsc --noEmit`。
-- **`lint` スクリプトの `--ext .ts,.js` は flat config では効いていない。** 実際の対象は [eslint.config.js](eslint.config.js) の `files: ['**/*.ts', '**/*.tsx']` だけで、`webpack.config.js` や `eslint.config.js` 自身は lint されない。
+- **`lint` の対象は [eslint.config.js](eslint.config.js) の `files: ['**/*.ts', '**/*.tsx']` で決まる。** `webpack.config.js` や `eslint.config.js` 自身は lint されない。
 - **ビルドが通っても動作確認にはならない。** 自動テストが無いため、挙動を変えたら Chrome に読み込んで確かめる（`local-setup` スキル）。確かめていないなら報告に「未検証」と書く。
 - **`manifest.json` を変えたらページのリロードでは反映されない。** `chrome://extensions` で拡張自体を再読み込みする（`dist/*.js` の変更はページのリロードで反映される）。
 

@@ -81,7 +81,6 @@ Content Script と Service Worker の console ログは拡張の外からは読�
 | 拡張機能を再読み込みしたらキューが消えた | キューは `chrome.storage.session` に保存されるが、**拡張の再読み込みでセッションごと消える**。Service Worker の破棄だけなら復元される |
 | 進捗表示が更新されない | 一覧タブが閉じられている・遷移した。Background は `notifyProgress` の失敗を握り潰して処理を続ける |
 | `npm run format:check` が全ファイルで落ちる | 改行コードが CRLF になっている。`.gitattributes` で LF に固定してあるので、`git ls-files --eol <パス>` の `w/` が `crlf` なら取り直す。中身の整形の問題ではない |
-| `npm run build:tsc` を実行したら `dist/` の中身が変わった | `build:tsc` は `tsc`（`--noEmit` なし）で成果物を吐く。型チェックには使わない。`npm run build` で作り直す |
 
 ## worktree を新しく作ったとき
 

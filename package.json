@@ -4,12 +4,12 @@
   "description": "ラクマの出品中商品の一括再出品・下書き商品の一括出品を行う拡張機能",
   "type": "module",
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "build": "webpack --config webpack.config.js",
-    "build:tsc": "tsc",
     "build:prod": "webpack --mode production --config webpack.config.js",
     "build:dev": "webpack --mode development --config webpack.config.js",
-    "lint": "eslint src --ext .ts,.js",
-    "lint:fix": "eslint src --ext .ts,.js --fix",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "format": "prettier --write \"src/**/*.{ts,js,css,html}\"",
     "format:check": "prettier --check \"src/**/*.{ts,js,css,html}\"",
     "clean": "rimraf dist"

@@ -33,7 +33,7 @@ git branch -m <規約名>
 
 `quality-check` スキルを実行する。**通らないならコミットしない。**
 
-- `npx tsc --noEmit` / `npm run build` / `npm run lint` / `npm run format:check` は**4 つとも通るのが正常**。落ちているならコミットしない。
+- `npm run typecheck` / `npm run build` / `npm run lint` / `npm run format:check` は**4 つとも通るのが正常**。落ちているならコミットしない。
 - `format:check` が落ちたら、触ったファイルだけ `npx prettier --write <パス>` で直す（全体を `npm run format` しない）。
 
 ## 3. 変更を確認する（3 つとも見る）
