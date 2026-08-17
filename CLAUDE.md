@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 共有部品（`packages/core` = `@fleamarket/core`）
 
-移してよいのは**サイトに依存しない純粋なユーティリティ**だけ。2026-10-05 の調査で対象を 5 つに絞った: **待機・ポーリング・FNV-1a・改行正規化・debounce・randomInt** / **logger のレベル制御**（出力形式は拡張ごとに違うので各パッケージの logger に残る）/ **アイコン**（SVG の組み立てと共通 15 個）/ **スタイルの注入とボタン・進捗部品**（CSS 本文は各パッケージの theme に残る）/ **通知**（トーストの組み立てと表示時間の制御。表示時間の決め方とホバー後の方式は注入）。**5 つとも移行済み**（2026-10-05）。次の 4 つは見送り（移すと分岐だらけになるか、片側にコードを足すことになる）: 確認ダイアログ（答えの確定方式が 2 系統）、テーマ CSS 本体（値・クラス体系・ダーク切替がサイト固有）、置換記録ストア（キー・検証・完了判定がすべて違う）、型付きメッセージの枠組み（メルカリ側に枠組みが無い）。
+移してよいのは**サイトに依存しない純粋なユーティリティ**だけ。2026-10-05 の調査で対象を 5 つに絞った: **待機・ポーリング・FNV-1a・改行正規化・debounce・randomInt** / **logger のレベル制御**（出力形式は拡張ごとに違うので各パッケージの logger に残る）/ **アイコン**（SVG の組み立てと共通 15 個）/ **スタイルの注入とボタン・進捗部品**（CSS 本文は各パッケージの theme に残る）/ **通知**（トーストの組み立てと表示時間の制御。表示時間の決め方とホバー後の方式は注入）。**5 つとも移行済み**（2026-10-05）。その後ユーザーの指示で追加した: **確認ダイアログ**（組み立てと平文化。答えの確定方式が 2 系統あるので `settleMode` で注入し、クラス名・上限・文言・autofocus も注入）。見送り（移すと片側にコードを足すことになるか、共通部分がほぼ無い）: テーマ CSS 本体（値・クラス体系・ダーク切替がサイト固有）、型付きメッセージの枠組み（メルカリ側に枠組みが無い）。
 
 - **1 ファイル 1 部品**で `packages/core/<name>.ts` に置き、`@fleamarket/core/<name>` のサブパスで import する（`src/` も `index.ts` も無い。npm workspace のシンボリックリンク経由で TS ソースを直接読むので、core 側にビルド工程は無い）。
 - **各パッケージ側は従来のファイルを薄いラッパーとして残し、呼び出し側の import を変えない。** 拡張ごとに違うもの（`sleep` の秒単位、FNV-1a の 10 進 / 16 進表記、ログの接頭辞、ストレージのキー名）はラッパー側で付けるか、core に**注入できる形**にする。**既存の文字列・キー名・保存される値は 1 文字も変えない。**
@@ -48,7 +48,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | ラクマ用拡張の方針・索引・既知の状態・落とし穴 | [packages/rakuma/CLAUDE.md](packages/rakuma/CLAUDE.md) |
 | ブランチ運用・コミットメッセージ・コードスタイル | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | リポジトリ構成・開発コマンド・Chrome への読み込み | [README.md](README.md) |
-| 共有部品（待機・ポーリング・FNV-1a・改行正規化・debounce・randomInt・logger のレベル制御・アイコン・スタイル注入・ボタンと進捗部品・トースト） | [packages/core/](packages/core/)（[wait.ts](packages/core/wait.ts), [text-hash.ts](packages/core/text-hash.ts), [debounce.ts](packages/core/debounce.ts), [random.ts](packages/core/random.ts), [logger.ts](packages/core/logger.ts), [icons.ts](packages/core/icons.ts), [style.ts](packages/core/style.ts), [components.ts](packages/core/components.ts), [toast.ts](packages/core/toast.ts)） |
+| 共有部品（待機・ポーリング・FNV-1a・改行正規化・debounce・randomInt・logger のレベル制御・アイコン・スタイル注入・ボタンと進捗部品・トースト・確認ダイアログ） | [packages/core/](packages/core/)（[wait.ts](packages/core/wait.ts), [text-hash.ts](packages/core/text-hash.ts), [debounce.ts](packages/core/debounce.ts), [random.ts](packages/core/random.ts), [logger.ts](packages/core/logger.ts), [icons.ts](packages/core/icons.ts), [style.ts](packages/core/style.ts), [components.ts](packages/core/components.ts), [toast.ts](packages/core/toast.ts), [confirm-dialog.ts](packages/core/confirm-dialog.ts)） |
 | 共通のビルド・lint・format・改行コード設定 | [package.json](package.json), [tsconfig.base.json](tsconfig.base.json), [eslint.config.js](eslint.config.js), [.prettierrc](.prettierrc), [.gitattributes](.gitattributes) |
 | 各パッケージのビルド構成（webpack のエントリと target は 2 つで違う） | `packages/*/webpack.config.js`, `packages/*/tsconfig.json`, `packages/*/package.json`, `packages/*/manifest.json` |
 

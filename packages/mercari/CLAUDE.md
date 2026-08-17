@@ -59,7 +59,7 @@
 | 選択状態・選択順の管理 | [src/content/logic/selection-manager.ts](src/content/logic/selection-manager.ts) |
 | DOM 変更の監視 | [src/content/logic/observer-manager.ts](src/content/logic/observer-manager.ts) |
 | UI 全体の組み立て | [src/content/ui/ui-manager.ts](src/content/ui/ui-manager.ts), [ui/index.ts](src/content/ui/index.ts) |
-| 注入 UI の見た目（トークン・ライト/ダーク・部品・アイコン・確認ダイアログ） | [theme.ts](src/content/ui/theme.ts)（CSS 本文はここ。`<style>` の注入は `@fleamarket/core/style`）, [components.ts](src/content/ui/components.ts)（組み立ては `@fleamarket/core/components`。接頭辞 `mdp` とクラス名、`updateProgress` の名前はここ）, [icons.ts](src/content/ui/icons.ts)（SVG の組み立てと共通アイコンは `@fleamarket/core/icons`。固有アイコンと `mdp-icon` クラスはここ）, [confirm-dialog.ts](src/content/ui/confirm-dialog.ts) |
+| 注入 UI の見た目（トークン・ライト/ダーク・部品・アイコン・確認ダイアログ） | [theme.ts](src/content/ui/theme.ts)（CSS 本文はここ。`<style>` の注入は `@fleamarket/core/style`）, [components.ts](src/content/ui/components.ts)（組み立ては `@fleamarket/core/components`。接頭辞 `mdp` とクラス名、`updateProgress` の名前はここ）, [icons.ts](src/content/ui/icons.ts)（SVG の組み立てと共通アイコンは `@fleamarket/core/icons`。固有アイコンと `mdp-icon` クラスはここ）, [confirm-dialog.ts](src/content/ui/confirm-dialog.ts)（組み立てと答えの待ち方は `@fleamarket/core/confirm-dialog`。id・接頭辞 `mdp`・上限 10・行頭 `・`・`close` イベントで確定する方式はここ） |
 | 一括操作バー | [bulk-bar-core.ts](src/content/ui/bulk-bar-core.ts), [bulk-bar-ui.ts](src/content/ui/bulk-bar-ui.ts), [bulk-bar-utils.ts](src/content/ui/bulk-bar-utils.ts), [bulk-relist.ts](src/content/ui/bulk-relist.ts) |
 | 出品中一覧の絞り込み（いいね・コメント数） | [src/content/logic/filter-manager.ts](src/content/logic/filter-manager.ts), [src/content/ui/filter-bar.ts](src/content/ui/filter-bar.ts) |
 | 商品リストを読み込めなかったときの表示 | [src/content/ui/list-load-error.ts](src/content/ui/list-load-error.ts) |
