@@ -43,8 +43,7 @@ export function collectItems(pageType: PageTypeValue): ListItem[] {
   const items: ListItem[] = [];
 
   for (const el of elements) {
-    const id =
-      pageType === PageType.SELL ? extractSellItemId(el) : extractDraftItemId(el);
+    const id = pageType === PageType.SELL ? extractSellItemId(el) : extractDraftItemId(el);
     if (!id) {
       warn('商品IDを取得できない要素をスキップしました', el);
       continue;

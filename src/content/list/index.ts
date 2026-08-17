@@ -2,6 +2,7 @@ import {
   ExtensionMessage,
   MessageType,
   QueueMode,
+  QueueProgress,
   StartQueueMessage,
 } from '../../common/messages';
 import { log, setDebugMode, warn } from '../../common/logger';
@@ -24,8 +25,7 @@ function main(): void {
   }
 
   const mode: QueueMode = pageType === PageType.SELL ? 'relist' : 'publish';
-  const startLabel =
-    mode === 'relist' ? '選択した商品を再出品' : '選択した下書きをまとめて出品';
+  const startLabel = mode === 'relist' ? '選択した商品を再出品' : '選択した下書きをまとめて出品';
 
   // /sell ではフリマアシストの再出品ボタンが必須
   const items = collectItems(pageType);
@@ -72,6 +72,9 @@ function main(): void {
     }
   );
 
+  // ページ再読込時に、実行中のキューの表示を復元する
+  void restoreProgress(mode);
+
   // Backgroundからのメッセージを処理
   chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
     switch (message.type) {
@@ -101,14 +104,40 @@ function main(): void {
             }
           }
         }
+        sendResponse({ ok: true });
         break;
       }
 
       default:
+        sendResponse({ ok: true });
         break;
     }
+    // すべての分岐で同期的に応答済みのため、チャネルは開いたままにしない
     return undefined;
   });
+}
+
+/**
+ * Backgroundから現在の進捗を取得してバーへ反映する。
+ * Service Workerはキューの待機中も状態を保持しているため、
+ * 一覧ページを再読込しても処理中であることが分かるようにする。
+ */
+async function restoreProgress(mode: QueueMode): Promise<void> {
+  try {
+    const progress = (await chrome.runtime.sendMessage({
+      type: MessageType.GET_PROGRESS,
+    })) as QueueProgress | undefined;
+
+    // 別モードのキュー（例: /sell で /draft のキュー）の進捗は表示しない
+    if (!progress || progress.total === 0 || progress.mode !== mode) return;
+
+    updateProgress(progress);
+    if (progress.running) {
+      setCheckboxesEnabled(false);
+    }
+  } catch (e) {
+    warn('進捗の取得に失敗しました', e);
+  }
 }
 
 main();

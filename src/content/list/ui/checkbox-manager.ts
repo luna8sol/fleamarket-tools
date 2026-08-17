@@ -43,9 +43,7 @@ export function addCheckboxes(items: ListItem[], onChange: CheckboxChangeHandler
  * すべてのチェックボックスの有効/無効を切り替える（処理中の誤操作防止）
  */
 export function setCheckboxesEnabled(enabled: boolean): void {
-  document
-    .querySelectorAll<HTMLInputElement>(`.${CLASS_NAME.BULK_CHECKBOX}`)
-    .forEach((cb) => {
-      cb.disabled = !enabled;
-    });
+  document.querySelectorAll<HTMLInputElement>(`.${CLASS_NAME.BULK_CHECKBOX}`).forEach((cb) => {
+    cb.disabled = !enabled;
+  });
 }

@@ -10,7 +10,7 @@ export default (env, argv) => {
     mode: isProd ? 'production' : 'development',
     entry: {
       'content-list': './src/content/list/index.ts',
-      'content-edit': './src/content/edit/index.ts',
+      'content-form': './src/content/form/index.ts',
       background: './src/background/index.ts',
       popup: './src/popup/index.ts',
     },

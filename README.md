@@ -18,17 +18,44 @@
    /draft: チェックボックスで選択 → Background が編集ページをタブで開く
 
 ② Background (background.js)
-   処理キューの管理・タブの追跡・商品間の待機時間制御（chrome.alarms）
+   処理キューの管理・タブの追跡・出品完了の検知・商品間の待機時間制御
 
-③ 下書き編集ページ (content-edit.js)
+③ 出品フォーム (content-form.js)
+   relist:  /item/new              （フリマアシストが商品ページ経由で開く）
+   publish: /drafts/{hash}/edit    （Background が開く）
    Background に自動処理対象タブか確認したうえで
-   「確認する」→「出品する」を自動クリック → 下書き一覧への遷移を検知して完了通知
+   「確認する」→「出品する」を自動クリックする
 ```
 
-- 編集ページのボタンは Chakra UI のハッシュクラスのため**テキストで特定**する
-- 手動で開いた編集ページでは何もしない（Background への確認で判別）
-- 失敗時（バリデーションエラー等）はタブを残してユーザーが確認できるようにする
-- 商品間には 60〜75 秒のランダム待機を挟む
+### 出品完了の判定は Background 側で行う
+
+出品フォームのタブを `chrome.tabs.onUpdated` で監視し、**「出品する」をクリックしたあとに
+出品フォームの URL から離れたこと**をもって完了とみなす。
+
+Content Script 側で遷移を監視しない理由は、`/item/new` からの出品成功後の遷移先が
+`item.fril.jp`（別オリジン）になりうるため。その場合 Content Script は遷移前に破棄され、
+完了を見届けられない。
+
+### Service Worker の破棄に耐える
+
+MV3 の Service Worker はアイドル状態が続くと破棄される。本拡張は商品間に 60〜75 秒の待機を
+挟むため、待機中の破棄は**必ず起きる**。そのためキューの状態は変更のたびに
+`chrome.storage.session` へ書き戻し、すべてのイベントハンドラの先頭で復元してから処理する。
+
+タイマー類も `setTimeout` ではなく `chrome.alarms` を使う（`setTimeout` は Service Worker の
+破棄とともに消えるため）。
+
+- `next-item` アラーム: 次の商品の処理開始
+- `watchdog` アラーム: 1 商品の処理が 3 分以内に完了しない場合に打ち切る
+
+### その他の設計上の判断
+
+- 出品フォームのボタンは Chakra UI のハッシュクラスのため**テキストで特定**する
+- 手動で開いた出品ページでは何もしない（Background への確認で判別）
+- 「確認する」を押す前にフォームへ値が入るのを待つ（フリマアシストの入力完了前に
+  空のフォームを送らないため）
+- 失敗時（バリデーションエラー・タイムアウト等）はタブを残してユーザーが確認できるようにする
+- 一覧ページを再読込しても、実行中のキューの進捗は Background から取得して復元される
 
 ## コマンド
 
@@ -44,11 +71,11 @@ npm run clean          # dist を削除
 
 ```
 src/
-├── background/    # 処理キュー・タブ追跡（Service Worker）
-├── common/        # Background ⇔ Content 共有（メッセージ型定義・logger）
+├── background/    # 処理キュー・タブ追跡・完了検知（Service Worker）
+├── common/        # Background ⇔ Content 共有（メッセージ型定義・URL判定・logger）
 ├── content/
 │   ├── list/      # 一覧ページ用（infra / logic / ui の3層）
-│   └── edit/      # 下書き編集ページ用（自動出品）
+│   └── form/      # 出品フォーム用（/drafts/{hash}/edit と /item/new の自動出品）
 └── popup/
 ```
 

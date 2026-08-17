@@ -102,6 +102,9 @@ export function updateProgress(progress: QueueProgress): void {
   const statusSpan = document.getElementById(ID_NAME.BULK_STATUS_SPAN);
   if (!startBtn || !stopBtn || !statusSpan) return;
 
+  // 失敗した商品と理由はホバーで確認できるようにする
+  statusSpan.title = progress.failed.map((f) => `${f.item.title}: ${f.reason}`).join('\n');
+
   if (progress.running) {
     startBtn.style.display = 'none';
     stopBtn.style.display = 'inline-block';

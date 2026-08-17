@@ -1,244 +1,463 @@
 import {
+  ClickRelistMessage,
+  FailedItem,
   MessageType,
   QueueItem,
   QueueMode,
   QueueProgress,
-  ClickRelistMessage,
   QueueProgressMessage,
 } from '../common/messages';
+import { isFormPageUrl } from '../common/form-page';
 import { log, warn } from '../common/logger';
 
 /** 次の商品を処理するまでの基本待機時間 (ms) */
 const WAIT_BETWEEN_ITEMS_MS = 60000;
 /** 待機時間に加算するランダム値の最大 (ms) */
 const WAIT_RANDOM_MS = 15000;
+/**
+ * 1商品の処理を打ち切るまでの時間 (ms)。
+ * NOTE: chrome.alarms は30秒未満の遅延がクランプされるため、十分に長い値にすること。
+ */
+const ITEM_WATCHDOG_MS = 180000;
+
 /** 待機用アラーム名 */
 const ALARM_NEXT_ITEM = 'rakuma-bulk-lister:next-item';
+/** ウォッチドッグ用アラーム名 */
+const ALARM_WATCHDOG = 'rakuma-bulk-lister:watchdog';
+
+/** chrome.storage.session 上の保存キー */
+const STORAGE_KEY = 'rakuma-bulk-lister:queue-state';
+
+/**
+ * 1商品の処理フェーズ
+ * - waiting-tab:  relistで一覧タブのボタンをクリックし、出品フォームのタブが開くのを待っている
+ * - loading-form: 出品フォームのタブを特定し、Content Scriptの自動クリックを待っている
+ * - submitting:   「出品する」までクリック済み。フォームからの離脱（＝出品完了）を待っている
+ */
+type QueuePhase = 'idle' | 'waiting-tab' | 'loading-form' | 'submitting';
+
+/**
+ * キューの全状態。chrome.storage.session に丸ごと保存する。
+ */
+interface QueueState {
+  mode: QueueMode;
+  items: QueueItem[];
+  currentIndex: number;
+  running: boolean;
+  failed: FailedItem[];
+  /** キューを開始した一覧ページのタブID */
+  listTabId: number | null;
+  /** 現在自動処理中の出品フォームのタブID */
+  activeTabId: number | null;
+  phase: QueuePhase;
+  /** relistでボタンクリック後に開かれた、出品フォームになりうるタブのID */
+  candidateTabIds: number[];
+}
+
+function createInitialState(): QueueState {
+  return {
+    mode: 'relist',
+    items: [],
+    currentIndex: 0,
+    running: false,
+    failed: [],
+    listTabId: null,
+    activeTabId: null,
+    phase: 'idle',
+    candidateTabIds: [],
+  };
+}
 
 /**
  * 一括処理キューの管理クラス。
- * - 選択された商品を1件ずつ処理し、完了通知を受けて次へ進む。
- * - relist: 一覧タブへ「再出品ボタンをクリックせよ」と指示し、
- *   フリマアシストが開く編集タブを tabs.onCreated で捕捉する。
- * - publish: 下書きの編集URLを自分でタブとして開く。
+ * - 選択された商品を1件ずつ処理し、完了を検知して次へ進む。
+ * - relist:  一覧タブへ「再出品ボタンをクリックせよ」と指示し、
+ *            フリマアシストが開くタブが /item/new へ到達するのを待つ。
+ * - publish: 下書きの編集URL (/drafts/{hash}/edit) を自分でタブとして開く。
  *
- * NOTE: 状態はService Workerのメモリ上にのみ保持する。
- *       SWが破棄されるとキューは失われる（待機はalarmsで行うため
- *       通常の処理継続では破棄されない想定だが、既知の制約として記録）。
+ * 出品完了の判定は Content Script ではなく Background 側で行う。
+ * 出品成功後の遷移先が別オリジン (item.fril.jp) になりうるため、
+ * Content Script では最後まで見届けられないことがあるため。
+ *
+ * MV3のService Workerは商品間の待機中に破棄されるため、状態は毎回
+ * chrome.storage.session へ書き戻し、イベント処理の先頭で復元する。
  */
 export class QueueManager {
-  private mode: QueueMode = 'relist';
-  private items: QueueItem[] = [];
-  private currentIndex = 0;
-  private running = false;
-  private failed: QueueItem[] = [];
+  private state: QueueState = createInitialState();
+  private loading: Promise<void> | null = null;
 
-  /** キューを開始した一覧ページのタブID */
-  private listTabId: number | null = null;
-  /** 現在自動処理中の編集タブID */
-  private activeEditTabId: number | null = null;
-  /** relistボタンクリック後、新規タブが開くのを待っている状態か */
-  private waitingForNewTab = false;
+  /**
+   * 永続化された状態を復元する。Service Worker起動ごとに一度だけ読み込む。
+   * すべてのイベントハンドラはこれをawaitしてから状態に触れること。
+   */
+  ensureLoaded(): Promise<void> {
+    if (!this.loading) {
+      this.loading = chrome.storage.session
+        .get(STORAGE_KEY)
+        .then((stored) => {
+          const saved = stored[STORAGE_KEY] as QueueState | undefined;
+          if (saved) {
+            this.state = saved;
+            log(`キュー状態を復元: running=${saved.running}, phase=${saved.phase}`);
+          }
+        })
+        .catch((e) => {
+          warn('キュー状態の復元に失敗しました', e);
+        });
+    }
+    return this.loading;
+  }
+
+  private async save(): Promise<void> {
+    try {
+      await chrome.storage.session.set({ [STORAGE_KEY]: this.state });
+    } catch (e) {
+      warn('キュー状態の保存に失敗しました', e);
+    }
+  }
 
   /**
    * キューを開始する
    */
-  start(mode: QueueMode, items: QueueItem[], listTabId: number): void {
-    if (this.running) {
+  async start(mode: QueueMode, items: QueueItem[], listTabId: number): Promise<void> {
+    if (this.state.running) {
       warn('キューは既に実行中です');
       return;
     }
-    this.mode = mode;
-    this.items = items;
-    this.currentIndex = 0;
-    this.failed = [];
-    this.listTabId = listTabId;
-    this.activeEditTabId = null;
-    this.waitingForNewTab = false;
-    this.running = true;
+    this.state = {
+      ...createInitialState(),
+      mode,
+      items,
+      listTabId,
+      running: true,
+    };
 
     log(`キュー開始: mode=${mode}, ${items.length}件`);
-    void this.processCurrent();
+    await this.save();
+    await this.processCurrent();
   }
 
   /**
-   * キューを停止する。処理中の編集タブはそのまま残す（手動確認できるように）。
+   * キューを停止する。処理中のタブはそのまま残す（手動確認できるように）。
    */
-  stop(): void {
-    if (!this.running) return;
-    this.running = false;
-    this.waitingForNewTab = false;
-    this.activeEditTabId = null;
-    void chrome.alarms.clear(ALARM_NEXT_ITEM);
+  async stop(): Promise<void> {
+    if (!this.state.running) return;
+    this.state.running = false;
+    this.state.phase = 'idle';
+    this.state.activeTabId = null;
+    this.state.candidateTabIds = [];
+    await this.clearTimers();
     log('キューを停止しました');
-    this.notifyProgress();
+    await this.save();
+    await this.notifyProgress();
   }
 
   /**
    * 現在の進捗を返す
    */
   getProgress(): QueueProgress {
+    const { mode, items, currentIndex, running, failed } = this.state;
     return {
-      mode: this.mode,
-      total: this.items.length,
-      done: this.currentIndex,
-      current: this.running ? (this.items[this.currentIndex] ?? null) : null,
-      running: this.running,
-      failed: this.failed,
+      mode,
+      total: items.length,
+      done: currentIndex,
+      current: running ? (items[currentIndex] ?? null) : null,
+      running,
+      failed,
     };
   }
 
   /**
-   * 指定タブが自動処理対象の編集タブかどうか
+   * 指定タブが自動処理対象の出品フォームのタブかどうか
    */
   isAutoTab(tabId: number): boolean {
-    return this.running && this.activeEditTabId === tabId;
+    return this.state.running && this.state.activeTabId === tabId;
   }
 
   /**
    * 新規タブ作成の通知を受け取る。
-   * relistモードでボタンクリック直後に開いたタブを編集タブとして捕捉する。
+   * relistモードでボタンクリック直後に開いたタブを候補として記録する。
+   * 実際に処理対象として確定するのは、そのタブが /item/new へ到達した時点
+   * （handleTabUpdated）。ユーザーが無関係なタブを開いた場合の誤捕捉を防ぐ。
    */
-  handleTabCreated(tab: chrome.tabs.Tab): void {
-    if (!this.running || !this.waitingForNewTab) return;
+  async handleTabCreated(tab: chrome.tabs.Tab): Promise<void> {
+    if (!this.state.running || this.state.phase !== 'waiting-tab') return;
     if (tab.id === undefined) return;
 
-    this.waitingForNewTab = false;
-    this.activeEditTabId = tab.id;
-    log(`編集タブを捕捉: tabId=${tab.id}`);
+    // フリマアシストは一覧タブから開くため、opener が一覧タブでないものは除外する
+    if (
+      tab.openerTabId !== undefined &&
+      this.state.listTabId !== null &&
+      tab.openerTabId !== this.state.listTabId
+    ) {
+      return;
+    }
+
+    this.state.candidateTabIds.push(tab.id);
+    await this.save();
   }
 
   /**
-   * 編集タブが（ユーザー操作等で）閉じられた場合のハンドリング
+   * タブのURL変化を受け取る。出品フォームへの到達と、そこからの離脱を検知する。
    */
-  handleTabRemoved(tabId: number): void {
-    if (!this.running || this.activeEditTabId !== tabId) return;
-    warn(`処理中の編集タブが閉じられました: tabId=${tabId}`);
-    this.markCurrentFailed('編集タブが閉じられました');
-    this.scheduleNext();
+  async handleTabUpdated(
+    tabId: number,
+    changeInfo: chrome.tabs.OnUpdatedInfo,
+    tab: chrome.tabs.Tab
+  ): Promise<void> {
+    if (!this.state.running) return;
+
+    const url = changeInfo.url ?? tab.url;
+    if (!url) return;
+
+    const isForm = isFormPageUrl(this.state.mode, url);
+
+    // 候補タブが出品フォームへ到達したら、処理対象として確定する
+    if (
+      this.state.phase === 'waiting-tab' &&
+      isForm &&
+      this.state.candidateTabIds.includes(tabId)
+    ) {
+      this.state.activeTabId = tabId;
+      this.state.candidateTabIds = [];
+      this.state.phase = 'loading-form';
+      log(`出品フォームのタブを捕捉: tabId=${tabId}`);
+      await this.save();
+      return;
+    }
+
+    if (tabId !== this.state.activeTabId) return;
+
+    // 「出品する」クリック後にフォームから離れた = 出品完了
+    if (this.state.phase === 'submitting' && !isForm) {
+      await this.completeCurrent();
+    }
   }
 
   /**
-   * 編集タブから出品完了の通知を受け取る
+   * 処理中のタブが（ユーザー操作等で）閉じられた場合のハンドリング
    */
-  handleEditCompleted(tabId: number): void {
+  async handleTabRemoved(tabId: number): Promise<void> {
+    if (!this.state.running) return;
+
+    // relistは一覧タブの再出品ボタンに依存しているため、閉じられたら続行できない
+    if (this.state.listTabId === tabId) {
+      this.state.listTabId = null;
+      if (this.state.mode === 'relist') {
+        warn('一覧タブが閉じられたためキューを停止します');
+        await this.stop();
+        return;
+      }
+    }
+
+    if (this.state.activeTabId !== tabId) {
+      if (this.state.candidateTabIds.includes(tabId)) {
+        this.state.candidateTabIds = this.state.candidateTabIds.filter((id) => id !== tabId);
+        await this.save();
+      }
+      return;
+    }
+
+    warn(`処理中のタブが閉じられました: tabId=${tabId}`);
+    await this.failCurrent('処理中のタブが閉じられました');
+  }
+
+  /**
+   * 出品フォームから「出品する」をクリックした通知を受け取る。
+   * 完了判定はこの後のURL遷移（handleTabUpdated）で行う。
+   */
+  async handleFormSubmitted(tabId: number): Promise<void> {
     if (!this.isAutoTab(tabId)) return;
-
-    const item = this.items[this.currentIndex];
-    log(`出品完了: ${item?.title ?? tabId}`);
-
-    void chrome.tabs.remove(tabId);
-    this.activeEditTabId = null;
-    this.currentIndex++;
-    this.scheduleNext();
+    this.state.phase = 'submitting';
+    log('「出品する」クリック済み。完了（画面遷移）を待機します');
+    await this.save();
   }
 
   /**
-   * 編集タブから失敗の通知を受け取る。
+   * 出品フォームから失敗の通知を受け取る。
    * タブは閉じずに残し、ユーザーが状況を確認できるようにする。
    */
-  handleEditFailed(tabId: number, reason: string): void {
+  async handleFormFailed(tabId: number, reason: string): Promise<void> {
     if (!this.isAutoTab(tabId)) return;
-
-    this.markCurrentFailed(reason);
-    this.activeEditTabId = null;
-    this.scheduleNext();
+    await this.failCurrent(reason);
   }
 
   /**
-   * アラーム発火時に呼ばれ、次の商品の処理を開始する
+   * アラーム発火時に呼ばれる
    */
-  handleAlarm(alarmName: string): void {
-    if (alarmName !== ALARM_NEXT_ITEM) return;
-    if (!this.running) return;
-    void this.processCurrent();
+  async handleAlarm(alarmName: string): Promise<void> {
+    if (!this.state.running) return;
+
+    if (alarmName === ALARM_NEXT_ITEM) {
+      await this.processCurrent();
+      return;
+    }
+
+    if (alarmName === ALARM_WATCHDOG) {
+      if (this.state.phase === 'idle') return;
+      warn(`商品の処理が${Math.round(ITEM_WATCHDOG_MS / 1000)}秒以内に完了しませんでした`);
+      await this.failCurrent('処理がタイムアウトしました');
+    }
   }
 
   /**
    * 現在の商品（currentIndex）の処理を開始する
    */
   private async processCurrent(): Promise<void> {
-    if (!this.running) return;
+    if (!this.state.running) return;
 
-    if (this.currentIndex >= this.items.length) {
-      this.running = false;
-      log(`キュー完了: 成功=${this.items.length - this.failed.length}件, 失敗=${this.failed.length}件`);
-      this.notifyProgress();
+    if (this.state.currentIndex >= this.state.items.length) {
+      await this.finish();
       return;
     }
 
-    const item = this.items[this.currentIndex];
-    this.notifyProgress();
-    log(`処理開始 (${this.currentIndex + 1}/${this.items.length}): ${item.title}`);
+    const item = this.state.items[this.state.currentIndex];
+    this.state.activeTabId = null;
+    this.state.candidateTabIds = [];
+    log(`処理開始 (${this.state.currentIndex + 1}/${this.state.items.length}): ${item.title}`);
 
-    if (this.mode === 'publish') {
+    if (this.state.mode === 'publish') {
       // 下書きの編集ページを直接開く
-      const tab = await chrome.tabs.create({
-        url: `https://fril.jp/drafts/${item.id}/edit`,
-        active: false,
-      });
-      if (tab.id !== undefined) {
-        this.activeEditTabId = tab.id;
-      }
-    } else {
-      // 一覧タブへ再出品ボタンのクリックを指示し、新規タブを待つ
-      if (this.listTabId === null) {
-        this.markCurrentFailed('一覧タブが見つかりません');
-        this.scheduleNext();
-        return;
-      }
-      this.waitingForNewTab = true;
-      const message: ClickRelistMessage = { type: MessageType.CLICK_RELIST, item };
+      this.state.phase = 'loading-form';
+      await this.startWatchdog();
+      await this.save();
+      await this.notifyProgress();
+
       try {
-        await chrome.tabs.sendMessage(this.listTabId, message);
+        const tab = await chrome.tabs.create({
+          url: `https://fril.jp/drafts/${item.id}/edit`,
+          active: false,
+        });
+        if (tab.id === undefined) {
+          await this.failCurrent('編集ページのタブを開けませんでした');
+          return;
+        }
+        this.state.activeTabId = tab.id;
+        await this.save();
       } catch (e) {
-        warn('一覧タブへのメッセージ送信に失敗しました', e);
-        this.waitingForNewTab = false;
-        this.markCurrentFailed('一覧タブとの通信に失敗しました');
-        this.scheduleNext();
+        warn('編集ページのタブ作成に失敗しました', e);
+        await this.failCurrent('編集ページのタブを開けませんでした');
       }
+      return;
     }
+
+    // relist: 一覧タブへ再出品ボタンのクリックを指示し、新規タブを待つ
+    if (this.state.listTabId === null) {
+      await this.failCurrent('一覧タブが見つかりません');
+      return;
+    }
+
+    this.state.phase = 'waiting-tab';
+    await this.startWatchdog();
+    await this.save();
+    await this.notifyProgress();
+
+    const message: ClickRelistMessage = { type: MessageType.CLICK_RELIST, item };
+    try {
+      await chrome.tabs.sendMessage(this.state.listTabId, message);
+    } catch (e) {
+      warn('一覧タブへのメッセージ送信に失敗しました', e);
+      await this.failCurrent('一覧タブとの通信に失敗しました');
+    }
+  }
+
+  /**
+   * 現在の商品を成功として確定し、次へ進む
+   */
+  private async completeCurrent(): Promise<void> {
+    const item = this.state.items[this.state.currentIndex];
+    log(`出品完了: ${item?.title ?? ''}`);
+
+    const tabId = this.state.activeTabId;
+    this.state.activeTabId = null;
+    this.state.phase = 'idle';
+    this.state.currentIndex++;
+
+    if (tabId !== null) {
+      // handleTabRemovedが失敗扱いしないよう、activeTabIdを外してから閉じる
+      await chrome.tabs.remove(tabId).catch(() => {
+        // 既に閉じられている場合は何もしない
+      });
+    }
+    await this.scheduleNext();
+  }
+
+  /**
+   * 現在の商品を失敗として記録し、次へ進む。
+   * 処理中のタブは開いたまま残す（ユーザーが状況を確認できるように）。
+   */
+  private async failCurrent(reason: string): Promise<void> {
+    const item = this.state.items[this.state.currentIndex];
+    if (item) {
+      warn(`出品失敗: ${item.title} (${reason})`);
+      this.state.failed.push({ item, reason });
+    }
+    this.state.currentIndex++;
+    this.state.activeTabId = null;
+    this.state.candidateTabIds = [];
+    this.state.phase = 'idle';
+    await this.scheduleNext();
   }
 
   /**
    * 待機時間（基本+ランダム）を挟んで次の商品の処理を予約する
    */
-  private scheduleNext(): void {
-    if (!this.running) return;
+  private async scheduleNext(): Promise<void> {
+    await chrome.alarms.clear(ALARM_WATCHDOG);
 
-    if (this.currentIndex >= this.items.length) {
-      void this.processCurrent();
+    if (!this.state.running) {
+      await this.save();
+      return;
+    }
+
+    if (this.state.currentIndex >= this.state.items.length) {
+      await this.finish();
       return;
     }
 
     const waitMs = WAIT_BETWEEN_ITEMS_MS + Math.floor(Math.random() * WAIT_RANDOM_MS);
     log(`${Math.round(waitMs / 1000)}秒待機して次の商品へ`);
-    this.notifyProgress();
-    void chrome.alarms.create(ALARM_NEXT_ITEM, { when: Date.now() + waitMs });
+    await chrome.alarms.create(ALARM_NEXT_ITEM, { when: Date.now() + waitMs });
+    await this.save();
+    await this.notifyProgress();
   }
 
   /**
-   * 現在の商品を失敗として記録し、インデックスを進める
+   * キューを完了状態にする
    */
-  private markCurrentFailed(reason: string): void {
-    const item = this.items[this.currentIndex];
-    if (item) {
-      warn(`出品失敗: ${item.title} (${reason})`);
-      this.failed.push(item);
-    }
-    this.currentIndex++;
+  private async finish(): Promise<void> {
+    this.state.running = false;
+    this.state.phase = 'idle';
+    this.state.activeTabId = null;
+    this.state.candidateTabIds = [];
+    await this.clearTimers();
+    log(
+      `キュー完了: 成功=${this.state.items.length - this.state.failed.length}件, ` +
+        `失敗=${this.state.failed.length}件`
+    );
+    await this.save();
+    await this.notifyProgress();
+  }
+
+  private async startWatchdog(): Promise<void> {
+    await chrome.alarms.create(ALARM_WATCHDOG, { when: Date.now() + ITEM_WATCHDOG_MS });
+  }
+
+  private async clearTimers(): Promise<void> {
+    await chrome.alarms.clear(ALARM_NEXT_ITEM);
+    await chrome.alarms.clear(ALARM_WATCHDOG);
   }
 
   /**
    * 一覧タブへ進捗を通知する
    */
-  private notifyProgress(): void {
-    if (this.listTabId === null) return;
+  private async notifyProgress(): Promise<void> {
+    if (this.state.listTabId === null) return;
     const message: QueueProgressMessage = {
       type: MessageType.QUEUE_PROGRESS,
       progress: this.getProgress(),
     };
-    chrome.tabs.sendMessage(this.listTabId, message).catch(() => {
+    await chrome.tabs.sendMessage(this.state.listTabId, message).catch(() => {
       // 一覧タブが閉じられている場合は通知できないが、処理は継続する
     });
   }

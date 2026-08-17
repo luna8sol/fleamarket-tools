@@ -1,7 +1,9 @@
 /**
- * ラクマ編集ページ（React/Chakra UI製）のボタンをテキストで特定するユーティリティ。
+ * ラクマ出品フォーム（React/Chakra UI製）のボタンをテキストで特定するユーティリティ。
  * css-* クラスはビルドごとに変わるハッシュのため、セレクタには使わない。
  */
+
+import { waitFor } from './wait';
 
 export interface FindButtonOptions {
   /** button[type="submit"] のみを対象にする（確認モーダルの「出品する」用） */
@@ -35,24 +37,9 @@ export function waitForButton(
   text: string,
   options: WaitForButtonOptions
 ): Promise<HTMLButtonElement> {
-  const intervalMs = options.intervalMs ?? 500;
-
-  return new Promise((resolve, reject) => {
-    const startedAt = Date.now();
-
-    const tryFind = (): void => {
-      const btn = findButtonByText(text, options);
-      if (btn) {
-        resolve(btn);
-        return;
-      }
-      if (Date.now() - startedAt >= options.timeoutMs) {
-        reject(new Error(`ボタン「${text}」が${options.timeoutMs}ms以内に見つかりませんでした`));
-        return;
-      }
-      window.setTimeout(tryFind, intervalMs);
-    };
-
-    tryFind();
+  return waitFor(() => findButtonByText(text, options), {
+    timeoutMs: options.timeoutMs,
+    intervalMs: options.intervalMs,
+    label: `ボタン「${text}」`,
   });
 }
