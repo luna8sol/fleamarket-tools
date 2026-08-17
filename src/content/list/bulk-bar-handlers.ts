@@ -83,6 +83,57 @@ function confirmDelete(pageType: PageTypeValue, items: QueueItem[]): Promise<boo
   });
 }
 
+/** 所要時間の目安を「約 N 分」の形にする（商品間の待機の平均から見積もる） */
+function estimateDuration(count: number): string {
+  const averageWait = CONFIG.ITEM_WAIT_BASE_SECONDS + CONFIG.ITEM_WAIT_RANDOM_SECONDS / 2;
+  const minutes = Math.ceil(((count - 1) * averageWait) / 60);
+  return minutes <= 1 ? '約1分' : `約${minutes}分`;
+}
+
+/**
+ * 一括下書き保存・一括出品を始めてよいかを利用者に確認する。
+ *
+ * 出品は取り消せず、どちらも 1 件あたり 1 分以上かかる。件数と処理順を見せて、
+ * 選んだつもりの対象と実際の対象のずれに始める前に気づけるようにする。
+ */
+function confirmStart(mode: FormMode, items: QueueItem[]): Promise<boolean> {
+  const wait = `${CONFIG.ITEM_WAIT_BASE_SECONDS}〜${CONFIG.ITEM_WAIT_BASE_SECONDS + CONFIG.ITEM_WAIT_RANDOM_SECONDS}秒`;
+  const facts = [
+    {
+      label: mode === 'relist' ? '下書きに保存' : '出品する件数',
+      value: `${items.length}件`,
+      emphasis: true,
+    },
+    { label: '1件ごとの待機', value: wait },
+    { label: '所要時間の目安', value: estimateDuration(items.length) },
+  ];
+  const titles = items.map((item) => item.title);
+
+  if (mode === 'relist') {
+    return confirmAction({
+      tone: 'primary',
+      icon: 'draft',
+      title: `${items.length}件を下書きに保存します`,
+      message:
+        'フリマアシストの再出品ボタンを選んだ順に押し、複製された内容を下書きとして保存します。ここでは出品しません。',
+      facts,
+      items: titles,
+      note: '終わるまでこのタブを閉じないでください。出品は「下書きの商品」で内容を確かめてから行います。',
+      confirmLabel: `${items.length}件を下書きに保存`,
+    });
+  }
+  return confirmAction({
+    tone: 'primary',
+    icon: 'publish',
+    title: `下書きを${items.length}件出品します`,
+    message: '下書きの編集ページを選んだ順に開き、「確認する」→「出品する」を押します。',
+    facts,
+    items: titles,
+    note: '出品した商品はすぐに公開されます。出品は取り消せません。',
+    confirmLabel: `${items.length}件を出品`,
+  });
+}
+
 /**
  * 選択をすべて外す。ラクマ側には何もしないので確認は取らない（選び直せば戻る）。
  */
@@ -123,7 +174,9 @@ export function createBulkBarHandlers(
           return;
         }
       }
-      void startQueue(primaryMode, selected);
+      void confirmStart(primaryMode, selected).then((ok) => {
+        if (ok) void startQueue(primaryMode, selected);
+      });
     },
 
     onDelete: (): void => {

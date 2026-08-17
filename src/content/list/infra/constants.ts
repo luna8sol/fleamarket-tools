@@ -133,6 +133,13 @@ export const CONFIG = {
   CONFIRM_MAX_ITEMS: 8,
   /** ドックに並べる失敗の上限 */
   DOCK_MAX_FAILURES: 3,
+  /**
+   * 再出品・出品の商品間の待機（表示用）。
+   * 実際の待機は Background（src/background/queue-manager.ts の WAIT_BETWEEN_ITEMS_MS /
+   * WAIT_RANDOM_MS）が決める。**値を変えるときは両方そろえる。**
+   */
+  ITEM_WAIT_BASE_SECONDS: 60,
+  ITEM_WAIT_RANDOM_SECONDS: 15,
   /** 削除リンクをクリックするまでの基本待機時間 (ms) */
   DELETE_DELAY_MS: 2000,
   /** 削除の待機時間に加算するランダム値の最大 (ms) */
