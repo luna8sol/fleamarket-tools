@@ -101,8 +101,10 @@ async function handleMessage(
       return ACK;
     }
 
-    // bg → list のメッセージ。chrome.tabs.sendMessage で一覧タブへ送るものなので
-    // ここには届かないが、下の網羅性チェックを成立させるために書いておく。
+    // ListBoundMessage（bg → list）。chrome.tabs.sendMessage で一覧タブへ送るもの
+    // なのでここには届かないが、届いたときに黙って捨てないよう受けておく。
+    // 引数を BackgroundBoundMessage に狭めるとこの分岐を書けなくなるため、
+    // 受信側の型は ExtensionMessage のままにしている。
     case MessageType.CLICK_RELIST:
     case MessageType.CLICK_DELETE:
     case MessageType.QUEUE_PROGRESS:

@@ -4,7 +4,7 @@ import {
   ClickDeleteResponse,
   ClickRelistMessage,
   ClickRelistResponse,
-  ExtensionMessage,
+  ListBoundMessage,
   MessageType,
   QueueProgressMessage,
 } from '../../common/messages';
@@ -22,7 +22,7 @@ import { listRunState } from './run-state';
 import { delay } from '../wait';
 
 /**
- * Backgroundから届くメッセージの処理。
+ * Backgroundから届くメッセージ（ListBoundMessage）の処理。
  *
  * 各ハンドラの戻り値は「非同期に応答するため、メッセージチャネルを
  * 開いたままにするかどうか」を表す。
@@ -115,7 +115,7 @@ function handleQueueProgress(
  * Backgroundからのメッセージを受け取るリスナーを登録する。
  */
 export function registerMessageHandlers(pageType: PageTypeValue): void {
-  chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message: ListBoundMessage, _sender, sendResponse) => {
     /** 非同期に応答する場合のみ、メッセージチャネルを開いたままにする */
     let keepChannelOpen = false;
 

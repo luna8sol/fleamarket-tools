@@ -3,6 +3,9 @@
  *
  * - すべてのメッセージはこのファイルの型を経由して送受信する。
  * - 新しいメッセージを追加する場合は必ずここに型を追加すること。
+ * - 型は送信方向ごとに BackgroundBoundMessage / ListBoundMessage に分かれている。
+ *   追加したメッセージは、どちら向きかを決めてそちらのユニオンに入れること
+ *   （逆向きへ送ると送信側でコンパイルエラーになる）。
  */
 
 /**
@@ -186,17 +189,32 @@ export interface FormFailedMessage {
   reason: string;
 }
 
-export type ExtensionMessage =
+/**
+ * list / form → bg へ送るメッセージ。
+ * 送信には sendToRuntime を使う（src/common/send-message.ts）。
+ */
+export type BackgroundBoundMessage =
   | StartQueueMessage
   | StopQueueMessage
   | GetProgressMessage
-  | ClickRelistMessage
-  | ClickDeleteMessage
   | ListReadyMessage
-  | QueueProgressMessage
   | CheckAutoTabMessage
   | FormSubmittedMessage
   | FormFailedMessage;
+
+/**
+ * bg → list へ送るメッセージ。
+ * 送信には sendToTab を使う（src/common/send-message.ts）。
+ */
+export type ListBoundMessage = ClickRelistMessage | ClickDeleteMessage | QueueProgressMessage;
+
+/**
+ * 方向を問わないメッセージ全体。
+ *
+ * 送信側は方向ごとのユニオンで制約するため、ここを直接使うのは方向を問わず
+ * 扱う箇所（応答型の対応表、Background の受信ハンドラ）に限る。
+ */
+export type ExtensionMessage = BackgroundBoundMessage | ListBoundMessage;
 
 /** 応答内容を持たないメッセージへのACK */
 export interface AckResponse {
