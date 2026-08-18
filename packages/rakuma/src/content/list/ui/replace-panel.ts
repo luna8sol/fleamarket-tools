@@ -17,6 +17,7 @@ import {
   createReplacePanelParts,
   downloadJson,
   fileStamp,
+  readSelectedFile,
   SummarySpec,
 } from '@fleamarket/core/replace-panel-parts';
 
@@ -180,11 +181,7 @@ export function renderReplaceProgress(progress: QueueProgress): void {
 
 async function readEntriesFromInput(inputId: string, label: string): Promise<DescriptionEntry[]> {
   const input = byId<HTMLInputElement>(inputId);
-  const file = input?.files?.[0];
-  if (!file) {
-    throw new Error(`${label}のファイルが選ばれていません`);
-  }
-  return parseDescriptionEntries(await file.text(), label);
+  return parseDescriptionEntries(await readSelectedFile(input, label), label);
 }
 
 async function handleLoad(): Promise<void> {
@@ -392,29 +389,19 @@ function createPanel(handlers: ReplacePanelHandlers): HTMLDivElement {
 
   // ② 待機
   const step2 = section(`${ID_NAME.REPLACE_PANEL}-step2`, 2, '間隔を決める');
-  const waitRow = document.createElement('div');
-  waitRow.className = 'rbl-inline-field';
-  const waitText = document.createElement('div');
-  const waitLabel = document.createElement('label');
-  waitLabel.className = 'rbl-inline-field__label';
-  waitLabel.htmlFor = ID_NAME.REPLACE_WAIT_INPUT;
-  waitLabel.textContent = '1件ごとの待機';
-  const waitHint = document.createElement('div');
-  waitHint.className = 'rbl-inline-field__hint';
-  waitHint.textContent = `下限 ${CONFIG.REPLACE_WAIT_MIN_SECONDS} 秒。これに 0〜${CONFIG.REPLACE_WAIT_RANDOM_SECONDS} 秒のランダム分を足します`;
-  waitText.append(waitLabel, waitHint);
-  const number = document.createElement('span');
-  number.className = 'rbl-number';
   const waitInput = document.createElement('input');
   waitInput.id = ID_NAME.REPLACE_WAIT_INPUT;
-  waitInput.type = 'number';
-  waitInput.inputMode = 'numeric';
-  waitInput.min = String(CONFIG.REPLACE_WAIT_MIN_SECONDS);
-  waitInput.step = '1';
-  waitInput.value = String(CONFIG.REPLACE_WAIT_BASE_SECONDS);
-  number.append(waitInput, '秒');
-  waitRow.append(waitText, number);
-  step2.appendChild(waitRow);
+  step2.appendChild(
+    parts.buildWaitField({
+      input: waitInput,
+      min: CONFIG.REPLACE_WAIT_MIN_SECONDS,
+      value: CONFIG.REPLACE_WAIT_BASE_SECONDS,
+      hint: `下限 ${CONFIG.REPLACE_WAIT_MIN_SECONDS} 秒。これに 0〜${CONFIG.REPLACE_WAIT_RANDOM_SECONDS} 秒のランダム分を足します`,
+      // ラベルは label[for] で入力欄に結び付ける
+      labelFor: true,
+      wrapTag: 'span',
+    })
+  );
   // 既定値が入っているので最初から済みにする（まだ DOM に無いので ID では探せない）
   step2.dataset.done = 'true';
 

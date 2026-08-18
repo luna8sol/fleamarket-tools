@@ -23,6 +23,7 @@ import {
   createReplacePanelParts,
   downloadJson,
   fileStamp,
+  readSelectedFile,
   SummarySpec,
 } from '@fleamarket/core/replace-panel-parts';
 
@@ -253,11 +254,7 @@ function renderStatus(progress: DescriptionReplaceProgress): void {
  */
 async function readEntriesFromInput(inputId: string, label: string): Promise<DescriptionEntry[]> {
   const input = byId<HTMLInputElement>(inputId);
-  const file = input?.files?.[0];
-  if (!file) {
-    throw new Error(`${label}のファイルが選ばれていません`);
-  }
-  return parseDescriptionEntries(await file.text(), label);
+  return parseDescriptionEntries(await readSelectedFile(input, label), label);
 }
 
 /**
@@ -444,32 +441,15 @@ function panelButton(
  * @returns 1 行分の要素
  */
 function createIntervalRow(): HTMLDivElement {
-  const intervalInput = getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_INTERVAL, 'input');
-  intervalInput.type = 'number';
-  intervalInput.min = '0';
-  intervalInput.step = '1';
-  intervalInput.inputMode = 'numeric';
-  intervalInput.value = String(Math.round(CONFIG.DESCRIPTION_REPLACE_WAIT_BASE_MS / 1000));
-  intervalInput.setAttribute('aria-label', '1件ごとの待機（秒）');
-
-  const row = document.createElement('div');
-  row.className = 'mdp-inline-field';
-
-  const text = document.createElement('div');
-  const label = document.createElement('div');
-  label.className = 'mdp-inline-field__label';
-  label.textContent = '1件ごとの待機';
-  const hint = document.createElement('div');
-  hint.className = 'mdp-inline-field__hint';
-  hint.textContent = `さらに 0〜${Math.round(CONFIG.DESCRIPTION_REPLACE_WAIT_RANDOM_MS / 1000)}秒をランダムに足します`;
-  text.append(label, hint);
-
-  const wrap = document.createElement('label');
-  wrap.className = 'mdp-number';
-  wrap.append(intervalInput, '秒');
-
-  row.append(text, wrap);
-  return row;
+  return parts.buildWaitField({
+    input: getOrCreateElement(ID_NAME.DESCRIPTION_REPLACE_INTERVAL, 'input'),
+    min: 0,
+    value: Math.round(CONFIG.DESCRIPTION_REPLACE_WAIT_BASE_MS / 1000),
+    hint: `さらに 0〜${Math.round(CONFIG.DESCRIPTION_REPLACE_WAIT_RANDOM_MS / 1000)}秒をランダムに足します`,
+    // ラベルは入力欄に結び付けず、読み上げ用の名前は aria-label で付ける
+    ariaLabel: '1件ごとの待機（秒）',
+    wrapTag: 'label',
+  });
 }
 
 /**

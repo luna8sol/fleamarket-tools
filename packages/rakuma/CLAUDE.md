@@ -67,7 +67,7 @@
 | モード別のボタン操作（下書き保存 / 確認する → 出品する） | [src/content/form/auto-submit.ts](src/content/form/auto-submit.ts) |
 | 説明文の置換（編集ページでの 4 段の照合・確認する → 更新する） | [src/content/form/replace.ts](src/content/form/replace.ts) |
 | 説明文の置換の入力 JSON の検証・処理対象の振り分け | [src/content/list/logic/replace-plan.ts](src/content/list/logic/replace-plan.ts)（読み込み・検証・振り分けの骨格は `@fleamarket/core/replace-plan`。商品ID 32 桁 16 進の小文字化と文言・8 桁 16 進 FNV-1a・上限・CR を含む確定版の除外・対象の形 `QueueItem` はここ） |
-| 説明文の置換パネル（ファイル選択 → 件数 → 確認 → 開始 / 停止 / 結果出力） | [src/content/list/ui/replace-panel.ts](src/content/list/ui/replace-panel.ts)（ファイル欄・手順見出し・件数タイル・内訳・結果バッジ・JSON ダウンロードは `@fleamarket/core/replace-panel-parts`。接頭辞 `rbl`・文言・商品IDの 8 桁短縮・手順の「済み」印・両ファイルが揃ったら自動で読み込むこと・開始前の確認・待機秒数の下限・二重開始の防止・実行中の入力ロックはここ） |
+| 説明文の置換パネル（ファイル選択 → 件数 → 確認 → 開始 / 停止 / 結果出力） | [src/content/list/ui/replace-panel.ts](src/content/list/ui/replace-panel.ts)（ファイル欄・選んだファイルの読み取り・手順見出し・待機秒数の入力行・件数タイル・内訳・結果バッジ・JSON ダウンロードは `@fleamarket/core/replace-panel-parts`。接頭辞 `rbl`・文言・商品IDの 8 桁短縮・手順の「済み」印・両ファイルが揃ったら自動で読み込むこと・待機秒数のラベルを `label[for]` で結び付けること・開始前の確認・待機秒数の下限・二重開始の防止・実行中の入力ロックはここ） |
 | 説明文の置換の処理記録（`chrome.storage.local`） | [src/common/replace-store.ts](src/common/replace-store.ts)（骨格は `@fleamarket/core/replace-store`。キー `rakuma-bulk-lister:replace-records`・失敗時の warn・確定版の文字数とハッシュの検証・処理済み判定で記録の辻褄まで確かめる条件はここ） |
 | 文字数 + FNV-1a（8 桁 16 進表記）による本文の照合 | [src/common/text-fingerprint.ts](src/common/text-fingerprint.ts)（ハッシュの計算と改行正規化は `@fleamarket/core/text-hash`、組の組み立てと比較は `@fleamarket/core/text-fingerprint`。16 進表記はここで付ける） |
 | フォーム内容の読み取り・入力完了の待機 | [src/content/form/form-state.ts](src/content/form/form-state.ts) |

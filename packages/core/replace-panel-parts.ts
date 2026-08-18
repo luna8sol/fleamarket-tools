@@ -1,11 +1,12 @@
 /**
  * 説明文の一括置換パネルの部品（両拡張で共通の骨格）。
  *
- * ファイルを選ぶ欄・番号付きの手順見出し・件数タイル・件数と対象外の内訳・結果種別ごとの
- * バッジ・処理記録の JSON ダウンロードを組み立てる。DOM の構造とクラス名の体系は両拡張で
- * 同じなので、クラス接頭辞（`mdp` / `rbl`）とアイコンの作り方、拡張ごとに違う文言・
- * 表示の細部（見出しの文字を span で包むか、商品IDを短縮するか、ファイル名を title に
- * 出すか）を注入する。両拡張で同じ文言（結果種別のバッジ）はここに置く。
+ * ファイルを選ぶ欄・選んだファイルの読み取り・番号付きの手順見出し・待機秒数の入力行・
+ * 件数タイル・件数と対象外の内訳・結果種別ごとのバッジ・処理記録の JSON ダウンロードを
+ * 組み立てる。DOM の構造とクラス名の体系は両拡張で同じなので、クラス接頭辞（`mdp` / `rbl`）と
+ * アイコンの作り方、拡張ごとに違う文言・表示の細部（見出しの文字を span で包むか、商品IDを
+ * 短縮するか、ファイル名を title に出すか、待機秒数のラベルの結び付け方）を注入する。
+ * 両拡張で同じ文言（結果種別のバッジ・ファイル未選択の文言・待機秒数のラベル）はここに置く。
  *
  * パネル本体の組み立て、開始前の確認、待機秒数の検証、二重開始の防止、実行中の入力ロックは
  * 各パッケージのパネルに残す（安全装置に当たるため共通化しない）。
@@ -40,6 +41,26 @@ export interface SectionSpec {
   id?: string;
   /** 見出しの文字を span で包むか（包まないならテキストノードのまま） */
   wrapTitle?: boolean;
+}
+
+export interface WaitFieldSpec {
+  /** 秒数の入力欄。id は呼び出し側で設定済みのもの */
+  input: HTMLInputElement;
+  /** 入力できる下限（`min` 属性） */
+  min: number;
+  /** 既定値 */
+  value: number;
+  /** ラベルの下に出す補足 */
+  hint: string;
+  /**
+   * ラベルを `label` 要素にして `for` で入力欄に結び付けるか。
+   * 結び付けないなら `div` にし、読み上げ用の名前は `ariaLabel` で入力欄に付ける
+   */
+  labelFor?: boolean;
+  /** 入力欄の aria-label（`labelFor` を使わないときの読み上げ用の名前） */
+  ariaLabel?: string;
+  /** 入力欄と「秒」を包む要素。`label` なら「秒」を押しても入力欄にフォーカスが移る */
+  wrapTag: 'label' | 'span';
 }
 
 /** 計画のうち、件数と内訳の表示が参照する項目 */
@@ -81,6 +102,8 @@ export interface ReplacePanelParts<I extends string> {
   buildFileField(spec: FileFieldSpec): HTMLLabelElement;
   /** 番号付きの見出しを持つまとまりを作る */
   buildSection(spec: SectionSpec): HTMLElement;
+  /** 待機秒数の入力行（ラベルと補足・数値の入力欄と「秒」）を作る */
+  buildWaitField(spec: WaitFieldSpec): HTMLDivElement;
   /** 件数のタイルを作る */
   buildStatTile(label: string, value: number, emphasis?: boolean): HTMLDivElement;
   /**
@@ -174,6 +197,36 @@ export function createReplacePanelParts<I extends string>(
       return wrap;
     },
 
+    buildWaitField(spec: WaitFieldSpec): HTMLDivElement {
+      const { input } = spec;
+      input.type = 'number';
+      input.inputMode = 'numeric';
+      input.min = String(spec.min);
+      input.step = '1';
+      input.value = String(spec.value);
+      if (spec.ariaLabel !== undefined) input.setAttribute('aria-label', spec.ariaLabel);
+
+      const row = document.createElement('div');
+      row.className = cls('inline-field');
+
+      const text = document.createElement('div');
+      const label = document.createElement(spec.labelFor ? 'label' : 'div');
+      label.className = cls('inline-field__label');
+      if (label instanceof HTMLLabelElement) label.htmlFor = input.id;
+      label.textContent = '1件ごとの待機';
+      const hint = document.createElement('div');
+      hint.className = cls('inline-field__hint');
+      hint.textContent = spec.hint;
+      text.append(label, hint);
+
+      const wrap = document.createElement(spec.wrapTag);
+      wrap.className = cls('number');
+      wrap.append(input, '秒');
+
+      row.append(text, wrap);
+      return row;
+    },
+
     buildStatTile,
 
     renderPlanSummary(container, plan, spec): void {
@@ -244,6 +297,23 @@ export function createReplacePanelParts<I extends string>(
       }
     },
   };
+}
+
+/**
+ * ファイル入力欄で選ばれているファイルの中身を読む。
+ *
+ * 選ばれていなければ `label`（ファイルの呼び名）を添えた例外を投げる。
+ * 読んだ中身をどう解釈するかは呼び出し側が決める。
+ */
+export async function readSelectedFile(
+  input: HTMLInputElement | null,
+  label: string
+): Promise<string> {
+  const file = input?.files?.[0];
+  if (!file) {
+    throw new Error(`${label}のファイルが選ばれていません`);
+  }
+  return file.text();
 }
 
 /** ファイル名に使う日時（UTC。区切り記号とミリ秒を落とす） */
