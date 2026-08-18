@@ -1,6 +1,7 @@
 import { CLASS_NAME } from '../infra/constants';
 import { ListItem } from '../logic/item-collector';
 import { ensureTheme } from './theme';
+import { rangeBetween } from '@fleamarket/core/range';
 
 /**
  * チェックボックスの状態変更コールバック
@@ -18,22 +19,16 @@ function allCheckboxes(): HTMLInputElement[] {
 /**
  * Shift を押しながら押したとき、起点からそこまでの間を同じ状態にそろえる。
  * 変更は 1 件ずつ change を発火させて通常の選択と同じ経路に流す（選択順は表示順になる）。
+ * 範囲の決め方（起点を含み押した行を含まない、起点から押した側への順）は
+ * 共有部品 `@fleamarket/core/range` の `rangeBetween`。
  */
 function applyRange(target: HTMLInputElement): void {
   if (!rangeAnchor || !rangeAnchor.isConnected || rangeAnchor === target) return;
-  const boxes = allCheckboxes();
-  const from = boxes.indexOf(rangeAnchor);
-  const to = boxes.indexOf(target);
-  if (from < 0 || to < 0) return;
-
-  const [start, end] = from < to ? [from, to] : [to, from];
   // 押した側がこれから向かう状態（click の時点で既に切り替わっている）
   const checked = target.checked;
-  const ordered = boxes.slice(start, end + 1);
-  // 起点から押した側へ向かう順に処理し、選択順を表示順にそろえる
-  if (from > to) ordered.reverse();
-  for (const box of ordered) {
-    if (box === target || box.disabled || box.checked === checked) continue;
+  // 起点から押した側へ向かう順（押した行は含まない）に処理し、選択順を表示順にそろえる
+  for (const box of rangeBetween(allCheckboxes(), rangeAnchor, target)) {
+    if (box.disabled || box.checked === checked) continue;
     box.checked = checked;
     box.dispatchEvent(new Event('change', { bubbles: true }));
   }

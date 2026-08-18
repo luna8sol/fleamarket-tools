@@ -9,6 +9,7 @@ import { updateOrderDisplay } from '../ui/order-display';
 import { createSelectUpToButton } from './select-up-to';
 import { ensureTheme } from './theme';
 import { ensureRowGutter } from './row-gutter';
+import { rangeBetween } from '@fleamarket/core/range';
 
 // チェックボックスのトグル処理済みフラグを管理する WeakMap
 const toggleHandledMap = new WeakMap<HTMLInputElement, boolean>();
@@ -45,6 +46,8 @@ function isRowVisible(checkbox: HTMLInputElement): boolean {
  * - **画面に出ていない行は対象にしない。** 絞り込みで隠した商品が、見えないまま
  *   一括出品・再出品の対象に入らないようにするため。
  * - 起点と押した行が同じ一覧に無いとき（一覧が作り直された等）は何もしない。
+ * - 範囲の決め方（起点を含み押した行を含まない、起点から押した側への順）は
+ *   共有部品 `@fleamarket/core/range` の `rangeBetween`。
  * - 変更は 1 件ずつ change を発火させ、通常の選択と同じ経路（選択管理・順番表示・件数）に流す。
  *
  * @param target 押したチェックボックス（まだ切り替える前）
@@ -60,12 +63,7 @@ function applyRange(target: HTMLInputElement, checked: boolean): void {
   const boxes = Array.from(
     list.querySelectorAll<HTMLInputElement>(COMPOSITE_SELECTOR.BULK_CHECKBOX_INPUT)
   );
-  const from = boxes.indexOf(anchor);
-  const to = boxes.indexOf(target);
-  if (from < 0 || to < 0) return;
-
-  const range = from < to ? boxes.slice(from, to) : boxes.slice(to + 1, from + 1).reverse();
-  for (const box of range) {
+  for (const box of rangeBetween(boxes, anchor, target)) {
     if (box.disabled || box.checked === checked || !isRowVisible(box)) continue;
     box.checked = checked;
     box.dispatchEvent(new Event('change', { bubbles: false }));

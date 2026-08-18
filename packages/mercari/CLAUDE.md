@@ -55,7 +55,7 @@
 | 下書き保存後のタブを閉じる | [src/content/logic/tab-closer.ts](src/content/logic/tab-closer.ts), [src/background/index.ts](src/background/index.ts) |
 | 元商品との比較・差分の自動修正 | [src/content/logic/relist-verifier.ts](src/content/logic/relist-verifier.ts) |
 | 再出品の待ち行列（FIFO）・自動保存設定 | [src/content/infra/relist-queue.ts](src/content/infra/relist-queue.ts), [auto-save-settings.ts](src/content/infra/auto-save-settings.ts) |
-| 一覧の先頭から指定の行までの一括選択・Shift での範囲選択 | [src/content/ui/select-up-to.ts](src/content/ui/select-up-to.ts), [src/content/ui/checkbox-manager.ts](src/content/ui/checkbox-manager.ts) |
+| 一覧の先頭から指定の行までの一括選択・Shift での範囲選択 | [src/content/ui/select-up-to.ts](src/content/ui/select-up-to.ts), [src/content/ui/checkbox-manager.ts](src/content/ui/checkbox-manager.ts)（起点から押した行までの範囲の決め方は `@fleamarket/core/range`。画面に出ていない行・無効な行を外す判定と change の発火はここ） |
 | 一覧の各行のチェックボックス列（商品リンクの外に置く） | [src/content/ui/row-gutter.ts](src/content/ui/row-gutter.ts) |
 | 選択状態・選択順の管理 | [src/content/logic/selection-manager.ts](src/content/logic/selection-manager.ts)（挿入順の Map による保持は `@fleamarket/core/selection`。メソッド名・戻り値の形・選択の連番 `order`・debug ログはここ。`retain` は使わない） |
 | DOM 変更の監視 | [src/content/logic/observer-manager.ts](src/content/logic/observer-manager.ts) |
