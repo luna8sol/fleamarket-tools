@@ -105,7 +105,7 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 | `hidden-frame.ts` | 同一オリジンの隠し iframe を開く共通処理。スナップショット取得・削除・説明文の一括置換が使う。iframe 内のページを「表示中」として扱わせる `forceDocumentVisible` もここ |
 | `delete-manager.ts` | 出品中商品の一括削除の制御 |
 | `item-deleter.ts` | 編集ページを隠し iframe で開いて1件削除する |
-| `description-replace-data.ts` | 説明文の一括置換の入力 JSON（確定版・原本）の読み込みと、処理対象・適用済み・対象外への振り分け |
+| `description-replace-data.ts` | 説明文の一括置換の入力 JSON（確定版・原本）の読み込みと、処理対象・適用済み・対象外への振り分け（骨格は `@fleamarket/core/replace-plan`。商品IDの正規化・ハッシュ表記・上限・対象の形を注入） |
 | `description-replacer.ts` | 編集ページを隠し iframe で開き、説明欄だけを確定版へ書き換えて「変更する」を押す 1 件処理。保存前に 4 段の照合を通す |
 | `description-replace-manager.ts` | 説明文の一括置換の全体制御（逐次処理・待機・中断・記録・結果の出力） |
 | `relist-verifier.ts` | 元商品と出品フォームの比較・差分の自動修正 |
