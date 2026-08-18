@@ -89,6 +89,7 @@ GIT_COMMITTER_DATE="$NEW_DATE" git commit --amend --no-edit --date="$NEW_DATE"
 
 - **`--date` だけでは author date しか変わらない。** committer date が実時間のまま残るので `GIT_COMMITTER_DATE` と併用する。
 - 連続して複数コミットするときは 1 本ごとに 10 分進める。
+- **22:00 を超えない。** 親が 22:00 なら次は**翌日の 10:00**（親の 10 分後が 22:10 以降になる場合はすべて翌日 10:00）。
 - 基準は**直前の通常コミット**。マージコミット（`subtree add` の 2 本）の日時には合わせない。
 - **push 済みのコミットには実行しない。** amend でハッシュが変わる。必要なら実行前に理由を報告して指示を仰ぐ。
 - 揃えた結果を `git log --format='%h %cI %s'` で確認し、報告に書く。
