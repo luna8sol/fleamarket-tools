@@ -214,6 +214,11 @@ export class ObserverManager {
     this.clearListWaitTimeout();
     hideListLoadError();
 
+    if (this.relistTimeout) {
+      clearTimeout(this.relistTimeout);
+      this.relistTimeout = null;
+    }
+
     this.lastUl = ul;
     try {
       renderUiComponents(ul);
