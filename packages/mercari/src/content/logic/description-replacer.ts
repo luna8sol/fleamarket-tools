@@ -11,6 +11,12 @@ import { toItemId } from './dom-utils';
 import { openHiddenFrame, readableDocument, waitForFrameDocument } from './hidden-frame';
 import { isSellFormReady, readSellFormField } from './sell-form';
 import { normalizeFieldValue } from './value-normalizer';
+import {
+  createFingerprint,
+  sameFingerprint,
+  TextFingerprint,
+} from '@fleamarket/core/text-fingerprint';
+import { normalizeLineBreaks } from '@fleamarket/core/text-hash';
 
 /**
  * 出品中商品の説明文を 1 件、確定版へ置き換えて保存する。
@@ -49,43 +55,13 @@ export interface ReplaceStepResult {
   halt?: string;
 }
 
-/** 文字数とハッシュの組。照合はこの両方で行う */
-interface TextFingerprint {
-  length: number;
-  hash: string;
-}
-
 /**
- * 文字列の文字数と FNV-1a ハッシュを取る
- * @param text 対象の文字列
- * @returns 文字数とハッシュ
- */
-function fingerprint(text: string): TextFingerprint {
-  return { length: text.length, hash: fnv1a32(text) };
-}
-
-/**
- * 改行コードを LF に揃える（CRLF / CR → LF）
+ * 文字列の文字数と FNV-1a ハッシュの組を取る。照合はこの両方で行う
  *
- * 商品ページの説明文はサーバーが CRLF で返すため、LF で持っている確定版と
- * そのまま比べると行数ぶん文字数が増えて一致しない。改行以外は変えない。
- *
- * @param text 対象の文字列
- * @returns 改行を LF に揃えた文字列
+ * 組と比較は共有部品 `@fleamarket/core/text-fingerprint`。ハッシュは保存済みの記録と
+ * 照合する値なので、この拡張の 10 進表記（`fnv1a32`）をそのまま注入する。
  */
-function normalizeLineBreaks(text: string): string {
-  return text.replace(/\r\n?/g, '\n');
-}
-
-/**
- * 2 つの指紋が一致するか（文字数とハッシュの両方）
- * @param a 比較する指紋
- * @param b 比較する指紋
- * @returns 両方一致すれば true
- */
-function sameFingerprint(a: TextFingerprint, b: TextFingerprint): boolean {
-  return a.length === b.length && a.hash === b.hash;
-}
+const fingerprint = createFingerprint(fnv1a32);
 
 /**
  * 編集ページの説明欄を探す
