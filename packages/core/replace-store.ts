@@ -10,7 +10,7 @@
  * 拡張ごとに違うもの（ストレージのキー・読み書きの失敗時の扱い・検証する項目・
  * 「処理済み」とみなす追加条件・保存後のログ）は `createReplaceStore` に注入する。
  * ここにあるのは「読んだ値の形を確かめ、壊れたエントリを捨てて警告する」「読んで 1 件
- * 差し替えて書き戻す」「結果種別が処理済みか」の骨格だけ。
+ * 差し替えて書き戻す」「結果種別が処理済みか」の骨格と、ファイル出力用の JSON の組み立てだけ。
  */
 
 /**
@@ -134,4 +134,36 @@ export function createReplaceStore<R extends ReplaceRecordBase>(
       return saved;
     },
   };
+}
+
+/** 商品IDごとの処理記録を、記録日時（`at`）の昇順に並べる */
+export function sortReplaceRecords<R extends ReplaceRecordBase>(records: Record<string, R>): R[] {
+  return Object.values(records).sort((a, b) => a.at.localeCompare(b.at));
+}
+
+/**
+ * 処理記録をファイル出力用の JSON 文字列にまとめる。
+ *
+ * 出力日時・件数・記録の順に並べ、拡張ごとに足す項目（直近の実行の結果など）があれば
+ * `extra` の内容をそのあとに続ける。整形は 2 スペースのインデント。
+ *
+ * @param records 出力する記録（`sortReplaceRecords` で並べたもの）
+ * @param exportedAt 出力日時
+ * @param extra 記録のあとに続ける項目
+ */
+export function formatReplaceRecordsJson<R extends ReplaceRecordBase>(
+  records: R[],
+  exportedAt: Date,
+  extra: Record<string, unknown> = {}
+): string {
+  return JSON.stringify(
+    {
+      exportedAt: exportedAt.toISOString(),
+      recordCount: records.length,
+      records,
+      ...extra,
+    },
+    null,
+    2
+  );
 }

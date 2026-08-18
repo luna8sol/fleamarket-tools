@@ -10,6 +10,7 @@ import {
   DescriptionReplaceRecord,
 } from '../infra/types';
 import { replaceItemDescription } from './description-replacer';
+import { formatReplaceRecordsJson, sortReplaceRecords } from '@fleamarket/core/replace-store';
 
 /**
  * 説明文の一括置換の全体制御。
@@ -180,20 +181,8 @@ export class DescriptionReplaceManager {
    * @returns 整形済みの JSON 文字列
    */
   async exportRecordsJson(): Promise<string> {
-    const records = Object.values(await loadReplaceRecords()).sort((a, b) =>
-      a.at.localeCompare(b.at)
-    );
-
-    return JSON.stringify(
-      {
-        exportedAt: new Date().toISOString(),
-        recordCount: records.length,
-        records,
-        lastRun: this.lastRunRecords,
-      },
-      null,
-      2
-    );
+    const records = sortReplaceRecords(await loadReplaceRecords());
+    return formatReplaceRecordsJson(records, new Date(), { lastRun: this.lastRunRecords });
   }
 }
 

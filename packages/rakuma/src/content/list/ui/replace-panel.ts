@@ -20,6 +20,7 @@ import {
   readSelectedFile,
   SummarySpec,
 } from '@fleamarket/core/replace-panel-parts';
+import { formatReplaceRecordsJson, sortReplaceRecords } from '@fleamarket/core/replace-store';
 
 /**
  * 説明文の一括置換パネル（/sell のみ）。
@@ -275,14 +276,8 @@ async function handleStart(handlers: ReplacePanelHandlers): Promise<void> {
 /** 処理記録を JSON ファイルとしてダウンロードする */
 async function handleExport(): Promise<void> {
   try {
-    const records = Object.values(await loadReplaceRecords()).sort((a, b) =>
-      a.at.localeCompare(b.at)
-    );
-    const json = JSON.stringify(
-      { exportedAt: new Date().toISOString(), recordCount: records.length, records },
-      null,
-      2
-    );
+    const records = sortReplaceRecords(await loadReplaceRecords());
+    const json = formatReplaceRecordsJson(records, new Date());
     // ダウンロードの開始を待ってから URL を解放する
     downloadJson(
       json,
