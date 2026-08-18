@@ -1,6 +1,6 @@
 # CLAUDE.md（packages/mercari）
 
-メルカリの下書き商品を一括出品・再出品する Chrome 拡張機能（Manifest V3 / TypeScript）。拡張名は **Mercari Draft Publisher**。
+メルカリの下書き商品を一括出品・再出品する Chrome 拡張機能（Manifest V3 / TypeScript）。拡張名は **Fleamarket Tools for Mercari**。
 
 **共通規約（ブランチ運用・コミットメッセージ・scope・コミット日時・検証コマンド・共通のコーディングルール）はルートの [CLAUDE.md](../../CLAUDE.md) にある。** このファイルには**このパッケージに固有のこと**だけを書く。このファイル内の相対パスは `packages/mercari/` 起点。
 
@@ -83,7 +83,7 @@
 共通ルール（`any` 禁止・戻り値型・クォート・未使用 import・シングルトン）はルートの CLAUDE.md。加えて:
 
 - DOM セレクタ・設定値は必ず [src/content/infra/constants.ts](src/content/infra/constants.ts) に追加する
-- ログは [src/content/infra/logger.ts](src/content/infra/logger.ts) を使う。接頭辞 `[Mercari Draft Publisher]`・時刻・`[LOG]` などのタグはこのファイルで付ける（レベル制御の骨格だけ `@fleamarket/core/logger`）。**この出力形式を変えない**
+- ログは [src/content/infra/logger.ts](src/content/infra/logger.ts) を使う。接頭辞 `[Fleamarket Tools for Mercari]`・時刻・`[LOG]` などのタグはこのファイルで付ける（レベル制御の骨格だけ `@fleamarket/core/logger`）。**この出力形式を変えない**
 - **Claude API キーを読むのは `src/background/` と options page だけ。** content script 側のコードに渡さない（メルカリのページへ注入されるバンドルにキーを載せないため）。生成処理は `chrome.runtime.sendMessage` で background に依頼する
 - **background・options page から使うモジュールは `src/common/` に置く。** `src/content/` 配下は content script のための層。service worker から参照すると層の意味と食い違う
   - **既知の例外: `src/common/` と `src/background/` が `src/content/infra/logger` に依存している**（層の逆依存）。logger の骨格は `@fleamarket/core` に移したが、出力形式を持つラッパーは `src/content/infra/logger.ts` に残しているので逆依存はそのまま。解消するにはラッパーを `src/common/` へ動かして import 先を書き換える必要があり、別タスク。それまでは踏襲してよいが、新たな逆依存を増やさない

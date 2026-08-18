@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | パッケージ | 拡張名 | 対象サイト | 固有の規約 |
 | --- | --- | --- | --- |
-| [packages/mercari](packages/mercari/) | Mercari Draft Publisher | jp.mercari.com | [packages/mercari/CLAUDE.md](packages/mercari/CLAUDE.md) |
-| [packages/rakuma](packages/rakuma/) | Rakuma Bulk Lister | fril.jp | [packages/rakuma/CLAUDE.md](packages/rakuma/CLAUDE.md) |
+| [packages/mercari](packages/mercari/) | Fleamarket Tools for Mercari | jp.mercari.com | [packages/mercari/CLAUDE.md](packages/mercari/CLAUDE.md) |
+| [packages/rakuma](packages/rakuma/) | Fleamarket Tools for Rakuma | fril.jp | [packages/rakuma/CLAUDE.md](packages/rakuma/CLAUDE.md) |
 | [packages/core](packages/core/) | `@fleamarket/core`。両拡張から使う純粋なユーティリティ | — | このファイルの「共有部品」 |
 
 このファイルは**共通規約の正本**。サイト固有の方針・一次資料の索引・既知のズレ・落とし穴は各パッケージの CLAUDE.md に置く。手順はスキル（[.claude/skills/](.claude/skills/)）に置く。同じ規約を複数の場所に書かない（片方だけ育ってズレる）。

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Mercari Draft Publisher",
-  "version": "1.0",
-  "description": "メルカリ下書き商品を自動で出品する拡張機能",
+  "name": "Fleamarket Tools for Mercari",
+  "version": "0.1.0",
+  "description": "メルカリの下書き商品の一括出品・出品中商品の一括再出品・一括削除・説明文の一括置換を行う拡張機能",
   "permissions": ["tabs", "scripting", "storage"],
   "host_permissions": ["https://jp.mercari.com/*", "https://api.anthropic.com/*"],
   "action": {

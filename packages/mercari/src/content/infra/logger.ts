@@ -13,7 +13,7 @@
  */
 import { createLogger, LogLevelName } from '@fleamarket/core/logger';
 
-const LOG_PREFIX = '[Mercari Draft Publisher]';
+const LOG_PREFIX = '[Fleamarket Tools for Mercari]';
 
 /**
  * ログレベル定義

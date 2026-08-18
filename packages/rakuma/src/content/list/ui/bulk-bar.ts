@@ -75,7 +75,7 @@ export function renderBulkBar(options: BulkBarOptions, handlers: BulkBarHandlers
   dock.id = ID_NAME.BULK_BAR;
   dock.className = 'rbl-dock rbl-scope';
   dock.setAttribute('role', 'region');
-  dock.setAttribute('aria-label', 'Rakuma Bulk Lister 一括操作');
+  dock.setAttribute('aria-label', 'Fleamarket Tools for Rakuma 一括操作');
   dock.dataset.empty = 'true';
 
   // 件数

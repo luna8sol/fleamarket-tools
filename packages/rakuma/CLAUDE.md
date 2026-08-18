@@ -1,6 +1,6 @@
 # CLAUDE.md（packages/rakuma）
 
-ラクマ（fril.jp）の出品作業を一括化する Chrome 拡張機能（Manifest V3 / TypeScript）。拡張名は **Rakuma Bulk Lister**。`/sell` の一括下書き保存、`/draft` の下書き一括出品、`/sell`・`/draft` の一括削除、出品中商品の説明文の一括置換を行う。
+ラクマ（fril.jp）の出品作業を一括化する Chrome 拡張機能（Manifest V3 / TypeScript）。拡張名は **Fleamarket Tools for Rakuma**。`/sell` の一括下書き保存、`/draft` の下書き一括出品、`/sell`・`/draft` の一括削除、出品中商品の説明文の一括置換を行う。
 
 **共通規約（ブランチ運用・コミットメッセージ・scope・コミット日時・検証コマンド・共通のコーディングルール）はルートの [CLAUDE.md](../../CLAUDE.md) にある。** このファイルには**このパッケージに固有のこと**だけを書く。このファイル内の相対パスは `packages/rakuma/` 起点。
 
@@ -122,7 +122,7 @@
 - 出品フォームページの URL 判定は [src/common/form-page.ts](src/common/form-page.ts) に集約する（Background と Content の双方から使うため、片側に直書きしない）
 - モードによって変わる振る舞いを増やすときは、`mode === 'delete'` のような個別の比較を書かずに [src/common/queue-mode-traits.ts](src/common/queue-mode-traits.ts) の `QUEUE_MODE_TRAITS` へ性質を足す（`Record<QueueMode, QueueModeTraits>` なので、モードを足したときに記入漏れがコンパイルエラーになる）
 - キューの状態を増やしたら `chrome.storage.session` に保存される形にする（Service Worker が破棄されても続きから処理できること）
-- ログは [src/common/logger.ts](src/common/logger.ts) の `log` / `warn` / `debug` を使う。接頭辞 `[RakumaBulkLister]` を別引数で渡す出力形式と、`debug` を `console.log` で出す点はこのファイルで決めている（レベル制御の骨格だけ `@fleamarket/core/logger`）。**この出力形式を変えない**
+- ログは [src/common/logger.ts](src/common/logger.ts) の `log` / `warn` / `debug` を使う。接頭辞 `[Fleamarket Tools for Rakuma]` を別引数で渡す出力形式と、`debug` を `console.log` で出す点はこのファイルで決めている（レベル制御の骨格だけ `@fleamarket/core/logger`）。**この出力形式を変えない**
 - 拡張の外から挙動を切り分けられるようにする。出品フォーム側の状態は `<html data-rbl-form="checking|auto|manual">` に出す（console ログは拡張の外からは読めない）
 
 ## 落とし穴（このパッケージ固有）

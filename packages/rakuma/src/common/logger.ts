@@ -7,7 +7,7 @@
  */
 import { createLogger } from '@fleamarket/core/logger';
 
-const PREFIX = '[RakumaBulkLister]';
+const PREFIX = '[Fleamarket Tools for Rakuma]';
 
 const logger = createLogger({
   format: (_level, args) => [PREFIX, ...args],

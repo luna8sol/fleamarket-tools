@@ -1,4 +1,4 @@
-# Rakuma Bulk Lister
+# Fleamarket Tools for Rakuma
 
 ラクマ（fril.jp）の出品作業を一括化する Chrome 拡張機能。
 

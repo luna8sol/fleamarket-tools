@@ -1,4 +1,4 @@
-# Mercari Draft Publisher
+# Fleamarket Tools for Mercari
 
 メルカリの下書き商品を効率的に出品するための Chrome 拡張機能です。
 
