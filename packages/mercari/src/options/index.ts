@@ -4,13 +4,19 @@ import {
   setExtStorage,
   removeExtStorage,
 } from '../common/ext-storage';
+import { buildExtensionPageTokenCss } from '../common/theme-tokens';
+import { ensureStyleSheet } from '@fleamarket/core/style';
 
 /**
  * options page（options.html）のエントリーポイント。
  *
  * - Claude APIキーの入力・保存・削除を担当します。
  * - APIキーは chrome.storage.local に保存し、実際の API 呼び出しは background からのみ行います。
+ * - このスクリプトは options.html の head で同期的に読み込み、描画前にトークン（CSS 変数）を
+ *   `<style>` として差し込みます。DOM の組み立ては DOMContentLoaded で行います。
  */
+
+ensureStyleSheet({ id: 'mdp-page-tokens', css: buildExtensionPageTokenCss });
 
 /**
  * ステータス表示を更新する。

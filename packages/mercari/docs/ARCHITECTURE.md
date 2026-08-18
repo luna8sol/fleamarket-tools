@@ -28,7 +28,7 @@ mercari-draft-publisher/
 │   │   └── ui/            # UI層
 │   ├── options/           # Options Page
 │   └── popup/             # Popup
-├── extension-pages.css   # popup.html / options.html の共通スタイル（トークンは content 側の ui/theme.ts と同じ値）
+├── extension-pages.css   # popup.html / options.html の部品のスタイル（トークンは common/theme-tokens.ts から起動時に注入）
 ├── manifest.json
 ├── options.html
 ├── popup.html
@@ -49,6 +49,7 @@ content script・background・popup・options page のどこからでも import 
 | `send-message.ts` | メッセージ送信のラッパー `sendToRuntime` / `sendToTab`（応答型の解決。骨格は `@fleamarket/core/messaging`） |
 | `dom.ts` | 例外安全な DOM 操作ラッパー。React 制御下の input へ値を入れる `setReactInputValue` もここ（隠し iframe 内の要素にも使える） |
 | `utils.ts` | 非同期待機・乱数などの汎用関数。条件が満たされるまでポーリングする `waitFor`、本文の照合に使う `fnv1a32` もここ |
+| `theme-tokens.ts` | デザイントークン（`--mdp-*` の CSS 変数）の正本。注入 UI の `ui/theme.ts` と popup / options の両方がここから CSS を組み立てる（組み立ては `@fleamarket/core/theme-tokens`）。拡張機能のページだけの値（ページ背景・OS 寄りの書体）もここ |
 
 ## Background（src/background/）
 
@@ -123,7 +124,7 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 | `ui-manager.ts` / `index.ts` | UI 全体の管理・ページタイプに応じた切り替え |
 | `bulk-bar-core.ts` / `bulk-bar-ui.ts` / `bulk-bar-utils.ts` | 一括操作バー（画面下中央に浮かぶドック。件数表示と、処理中の進捗バー）。中核・描画・補助に分割されている |
 | `bulk-relist.ts` | ドックの組み立てと、出品・再出品・削除・選択の解除のボタン。実行前の確認（件数・間隔・待機の目安・処理順の商品名）もここ |
-| `theme.ts` | 注入 UI のデザインシステム（色・影・角丸のトークンと部品のスタイル）。ライト / ダークは `prefers-color-scheme` で切り替える（トークンの CSS の組み立ては `@fleamarket/core/theme-tokens`）。1 度だけ `<style>` として注入する |
+| `theme.ts` | 注入 UI の部品のスタイル。ライト / ダークは `prefers-color-scheme` で切り替える。トークンの名前と値は `common/theme-tokens.ts`（CSS の組み立ては `@fleamarket/core/theme-tokens`）。1 度だけ `<style>` として注入する |
 | `components.ts` | 共通部品（ボタンの装飾・処理中表示・進捗バー） |
 | `icons.ts` | 線画アイコン。`innerHTML` を使わず `createElementNS` で組み立てる |
 | `confirm-dialog.ts` | 取り消せない操作の前に出す確認ダイアログ（`<dialog>`）。既定のフォーカスはキャンセル。出せない環境では `window.confirm` に切り替える |

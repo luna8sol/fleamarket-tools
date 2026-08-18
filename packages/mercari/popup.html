@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title>Fleamarket Tools for Mercari</title>
+  <!-- トークン（CSS 変数）を描画前に入れるため、head で同期的に読み込む -->
+  <script src="dist/popup.js"></script>
   <link rel="stylesheet" href="extension-pages.css">
   <style>
     body { width: 360px; }
@@ -89,7 +91,5 @@
       <span class="popup__version" id="version"></span>
     </footer>
   </main>
-
-  <script src="dist/popup.js"></script>
 </body>
 </html>

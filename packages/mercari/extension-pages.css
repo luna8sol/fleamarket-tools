@@ -1,79 +1,13 @@
 /*
- * 拡張機能のページ（popup.html / options.html）の共通スタイル。
+ * 拡張機能のページ（popup.html / options.html）の共通スタイル（部品だけ）。
  *
- * トークンの値はメルカリのページへ注入する UI（src/content/ui/theme.ts）と同じにしてある。
- * 片方だけ変えると、ポップアップとページ上の UI で色がずれる。値を変えるときは両方そろえる。
+ * トークン（--mdp-* の CSS 変数）はここに書かない。正本は src/common/theme-tokens.ts で、
+ * popup / options の起動時に <style> として差し込まれる（メルカリのページへ注入する UI と同じ値）。
+ * ここでは変数を参照するだけにし、色・影・書体を直書きしない。
  */
 
 :root {
   color-scheme: light dark;
-
-  --mdp-font: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Segoe UI", Meiryo, system-ui, sans-serif;
-  --mdp-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --mdp-brand: #ff333f;
-  --mdp-accent: #e3192a;
-  --mdp-accent-hover: #c9101f;
-  --mdp-accent-text: #d0182a;
-  --mdp-accent-soft: rgba(255, 51, 63, 0.09);
-  --mdp-on-accent: #ffffff;
-  --mdp-ring: rgba(255, 51, 63, 0.42);
-
-  --mdp-page: #f6f6f8;
-  --mdp-surface: #ffffff;
-  --mdp-surface-sunken: #f4f4f6;
-  --mdp-surface-hover: rgba(17, 17, 26, 0.05);
-  --mdp-border: rgba(17, 17, 26, 0.10);
-  --mdp-border-strong: rgba(17, 17, 26, 0.20);
-  --mdp-text: #18181b;
-  --mdp-text-muted: #52525b;
-  --mdp-text-subtle: #6b6b74;
-
-  --mdp-success: #0f7b4b;
-  --mdp-success-soft: rgba(18, 183, 106, 0.12);
-  --mdp-warning: #a15c07;
-  --mdp-warning-soft: rgba(247, 144, 9, 0.14);
-  --mdp-danger: #c81e1e;
-  --mdp-danger-soft: rgba(217, 45, 32, 0.09);
-  --mdp-info: #1d5fd1;
-  --mdp-info-soft: rgba(46, 144, 250, 0.10);
-
-  --mdp-shadow-sm: 0 1px 2px rgba(16, 16, 24, 0.06), 0 1px 1px rgba(16, 16, 24, 0.04);
-  --mdp-shadow-md: 0 1px 2px rgba(16, 16, 24, 0.05), 0 6px 20px -8px rgba(16, 16, 24, 0.14);
-  --mdp-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --mdp-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --mdp-brand: #da3e50;
-    --mdp-accent: #cc2e44;
-    --mdp-accent-hover: #dd4459;
-    --mdp-accent-text: #ff7a85;
-    --mdp-accent-soft: rgba(255, 92, 108, 0.12);
-    --mdp-ring: rgba(255, 110, 124, 0.55);
-
-    --mdp-page: #161619;
-    --mdp-surface: #1e1e22;
-    --mdp-surface-sunken: #151518;
-    --mdp-surface-hover: rgba(255, 255, 255, 0.06);
-    --mdp-border: rgba(255, 255, 255, 0.10);
-    --mdp-border-strong: rgba(255, 255, 255, 0.20);
-    --mdp-text: #f4f4f5;
-    --mdp-text-muted: #b4b4bd;
-    --mdp-text-subtle: #8e8e98;
-
-    --mdp-success: #5bd69a;
-    --mdp-success-soft: rgba(91, 214, 154, 0.14);
-    --mdp-warning: #f5b544;
-    --mdp-warning-soft: rgba(245, 181, 68, 0.14);
-    --mdp-danger: #ff6b6b;
-    --mdp-danger-soft: rgba(255, 107, 107, 0.12);
-    --mdp-info: #7aa7ff;
-    --mdp-info-soft: rgba(122, 167, 255, 0.12);
-
-    --mdp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --mdp-shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 10px 28px -12px rgba(0, 0, 0, 0.7);
-  }
 }
 
 *, *::before, *::after { box-sizing: border-box; }

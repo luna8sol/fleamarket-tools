@@ -3,6 +3,16 @@ import { loadAutoSaveSettings, saveAutoSaveSettings } from '../content/infra/aut
 import { AutoSaveSettings } from '../content/infra/types';
 import { MESSAGE_ACTION } from '../common/messaging';
 import { sendToTab } from '../common/send-message';
+import { buildExtensionPageTokenCss } from '../common/theme-tokens';
+import { ensureStyleSheet } from '@fleamarket/core/style';
+
+/**
+ * 描画前: トークン（CSS 変数）を `<style>` として差し込む。
+ *
+ * このスクリプトは popup.html の head で同期的に読み込む。描画後に入れると、開いた瞬間に
+ * 既定の配色で一瞬光るため。DOM の組み立ては DOMContentLoaded で行う。
+ */
+ensureStyleSheet({ id: 'mdp-page-tokens', css: buildExtensionPageTokenCss });
 
 /** 「保存しました」を出しておく時間 */
 const SAVED_INDICATOR_MS = 1600;

@@ -38,6 +38,7 @@
 | 待機（秒単位の `sleep`）・ポーリング（`waitFor`）・乱数・FNV-1a（10 進表記）・debounce | [src/common/utils.ts](src/common/utils.ts), [src/content/infra/debounce.ts](src/content/infra/debounce.ts)（実装は `@fleamarket/core`。この 2 ファイルは従来のシグネチャと表記を保つラッパー） |
 | ページ種別（下書き / 出品中 / 編集・出品フォーム）の判定 | [src/content/infra/page-detector.ts](src/content/infra/page-detector.ts) |
 | 永続化（`chrome.storage.local`） | [src/common/ext-storage.ts](src/common/ext-storage.ts) |
+| デザイントークン（注入 UI と popup / options で共有） | [src/common/theme-tokens.ts](src/common/theme-tokens.ts)（ライト / ダークの値と、拡張機能のページだけの値・上書き。popup / options は起動時に `<style>` として差し込む） |
 | 例外安全な DOM 操作・React 制御の入力欄への書き込み | [src/common/dom.ts](src/common/dom.ts)（`setReactInputValue` の本体は `@fleamarket/core/react-input`。null の受け付けと失敗時のログはここ） |
 | ユーザー設定の読み書き | [src/content/infra/user-settings.ts](src/content/infra/user-settings.ts) |
 | content script ⇔ background のメッセージ型・応答型の対応表 | [src/common/messaging.ts](src/common/messaging.ts) |
@@ -61,7 +62,7 @@
 | 選択状態・選択順の管理 | [src/content/logic/selection-manager.ts](src/content/logic/selection-manager.ts)（挿入順の Map による保持は `@fleamarket/core/selection`。メソッド名・戻り値の形・選択の連番 `order`・debug ログはここ。`retain` は使わない） |
 | DOM 変更の監視 | [src/content/logic/observer-manager.ts](src/content/logic/observer-manager.ts) |
 | UI 全体の組み立て | [src/content/ui/ui-manager.ts](src/content/ui/ui-manager.ts), [ui/index.ts](src/content/ui/index.ts) |
-| 注入 UI の見た目（トークン・ライト/ダーク・部品・アイコン・確認ダイアログ） | [theme.ts](src/content/ui/theme.ts)（トークンの名前と値、部品の CSS 本文はここ。`:root` とダークのメディアクエリの組み立ては `@fleamarket/core/theme-tokens`、`<style>` の注入は `@fleamarket/core/style`）, [components.ts](src/content/ui/components.ts)（組み立ては `@fleamarket/core/components`。接頭辞 `mdp` とクラス名、`updateProgress` の名前はここ）, [icons.ts](src/content/ui/icons.ts)（SVG の組み立てと共通アイコンは `@fleamarket/core/icons`。固有アイコンと `mdp-icon` クラスはここ）, [confirm-dialog.ts](src/content/ui/confirm-dialog.ts)（組み立てと答えの待ち方は `@fleamarket/core/confirm-dialog`。id・接頭辞 `mdp`・上限 10・行頭 `・`・`close` イベントで確定する方式はここ） |
+| 注入 UI の見た目（トークン・ライト/ダーク・部品・アイコン・確認ダイアログ） | [theme.ts](src/content/ui/theme.ts)（部品の CSS 本文はここ。トークンの名前と値は [src/common/theme-tokens.ts](src/common/theme-tokens.ts)、`:root` とダークのメディアクエリの組み立ては `@fleamarket/core/theme-tokens`、`<style>` の注入は `@fleamarket/core/style`）, [components.ts](src/content/ui/components.ts)（組み立ては `@fleamarket/core/components`。接頭辞 `mdp` とクラス名、`updateProgress` の名前はここ）, [icons.ts](src/content/ui/icons.ts)（SVG の組み立てと共通アイコンは `@fleamarket/core/icons`。固有アイコンと `mdp-icon` クラスはここ）, [confirm-dialog.ts](src/content/ui/confirm-dialog.ts)（組み立てと答えの待ち方は `@fleamarket/core/confirm-dialog`。id・接頭辞 `mdp`・上限 10・行頭 `・`・`close` イベントで確定する方式はここ） |
 | 一括操作バー | [bulk-bar-core.ts](src/content/ui/bulk-bar-core.ts), [bulk-bar-ui.ts](src/content/ui/bulk-bar-ui.ts), [bulk-bar-utils.ts](src/content/ui/bulk-bar-utils.ts), [bulk-relist.ts](src/content/ui/bulk-relist.ts) |
 | 出品中一覧の絞り込み（いいね・コメント数） | [src/content/logic/filter-manager.ts](src/content/logic/filter-manager.ts), [src/content/ui/filter-bar.ts](src/content/ui/filter-bar.ts) |
 | 商品リストを読み込めなかったときの表示 | [src/content/ui/list-load-error.ts](src/content/ui/list-load-error.ts) |
@@ -69,7 +70,7 @@
 | Claude API の呼び出し・プロンプト・APIキーの扱い | [src/background/](src/background/)（[claude-client.ts](src/background/claude-client.ts), [prompt.ts](src/background/prompt.ts), [api-error.ts](src/background/api-error.ts)） |
 | AI 説明文生成（編集ページ側） | [edit-entry.ts](src/content/edit-entry.ts), [edit-form.ts](src/content/logic/edit-form.ts), [description-generator.ts](src/content/logic/description-generator.ts), [description-panel.ts](src/content/ui/description-panel.ts) |
 | APIキーの設定画面 | [options.html](options.html), [src/options/index.ts](src/options/index.ts) |
-| ポップアップ・設定画面の共通スタイル | [extension-pages.css](extension-pages.css)（トークンは `theme.ts` と同じ値） |
+| ポップアップ・設定画面の共通スタイル | [extension-pages.css](extension-pages.css)（部品のスタイルだけ。トークンは [src/common/theme-tokens.ts](src/common/theme-tokens.ts) から popup / options の起動時に注入する。HTML は head でスクリプトを同期的に読む） |
 | ビルド構成（エントリ 5 つ。browser と service worker で target を分けている） | [webpack.config.js](webpack.config.js), [tsconfig.json](tsconfig.json)（ルートの `tsconfig.base.json` を extends） |
 | lint / format 構成 | ルートの [eslint.config.js](../../eslint.config.js), [.prettierrc](../../.prettierrc) |
 
