@@ -1,20 +1,21 @@
 import { QueueItem } from '../../../common/messages';
+import { OrderedSelection } from '@fleamarket/core/selection';
 
 /**
  * チェックボックスの選択状態を選択順を保持して管理するクラス。
+ *
+ * 選択順つきの保持は共有部品 `@fleamarket/core/selection`（挿入順の Map）にある。
+ * ここでは、この拡張のメソッド名と、値としてキューに積む形（`QueueItem`）をそのまま持つことを決める。
  */
 export class SelectionManager {
-  /** 挿入順が保持されるMapを選択順の管理に利用する */
-  private selections = new Map<string, QueueItem>();
+  private selections = new OrderedSelection<QueueItem>();
 
   add(item: QueueItem): void {
-    if (!this.selections.has(item.id)) {
-      this.selections.set(item.id, item);
-    }
+    this.selections.add(item.id, item);
   }
 
   remove(id: string): void {
-    this.selections.delete(id);
+    this.selections.remove(id);
   }
 
   clear(): void {
@@ -26,11 +27,7 @@ export class SelectionManager {
    * ページ送りなどで一覧から消えた商品を選択したままにしないため。
    */
   retain(ids: Set<string>): void {
-    for (const id of this.selections.keys()) {
-      if (!ids.has(id)) {
-        this.selections.delete(id);
-      }
-    }
+    this.selections.retain(ids);
   }
 
   getCount(): number {
@@ -41,7 +38,7 @@ export class SelectionManager {
    * 選択順に並んだ商品リストを返す
    */
   getOrderedItems(): QueueItem[] {
-    return Array.from(this.selections.values());
+    return this.selections.values();
   }
 }
 

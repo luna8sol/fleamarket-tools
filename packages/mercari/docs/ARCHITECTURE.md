@@ -91,7 +91,7 @@ service worker として動きます。**Claude API キーを扱うのはこの�
 |---------|------|
 | `app-initializer.ts` | アプリ初期化・各層の統合・ページタイプに応じたセットアップ |
 | `observer-manager.ts` | MutationObserver による DOM 変更の監視と処理。UI の初期描画もここが担う。リストが現れるまでは `document.body` を監視して待ち、`CONFIG.LIST_WAIT_TIMEOUT_MS` を過ぎたら `list-load-error.ts` で知らせる |
-| `selection-manager.ts` | 選択商品の追加・削除・順序管理（**永続化はしない。メモリ上のみ**） |
+| `selection-manager.ts` | 選択商品の追加・削除・順序管理（**永続化はしない。メモリ上のみ**。挿入順の Map による保持は `@fleamarket/core/selection`、連番と debug ログはここ） |
 | `publisher.ts` | 下書きの自動出品処理 |
 | `relist-manager.ts` | 出品中商品の再出品処理（クリック前に元商品スナップショットを取得） |
 | `common-processor.ts` | 出品・再出品に共通する逐次処理。件数・状態・待機の残り秒数を `BulkProgress` で通知する |

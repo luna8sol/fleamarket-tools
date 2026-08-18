@@ -56,7 +56,7 @@
 | 再出品の待ち行列（FIFO）・自動保存設定 | [src/content/infra/relist-queue.ts](src/content/infra/relist-queue.ts), [auto-save-settings.ts](src/content/infra/auto-save-settings.ts) |
 | 一覧の先頭から指定の行までの一括選択・Shift での範囲選択 | [src/content/ui/select-up-to.ts](src/content/ui/select-up-to.ts), [src/content/ui/checkbox-manager.ts](src/content/ui/checkbox-manager.ts) |
 | 一覧の各行のチェックボックス列（商品リンクの外に置く） | [src/content/ui/row-gutter.ts](src/content/ui/row-gutter.ts) |
-| 選択状態・選択順の管理 | [src/content/logic/selection-manager.ts](src/content/logic/selection-manager.ts) |
+| 選択状態・選択順の管理 | [src/content/logic/selection-manager.ts](src/content/logic/selection-manager.ts)（挿入順の Map による保持は `@fleamarket/core/selection`。メソッド名・戻り値の形・選択の連番 `order`・debug ログはここ。`retain` は使わない） |
 | DOM 変更の監視 | [src/content/logic/observer-manager.ts](src/content/logic/observer-manager.ts) |
 | UI 全体の組み立て | [src/content/ui/ui-manager.ts](src/content/ui/ui-manager.ts), [ui/index.ts](src/content/ui/index.ts) |
 | 注入 UI の見た目（トークン・ライト/ダーク・部品・アイコン・確認ダイアログ） | [theme.ts](src/content/ui/theme.ts)（CSS 本文はここ。`<style>` の注入は `@fleamarket/core/style`）, [components.ts](src/content/ui/components.ts)（組み立ては `@fleamarket/core/components`。接頭辞 `mdp` とクラス名、`updateProgress` の名前はここ）, [icons.ts](src/content/ui/icons.ts)（SVG の組み立てと共通アイコンは `@fleamarket/core/icons`。固有アイコンと `mdp-icon` クラスはここ）, [confirm-dialog.ts](src/content/ui/confirm-dialog.ts)（組み立てと答えの待ち方は `@fleamarket/core/confirm-dialog`。id・接頭辞 `mdp`・上限 10・行頭 `・`・`close` イベントで確定する方式はここ） |

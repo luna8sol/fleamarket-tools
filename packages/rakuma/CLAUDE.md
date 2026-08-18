@@ -83,7 +83,7 @@
 | 削除リンクの特定とクリック | [src/content/list/logic/delete-clicker.ts](src/content/list/logic/delete-clicker.ts) |
 | 削除対象が居るページの探索（ページを跨いで探す） | [src/content/list/logic/delete-locator.ts](src/content/list/logic/delete-locator.ts) |
 | ページ送り（削除後に 1 ページ目へ戻る問題の対処） | [src/content/list/logic/pager.ts](src/content/list/logic/pager.ts) |
-| 選択状態・選択順の管理 | [src/content/list/logic/selection-manager.ts](src/content/list/logic/selection-manager.ts) |
+| 選択状態・選択順の管理 | [src/content/list/logic/selection-manager.ts](src/content/list/logic/selection-manager.ts)（挿入順の Map による保持と `retain` は `@fleamarket/core/selection`。メソッド名と、値に `QueueItem` を持つことはここ） |
 | Background へ送るメッセージ（LIST_READY・キューの開始/停止・進捗取得） | [src/content/list/logic/queue-client.ts](src/content/list/logic/queue-client.ts) |
 | 一覧ページの組み立て（配線のみ） | [src/content/list/index.ts](src/content/list/index.ts) |
 | 一括操作バーのボタン処理・一括削除／再出品／出品の確認 | [src/content/list/bulk-bar-handlers.ts](src/content/list/bulk-bar-handlers.ts) |

@@ -1,13 +1,19 @@
 import { debugMethodStart, debugMethodEnd } from '../infra/logger';
+import { OrderedSelection } from '@fleamarket/core/selection';
 
 /**
  * 選択商品の管理を担当するモジュール
  * - 選択順の管理
  * - 選択状態の追加/削除
+ *
+ * 選択順つきの保持は共有部品 `@fleamarket/core/selection`（挿入順の Map）にある。
+ * ここでは、この拡張のメソッド名と戻り値の形、選択ごとに振る連番（`order`）、
+ * debug ログを付ける。連番は選択した順に増え、全解除でだけ 0 に戻るので、
+ * Map の挿入順と連番の昇順は常に一致する。
  */
 export class SelectionManager {
-  // 選択されたアイテムのマップ (ID → 順序)
-  private selections: Map<string, number> = new Map();
+  // 選択されたアイテム（ID → 選択の連番）。挿入順 = 選択順
+  private selections = new OrderedSelection<number>();
   // 現在の最大選択順（次に選択されるアイテムの順番）
   private currentOrder: number = 0;
 
@@ -21,7 +27,12 @@ export class SelectionManager {
    * @param id 追加するアイテムのID
    * @returns 処理結果
    */
-  addSelection(id: string): { added: boolean, alreadySelected: boolean, newCount: number, order?: number } {
+  addSelection(id: string): {
+    added: boolean;
+    alreadySelected: boolean;
+    newCount: number;
+    order?: number;
+  } {
     debugMethodStart('SelectionManager.addSelection', { id });
 
     // 既に選択済みかチェック
@@ -29,21 +40,21 @@ export class SelectionManager {
       debugMethodEnd('SelectionManager.addSelection', {
         added: false,
         alreadySelected: true,
-        newCount: this.selections.size
+        newCount: this.selections.size,
       });
       return { added: false, alreadySelected: true, newCount: this.selections.size };
     }
 
     // 次の順番を割り当て
     const order = ++this.currentOrder;
-    this.selections.set(id, order);
+    this.selections.add(id, order);
 
     // 順番情報を含めてログ出力
     const result = {
       added: true,
       alreadySelected: false,
       newCount: this.selections.size,
-      order
+      order,
     };
 
     debugMethodEnd('SelectionManager.addSelection', result);
@@ -55,7 +66,7 @@ export class SelectionManager {
    * @param id 解除するアイテムのID
    * @returns 処理結果
    */
-  removeSelection(id: string): { removed: boolean, wasSelected: boolean, newCount: number } {
+  removeSelection(id: string): { removed: boolean; wasSelected: boolean; newCount: number } {
     debugMethodStart('SelectionManager.removeSelection', { id });
 
     // 選択されていなければ何もしない
@@ -63,19 +74,19 @@ export class SelectionManager {
       debugMethodEnd('SelectionManager.removeSelection', {
         removed: false,
         wasSelected: false,
-        newCount: this.selections.size
+        newCount: this.selections.size,
       });
       return { removed: false, wasSelected: false, newCount: this.selections.size };
     }
 
     // 選択解除
-    this.selections.delete(id);
+    this.selections.remove(id);
 
     // 結果をログ出力
     const result = {
       removed: true,
       wasSelected: true,
-      newCount: this.selections.size
+      newCount: this.selections.size,
     };
 
     debugMethodEnd('SelectionManager.removeSelection', result);
@@ -84,15 +95,10 @@ export class SelectionManager {
 
   /**
    * 全ての選択を順序付きで取得する
-   * @returns 順番でソートされた選択アイテムの配列
+   * @returns 選択順（= 連番の昇順）に並んだ選択アイテムの配列
    */
-  getOrderedSelections(): { id: string, order: number }[] {
-    // IDと順番の配列を作成し、順番でソート
-    const ordered = Array.from(this.selections.entries())
-      .map(([id, order]) => ({ id, order }))
-      .sort((a, b) => a.order - b.order);
-
-    return ordered;
+  getOrderedSelections(): { id: string; order: number }[] {
+    return this.selections.toArray().map(([id, order]) => ({ id, order }));
   }
 
   /**
@@ -117,7 +123,7 @@ export class SelectionManager {
    * @returns 選択されているIDの配列
    */
   getAll(): string[] {
-    return Array.from(this.selections.keys());
+    return this.selections.ids();
   }
 
   /**
@@ -134,14 +140,7 @@ export class SelectionManager {
    * @returns 順序インデックス（選択されていない場合は-1）
    */
   getOrderIndex(id: string): number {
-    // 選択されていなければ-1
-    if (!this.selections.has(id)) return -1;
-
-    // 順序でソートしたアイテム配列を取得
-    const ordered = this.getOrderedSelections();
-
-    // 指定IDのインデックスを返す
-    return ordered.findIndex(item => item.id === id);
+    return this.selections.indexOf(id);
   }
 }
 
