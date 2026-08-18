@@ -29,6 +29,10 @@ export function showListLoadError(onRetry: () => void): void {
   hideListLoadError();
   ensureTheme();
 
+  // 対象を把握できないまま実操作のボタンを残さない（このファイル冒頭のコメント参照）。
+  // 一度リストを掴んだ後に見失った場合、一括操作バーが残っているのはこの経路だけなので、ここで撤去する。
+  document.getElementById(ID_NAME.BULK_RELIST_CONTAINER)?.remove();
+
   const panel = document.createElement('div');
   panel.id = ID_NAME.LIST_LOAD_ERROR;
   panel.className = 'mdp-alert mdp-scope';

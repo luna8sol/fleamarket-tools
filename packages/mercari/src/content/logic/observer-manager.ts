@@ -176,7 +176,9 @@ export class ObserverManager {
   }
 
   /**
-   * DOM変更のたびに呼ばれ、監視対象のリスト要素が入れ替わっていれば張り直す
+   * DOM変更のたびに呼ばれ、監視対象のリスト要素が入れ替わっていれば張り直す。
+   * 掴んでいたリストがDOMから切り離され、代わりも見つからない場合は
+   * 「見失った」ものとして締め切りタイマーを立て直す（リスト出現待ちと同じ扱いに揃える）。
    * @returns {void}
    */
   private syncListElement(): void {
@@ -189,11 +191,24 @@ export class ObserverManager {
 
     try {
       const ul = document.querySelector(this.listSelector);
-      if (!(ul instanceof HTMLUListElement) || ul === this.lastUl) return;
 
-      this.isProcessingPage = true;
-      debug(`DOM変更後に ${this.listSelector} 要素が見つかりました`);
-      this.setupObserversForUl(ul);
+      if (ul instanceof HTMLUListElement) {
+        if (ul === this.lastUl) return;
+
+        this.isProcessingPage = true;
+        debug(`DOM変更後に ${this.listSelector} 要素が見つかりました`);
+        this.setupObserversForUl(ul);
+        return;
+      }
+
+      // lastUlがnull以外＝直前まで監視できていたリストを見失った瞬間。
+      // ここで一度だけ締め切りを立て直す（見つからないまま呼ばれ続けても再セットしない。
+      // でないとDOM変更が続く限り締め切りが延び続け、いつまでも発火しなくなる）。
+      if (this.lastUl !== null) {
+        warn(`監視中の ${this.listSelector} 要素を見失いました。再出現を待機します`);
+        this.lastUl = null;
+        this.startListWaitTimeout(this.listSelector);
+      }
     } catch (e) {
       warn('rootObserver コールバックでエラーが発生しました', e);
     } finally {
