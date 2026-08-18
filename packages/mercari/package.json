@@ -1,7 +1,7 @@
 {
-  "name": "mercari-draft-publisher",
-  "version": "1.0.0",
-  "description": "メルカリ下書き商品を自動で出品する拡張機能",
+  "name": "@fleamarket/mercari",
+  "version": "0.1.0",
+  "description": "メルカリの下書き商品の一括出品・出品中商品の一括再出品・一括削除・説明文の一括置換を行う拡張機能",
   "private": true,
   "type": "module",
   "scripts": {
