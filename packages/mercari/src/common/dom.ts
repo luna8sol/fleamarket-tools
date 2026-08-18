@@ -8,6 +8,7 @@
  */
 
 import { warn } from '../content/infra/logger';
+import { setReactControlledValue } from '@fleamarket/core/react-input';
 
 /**
  * セレクタで要素を安全に取得する。
@@ -127,6 +128,8 @@ export function safeQueryAllFirst<T extends Element = Element>(
  *   React の state が更新されず、フォーム送信時に値が反映されません。
  *   ネイティブの value セッターを直接呼び出したうえで input イベントを発火させる必要があります。
  * - 現在のページの要素だけでなく、同一オリジンの隠し iframe 内の要素にも使えます。
+ * - 書き込みの本体は共有部品 `@fleamarket/core/react-input`。ここでは null を受け付けることと、
+ *   失敗時のログを付けます。
  *
  * @param el 値を設定する input または textarea
  * @param value 設定する値
@@ -139,25 +142,5 @@ export function setReactInputValue(
   value: string
 ): boolean {
   if (!el) return false;
-
-  try {
-    // 要素自身のプロトタイプから setter を取る。`instanceof HTMLTextAreaElement` で
-    // 選ぶと、隠し iframe 内の要素（別レルム）では判定が必ず false になり、
-    // textarea に HTMLInputElement の setter を呼んで "Illegal invocation" になる。
-    const prototype = Object.getPrototypeOf(el) as object;
-    const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
-
-    if (setter) {
-      setter.call(el, value);
-    } else {
-      el.value = value;
-    }
-
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    return true;
-  } catch (e) {
-    warn('setReactInputValue error:', e, el);
-    return false;
-  }
+  return setReactControlledValue(el, value, (e) => warn('setReactInputValue error:', e, el));
 }

@@ -38,6 +38,7 @@
 | 待機（秒単位の `sleep`）・ポーリング（`waitFor`）・乱数・FNV-1a（10 進表記）・debounce | [src/common/utils.ts](src/common/utils.ts), [src/content/infra/debounce.ts](src/content/infra/debounce.ts)（実装は `@fleamarket/core`。この 2 ファイルは従来のシグネチャと表記を保つラッパー） |
 | ページ種別（下書き / 出品中 / 編集・出品フォーム）の判定 | [src/content/infra/page-detector.ts](src/content/infra/page-detector.ts) |
 | 永続化（`chrome.storage.local`） | [src/common/ext-storage.ts](src/common/ext-storage.ts) |
+| 例外安全な DOM 操作・React 制御の入力欄への書き込み | [src/common/dom.ts](src/common/dom.ts)（`setReactInputValue` の本体は `@fleamarket/core/react-input`。null の受け付けと失敗時のログはここ） |
 | ユーザー設定の読み書き | [src/content/infra/user-settings.ts](src/content/infra/user-settings.ts) |
 | content script ⇔ background のメッセージ型・応答型の対応表 | [src/common/messaging.ts](src/common/messaging.ts) |
 | メッセージ送信のラッパー（応答型の解決） | [src/common/send-message.ts](src/common/send-message.ts)（型アサーションの閉じ込めは `@fleamarket/core/messaging`。判別キー `action`・方向ごとのユニオンはここ） |

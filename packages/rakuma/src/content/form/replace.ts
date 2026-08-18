@@ -7,6 +7,7 @@ import { findButtonByText, listRenderedButtonLabels, waitForButton } from './but
 import { collectValidationErrors } from './form-state';
 import { waitFor } from './wait';
 import { delay } from '../wait';
+import { setReactControlledValue } from '@fleamarket/core/react-input';
 
 /**
  * replace: 出品中商品の編集ページ (/item/{hash}/edit) の説明欄だけを確定版へ置き換えて保存する。
@@ -95,22 +96,12 @@ function diagnoseNotReady(): NotSaved {
  * `el.value` への直接代入では React の状態に反映されないため、
  * プロトタイプの value setter を呼んでから input / change イベントを発火させる
  * （2026-09-28 に実機で反映を確認）。
+ *
+ * 本体は共有部品 `@fleamarket/core/react-input`。セッターは要素自身のプロトタイプから取るが、
+ * 編集ページは自タブで開くので `HTMLTextAreaElement.prototype` から取るのと同じものになる。
  */
 function setReactValue(el: HTMLTextAreaElement, value: string): boolean {
-  try {
-    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-    if (setter) {
-      setter.call(el, value);
-    } else {
-      el.value = value;
-    }
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    return true;
-  } catch (e) {
-    warn('説明欄への書き込みに失敗しました', e);
-    return false;
-  }
+  return setReactControlledValue(el, value, (e) => warn('説明欄への書き込みに失敗しました', e));
 }
 
 /**
