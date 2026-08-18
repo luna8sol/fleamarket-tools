@@ -1,4 +1,4 @@
-import { createIcon } from '../../../common/icons';
+import { createIcon, IconName } from '../../../common/icons';
 import { QueueProgress, ReplaceCounts } from '../../../common/messages';
 import { loadReplaceRecords } from '../../../common/replace-store';
 import { log, warn } from '../../../common/logger';
@@ -13,6 +13,12 @@ import { buildProgress, decorateButton, decorateIconButton, renderProgress } fro
 import { confirmAction } from './confirm-dialog';
 import { showToast } from './notification';
 import { ensureTheme } from './theme';
+import {
+  createReplacePanelParts,
+  downloadJson,
+  fileStamp,
+  SummarySpec,
+} from '@fleamarket/core/replace-panel-parts';
 
 /**
  * 説明文の一括置換パネル（/sell のみ）。
@@ -24,8 +30,8 @@ import { ensureTheme } from './theme';
  * 確認ダイアログで承諾したあとだけ。実行中は入力欄を触れなくし、「停止」でいつでも止められる。
  */
 
-/** 対象外の内訳を並べる上限 */
-const MAX_EXCLUSION_LINES = 5;
+/** 共有部品（クラス接頭辞 `rbl` とこの拡張のアイコンを渡す） */
+const parts = createReplacePanelParts<IconName>({ prefix: 'rbl', createIcon });
 
 export interface ReplacePanelHandlers {
   /** 確認済みの計画をキューに積む */
@@ -72,70 +78,29 @@ function markSection(id: string, done: boolean): void {
   if (section) section.dataset.done = done ? 'true' : 'false';
 }
 
-function fact(label: string, value: number, emphasis = false): HTMLDivElement {
-  const tile = document.createElement('div');
-  tile.className = 'rbl-fact';
-  if (emphasis) tile.dataset.emphasis = 'true';
-  const v = document.createElement('span');
-  v.className = 'rbl-fact__value rbl-num';
-  v.textContent = String(value);
-  const l = document.createElement('span');
-  l.className = 'rbl-fact__label';
-  l.textContent = label;
-  tile.append(v, l);
-  return tile;
-}
+/** 件数と対象外の内訳の表示（文言と商品IDの出し方はこの拡張のもの） */
+const SUMMARY_SPEC: SummarySpec<IconName> = {
+  emptyText: '確定版と原本の JSON を選ぶと、処理する件数をここに出します。',
+  emptyIcon: 'fileJson',
+  emptyIconSize: 18,
+  tileLabels: {
+    targets: 'これから処理',
+    total: '確定版の件数',
+    alreadyDone: '適用済み',
+    excluded: '対象外',
+  },
+  exclusionsHead: (count) => `対象外 ${count}件（処理しません）`,
+  // 32 桁の商品IDは先頭 8 桁だけ出し、全体は title で読めるようにする
+  formatExclusionId: (id) => ({ text: id.slice(0, 8), title: id }),
+  maxExclusionLines: 5,
+};
 
 function renderSummary(plan: ReplacePlan | null): void {
   const summary = byId<HTMLDivElement>(ID_NAME.REPLACE_SUMMARY);
   if (!summary) return;
-  summary.replaceChildren();
   markSection(`${ID_NAME.REPLACE_PANEL}-step1`, plan !== null);
   markSection(`${ID_NAME.REPLACE_PANEL}-step3`, plan !== null);
-
-  if (!plan) {
-    const empty = document.createElement('div');
-    empty.className = 'rbl-empty';
-    empty.appendChild(createIcon('fileJson', 18));
-    const text = document.createElement('span');
-    text.textContent = '確定版と原本の JSON を選ぶと、処理する件数をここに出します。';
-    empty.appendChild(text);
-    summary.appendChild(empty);
-    return;
-  }
-
-  const stats = document.createElement('div');
-  stats.className = 'rbl-stats';
-  stats.append(
-    fact('これから処理', plan.targets.length, true),
-    fact('確定版の件数', plan.total),
-    fact('適用済み', plan.alreadyDone.length),
-    fact('対象外', plan.excluded.length)
-  );
-  summary.appendChild(stats);
-
-  if (plan.excluded.length > 0) {
-    const list = document.createElement('ul');
-    list.className = 'rbl-exclusions';
-    const head = document.createElement('li');
-    head.className = 'rbl-exclusions__head';
-    head.textContent = `対象外 ${plan.excluded.length}件（処理しません）`;
-    list.appendChild(head);
-    for (const exclusion of plan.excluded.slice(0, MAX_EXCLUSION_LINES)) {
-      const li = document.createElement('li');
-      const id = document.createElement('code');
-      id.textContent = exclusion.id.slice(0, 8);
-      id.title = exclusion.id;
-      li.append(id, ` ${exclusion.name}: ${exclusion.reason}`);
-      list.appendChild(li);
-    }
-    if (plan.excluded.length > MAX_EXCLUSION_LINES) {
-      const rest = document.createElement('li');
-      rest.textContent = `…ほか${plan.excluded.length - MAX_EXCLUSION_LINES}件`;
-      list.appendChild(rest);
-    }
-    summary.appendChild(list);
-  }
+  parts.renderPlanSummary(summary, plan, SUMMARY_SPEC);
 }
 
 /** 結果種別ごとの件数を丸いバッジで並べる */
@@ -144,24 +109,7 @@ function renderCounts(counts: ReplaceCounts | undefined): void {
   if (!wrap) return;
   wrap.replaceChildren();
   if (!counts) return;
-
-  const items: { label: string; value: number; tone: string }[] = [
-    { label: '成功', value: counts.applied, tone: 'success' },
-    { label: '適用済み', value: counts.already, tone: 'info' },
-    { label: 'スキップ', value: counts.skipped, tone: 'warning' },
-    { label: '失敗', value: counts.failed, tone: 'danger' },
-    { label: '未確認', value: counts.unverified, tone: 'warning' },
-  ];
-  for (const item of items) {
-    const badge = document.createElement('span');
-    badge.className = 'rbl-badge';
-    badge.dataset.tone = item.tone;
-    badge.dataset.nonzero = item.value > 0 ? 'true' : 'false';
-    const value = document.createElement('b');
-    value.textContent = String(item.value);
-    badge.append(`${item.label} `, value);
-    wrap.appendChild(badge);
-  }
+  parts.renderOutcomeBadges(wrap, counts);
 }
 
 /**
@@ -338,20 +286,12 @@ async function handleExport(): Promise<void> {
       null,
       2
     );
-    const stamp = new Date()
-      .toISOString()
-      .replace(/[-:]/g, '')
-      .replace(/\.\d+Z$/, 'Z');
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `rakuma-description-replace-${stamp}.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    // ダウンロードの開始を待ってから解放する
-    window.setTimeout(() => URL.revokeObjectURL(url), CONFIG.TOAST_DURATION_MS);
+    // ダウンロードの開始を待ってから URL を解放する
+    downloadJson(
+      json,
+      `rakuma-description-replace-${fileStamp(new Date())}.json`,
+      CONFIG.TOAST_DURATION_MS
+    );
     showToast(`処理記録を出力しました（${records.length}件）`, 'success');
   } catch (e) {
     warn('処理記録の出力に失敗しました', e);
@@ -360,17 +300,7 @@ async function handleExport(): Promise<void> {
 }
 
 function section(id: string, step: number, title: string): HTMLElement {
-  const el = document.createElement('section');
-  el.id = id;
-  el.className = 'rbl-section';
-  const head = document.createElement('h3');
-  head.className = 'rbl-section__title';
-  const badge = document.createElement('span');
-  badge.className = 'rbl-step';
-  badge.textContent = String(step);
-  head.append(badge, title);
-  el.appendChild(head);
-  return el;
+  return parts.buildSection({ id, step, title });
 }
 
 /** ファイル選択（label の中に透明な input を重ね、選んだファイル名を出す） */
@@ -380,32 +310,11 @@ function filePicker(
   hint: string,
   onPicked: () => void
 ): HTMLLabelElement {
-  const wrap = document.createElement('label');
-  wrap.className = 'rbl-file';
-
-  const text = document.createElement('span');
-  text.className = 'rbl-file__text';
-  const title = document.createElement('span');
-  title.className = 'rbl-file__label';
-  title.textContent = label;
-  const name = document.createElement('span');
-  name.className = 'rbl-file__name';
-  name.textContent = hint;
-  text.append(title, name);
-
   const input = document.createElement('input');
   input.id = id;
   input.type = 'file';
   input.accept = '.json,application/json';
-  input.addEventListener('change', () => {
-    const file = input.files?.[0];
-    wrap.dataset.filled = file ? 'true' : 'false';
-    name.textContent = file?.name ?? hint;
-    onPicked();
-  });
-
-  wrap.append(createIcon('fileJson', 20), text, input);
-  return wrap;
+  return parts.buildFileField({ input, label, emptyText: hint, onChange: onPicked });
 }
 
 function createPanel(handlers: ReplacePanelHandlers): HTMLDivElement {

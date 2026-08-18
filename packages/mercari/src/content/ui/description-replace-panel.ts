@@ -19,6 +19,12 @@ import {
 import { confirmAction } from './confirm-dialog';
 import { createIcon, IconName } from './icons';
 import { ensureTheme } from './theme';
+import {
+  createReplacePanelParts,
+  downloadJson,
+  fileStamp,
+  SummarySpec,
+} from '@fleamarket/core/replace-panel-parts';
 
 /**
  * 説明文の一括置換パネル（出品中一覧のみ）。
@@ -30,9 +36,6 @@ import { ensureTheme } from './theme';
  * 「中断」でいつでも止められます。
  */
 
-/** 対象外の内訳を並べる上限 */
-const MAX_EXCLUSION_LINES = 5;
-
 /** 読み込み済みのデータと計画（パネルを閉じても保持する） */
 interface PanelState {
   fixed: DescriptionEntry[] | null;
@@ -42,90 +45,36 @@ interface PanelState {
 
 const state: PanelState = { fixed: null, originals: null, plan: null };
 
+/** 共有部品（クラス接頭辞 `mdp` とこの拡張のアイコンを渡す） */
+const parts = createReplacePanelParts<IconName>({ prefix: 'mdp', createIcon });
+
 /**
  * ファイルを選ぶ欄を作る（ラベル全体を押せる大きな的にする）
+ *
+ * 選んだファイル名は欄の title にも出す。
  *
  * @param input ファイル入力欄
  * @param labelText 欄の名前
  * @returns 欄の要素
  */
 function fileField(input: HTMLInputElement, labelText: string): HTMLLabelElement {
-  const field = document.createElement('label');
-  field.className = 'mdp-file';
-
-  const text = document.createElement('span');
-  text.className = 'mdp-file__text';
-
-  const label = document.createElement('span');
-  label.className = 'mdp-file__label';
-  label.textContent = labelText;
-
-  const name = document.createElement('span');
-  name.className = 'mdp-file__name';
-  name.textContent = '未選択';
-
-  text.append(label, name);
-  field.append(createIcon('fileJson', 20), text, input);
-
-  input.addEventListener('change', () => {
-    const file = input.files?.[0];
-    name.textContent = file ? file.name : '未選択';
-    field.title = file ? file.name : '';
-    field.dataset.filled = file ? 'true' : 'false';
+  return parts.buildFileField({
+    input,
+    label: labelText,
+    emptyText: '未選択',
+    titleFromFile: true,
   });
-
-  return field;
 }
 
 /**
- * 番号付きの見出しを持つまとまりを作る
+ * 番号付きの見出しを持つまとまりを作る（見出しの文字は span で包む）
  *
  * @param step 手順の番号
  * @param titleText 見出し
  * @returns まとまりの要素
  */
 function section(step: number, titleText: string): HTMLElement {
-  const wrap = document.createElement('section');
-  wrap.className = 'mdp-section';
-
-  const title = document.createElement('h3');
-  title.className = 'mdp-section__title';
-
-  const badge = document.createElement('span');
-  badge.className = 'mdp-step';
-  badge.textContent = String(step);
-
-  const text = document.createElement('span');
-  text.textContent = titleText;
-
-  title.append(badge, text);
-  wrap.appendChild(title);
-  return wrap;
-}
-
-/**
- * 件数のタイルを作る
- *
- * @param label 名前
- * @param value 件数
- * @param emphasis 主役として強調するか
- * @returns タイルの要素
- */
-function statTile(label: string, value: number, emphasis = false): HTMLDivElement {
-  const tile = document.createElement('div');
-  tile.className = 'mdp-fact';
-  if (emphasis) tile.dataset.emphasis = 'true';
-
-  const num = document.createElement('span');
-  num.className = 'mdp-fact__value mdp-num';
-  num.textContent = String(value);
-
-  const name = document.createElement('span');
-  name.className = 'mdp-fact__label';
-  name.textContent = label;
-
-  tile.append(num, name);
-  return tile;
+  return parts.buildSection({ step, title: titleText, wrapTitle: true });
 }
 
 /**
@@ -174,6 +123,24 @@ function syncControls(running: boolean): void {
   if (abortBtn) abortBtn.disabled = !running;
 }
 
+/** 件数と対象外の内訳の表示（文言と商品IDの出し方はこの拡張のもの） */
+const SUMMARY_SPEC: SummarySpec<IconName> = {
+  emptyText:
+    '確定版と原本の JSON を選んで「読み込む」を押してください。読み込むだけでは保存しません。',
+  emptyIcon: 'info',
+  emptyIconSize: 16,
+  tileLabels: {
+    targets: 'これから処理',
+    total: '対象',
+    alreadyDone: '適用済み',
+    excluded: '対象外',
+  },
+  exclusionsHead: (count) => `対象外の内訳（${count}件）`,
+  // 商品IDは短いのでそのまま出す
+  formatExclusionId: (id) => ({ text: id }),
+  maxExclusionLines: 5,
+};
+
 /**
  * 計画の件数をパネルに表示する
  * @param plan 実行計画。null なら未読み込みの表示にする
@@ -181,55 +148,7 @@ function syncControls(running: boolean): void {
 function renderSummary(plan: DescriptionReplacePlan | null): void {
   const summary = byId<HTMLDivElement>(ID_NAME.DESCRIPTION_REPLACE_SUMMARY);
   if (!summary) return;
-
-  summary.replaceChildren();
-
-  if (!plan) {
-    const empty = document.createElement('div');
-    empty.className = 'mdp-empty';
-    const text = document.createElement('span');
-    text.textContent =
-      '確定版と原本の JSON を選んで「読み込む」を押してください。読み込むだけでは保存しません。';
-    empty.append(createIcon('info', 16), text);
-    summary.appendChild(empty);
-    return;
-  }
-
-  const stats = document.createElement('div');
-  stats.className = 'mdp-stats';
-  stats.append(
-    statTile('これから処理', plan.targets.length, true),
-    statTile('対象', plan.total),
-    statTile('適用済み', plan.alreadyDone.length),
-    statTile('対象外', plan.excluded.length)
-  );
-  summary.appendChild(stats);
-
-  if (plan.excluded.length > 0) {
-    const list = document.createElement('ul');
-    list.className = 'mdp-exclusions';
-
-    const head = document.createElement('li');
-    head.className = 'mdp-exclusions__head';
-    head.textContent = `対象外の内訳（${plan.excluded.length}件）`;
-    list.appendChild(head);
-
-    for (const exclusion of plan.excluded.slice(0, MAX_EXCLUSION_LINES)) {
-      const li = document.createElement('li');
-      const id = document.createElement('code');
-      id.textContent = exclusion.id;
-      li.append(id, ` ${exclusion.name}: ${exclusion.reason}`);
-      list.appendChild(li);
-    }
-
-    if (plan.excluded.length > MAX_EXCLUSION_LINES) {
-      const rest = document.createElement('li');
-      rest.textContent = `…ほか${plan.excluded.length - MAX_EXCLUSION_LINES}件`;
-      list.appendChild(rest);
-    }
-
-    summary.appendChild(list);
-  }
+  parts.renderPlanSummary(summary, plan, SUMMARY_SPEC);
 }
 
 /**
@@ -304,19 +223,6 @@ function toReplaceView(progress: DescriptionReplaceProgress): Omit<ProgressView,
   }
 }
 
-/** 内訳バッジの並びと色調 */
-const BREAKDOWN_BADGES: {
-  key: keyof DescriptionReplaceProgress['counts'];
-  label: string;
-  tone: 'success' | 'info' | 'warning' | 'danger';
-}[] = [
-  { key: 'applied', label: '成功', tone: 'success' },
-  { key: 'already', label: '適用済み', tone: 'info' },
-  { key: 'skipped', label: 'スキップ', tone: 'warning' },
-  { key: 'failed', label: '失敗', tone: 'danger' },
-  { key: 'unverified', label: '未確認', tone: 'warning' },
-];
-
 /**
  * 進捗をパネルに表示する
  * @param progress 進捗
@@ -336,19 +242,7 @@ function renderStatus(progress: DescriptionReplaceProgress): void {
 
   updateProgress(bar, { label: formatReplaceHeadline(progress), ...toReplaceView(progress) });
 
-  badges.replaceChildren();
-  for (const { key, label, tone } of BREAKDOWN_BADGES) {
-    const value = progress.counts[key];
-    const badge = document.createElement('span');
-    badge.className = 'mdp-badge';
-    badge.dataset.tone = tone;
-    badge.dataset.nonzero = value > 0 ? 'true' : 'false';
-
-    const num = document.createElement('b');
-    num.textContent = String(value);
-    badge.append(`${label} `, num);
-    badges.appendChild(badge);
-  }
+  parts.renderOutcomeBadges(badges, progress.counts);
 }
 
 /**
@@ -504,22 +398,12 @@ async function handleStart(): Promise<void> {
 async function handleExport(): Promise<void> {
   try {
     const json = await descriptionReplaceManager.exportRecordsJson();
-    const stamp = new Date()
-      .toISOString()
-      .replace(/[-:]/g, '')
-      .replace(/\.\d+Z$/, 'Z');
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `mercari-description-replace-${stamp}.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-
-    // ダウンロードの開始を待ってから解放する
-    window.setTimeout(() => URL.revokeObjectURL(url), CONFIG.TOAST_DURATION_MS);
+    // ダウンロードの開始を待ってから URL を解放する
+    downloadJson(
+      json,
+      `mercari-description-replace-${fileStamp(new Date())}.json`,
+      CONFIG.TOAST_DURATION_MS
+    );
     showToast('処理記録を出力しました', 'success');
   } catch (e) {
     warn('処理記録の出力に失敗しました', e);
