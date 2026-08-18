@@ -93,7 +93,7 @@
 | 一括操作ドック・チェックボックス・トースト | [ui/bulk-bar.ts](src/content/list/ui/bulk-bar.ts), [ui/checkbox-manager.ts](src/content/list/ui/checkbox-manager.ts), [ui/notification.ts](src/content/list/ui/notification.ts)（トーストの組み立てと表示時間の制御は `@fleamarket/core/toast`。種別ごとの表示時間・`--rbl-toast-duration`・ホバー後は残り時間から再開する方式はここ） |
 | 確認ダイアログ（削除・置換・再出品・出品の前） | [ui/confirm-dialog.ts](src/content/list/ui/confirm-dialog.ts)（組み立てと答えの待ち方は `@fleamarket/core/confirm-dialog`。id・接頭辞 `rbl`・上限 `CONFIRM_MAX_ITEMS`・番号付き行頭・見出し「処理する順番」・クリックで即時確定する方式はここ） |
 | 注入 UI のスタイル・共通部品 | [ui/theme.ts](src/content/list/ui/theme.ts)（CSS 本文はここ。`<style>` の注入は `@fleamarket/core/style`）, [ui/components.ts](src/content/list/ui/components.ts)（組み立ては `@fleamarket/core/components`。接頭辞 `rbl`、補足行、`renderProgress` の名前はここ） |
-| デザイントークン・ライト/ダークの設定・アイコン（注入 UI と popup で共有） | [src/common/theme.ts](src/common/theme.ts), [src/common/icons.ts](src/common/icons.ts)（SVG の組み立てと共通アイコンは `@fleamarket/core/icons`。固有アイコンと `rbl-icon` クラスはここ） |
+| デザイントークン・ライト/ダークの設定・アイコン（注入 UI と popup で共有） | [src/common/theme.ts](src/common/theme.ts)（トークンの名前と値・`--rbl-page-*`・配色設定の保存と `data-rbl-theme` の反映はここ。`:root`・メディアクエリ・属性セレクタの組み立ては `@fleamarket/core/theme-tokens`）, [src/common/icons.ts](src/common/icons.ts)（SVG の組み立てと共通アイコンは `@fleamarket/core/icons`。固有アイコンと `rbl-icon` クラスはここ） |
 | ポップアップ（キュー状態の表示・テーマ切替） | [popup.html](popup.html), [src/popup/index.ts](src/popup/index.ts) |
 | ログ出力 | [src/common/logger.ts](src/common/logger.ts)（レベル制御は `@fleamarket/core/logger`。接頭辞と出力形式はここ） |
 | ビルド構成（エントリ 4 つ） | [webpack.config.js](webpack.config.js), [tsconfig.json](tsconfig.json)（ルートの `tsconfig.base.json` を extends。`types: ["chrome"]` はここで指定） |

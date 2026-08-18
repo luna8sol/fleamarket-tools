@@ -1,3 +1,5 @@
+import { buildTokenCss as buildTokenCssFrom } from '@fleamarket/core/theme-tokens';
+
 /**
  * 拡張機能の UI（一覧ページへ注入する UI と popup）で共有するデザイントークンと、
  * ライト / ダークの設定。
@@ -120,27 +122,22 @@ const PAGE_TOKENS: Record<string, string> = {
   '--rbl-page-text-subtle': '#6b6b74',
 };
 
-function declarations(tokens: Record<string, string>): string {
-  return Object.entries(tokens)
-    .map(([name, value]) => `  ${name}: ${value};`)
-    .join('\n');
-}
-
 /**
- * トークンの CSS を組み立てる。
+ * トークンの CSS を組み立てる（組み立ては共有部品 `@fleamarket/core/theme-tokens`）。
  *
  * ダークの値は 2 か所で当てる。
  * - 設定が `auto`（属性なし）で OS がダーク → `prefers-color-scheme` のメディアクエリ
  * - 設定が `dark` → 属性セレクタ（OS の設定に関わらず）
  * 設定が `light` のときはメディアクエリ側を `:not()` で外す。
+ * 商品行に差し込む部品用の `--rbl-page-*` は配色に関わらず `:root` に出す。
  */
 export function buildTokenCss(): string {
-  const dark = declarations(DARK_TOKENS);
-  return [
-    `:root {\n${declarations(LIGHT_TOKENS)}\n${declarations(PAGE_TOKENS)}\n}`,
-    `@media (prefers-color-scheme: dark) {\n  :root:not([${THEME_ATTRIBUTE}="light"]) {\n${dark}\n  }\n}`,
-    `:root[${THEME_ATTRIBUTE}="dark"] {\n${dark}\n}`,
-  ].join('\n');
+  return buildTokenCssFrom({
+    light: LIGHT_TOKENS,
+    dark: DARK_TOKENS,
+    fixed: PAGE_TOKENS,
+    preferenceAttribute: THEME_ATTRIBUTE,
+  });
 }
 
 function isThemePreference(value: unknown): value is ThemePreference {

@@ -1,5 +1,6 @@
 import { CONFIG, ID_NAME } from '../infra/constants';
 import { ensureStyleSheet } from '@fleamarket/core/style';
+import { buildTokenCss, TokenMap } from '@fleamarket/core/theme-tokens';
 
 /**
  * メルカリのページへ注入する UI のデザインシステム（トークンと部品のスタイル）。
@@ -13,90 +14,94 @@ import { ensureStyleSheet } from '@fleamarket/core/style';
  * - クラス名はすべて `mdp-` で始める。メルカリ側のクラス名と衝突させないため。
  * - popup / options page は拡張機能のページなので、同じトークンを
  *   [extension-pages.css](../../../extension-pages.css) に持っている。値を変えるときは両方そろえる。
+ * - トークンの CSS（`:root` とダークのメディアクエリ）の組み立ては共有部品
+ *   `@fleamarket/core/theme-tokens`。名前と値はここで決める。
  */
-const THEME_CSS = `
-:root {
-  --mdp-font: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
-  --mdp-brand: #ff333f;
-  --mdp-accent: #e3192a;
-  --mdp-accent-hover: #c9101f;
-  --mdp-accent-text: #d0182a;
-  --mdp-accent-soft: rgba(255, 51, 63, 0.09);
-  --mdp-accent-soft-strong: rgba(255, 51, 63, 0.16);
-  --mdp-row-selected: rgba(255, 51, 63, 0.05);
-  --mdp-on-accent: #ffffff;
-  --mdp-ring: rgba(255, 51, 63, 0.42);
+const LIGHT_TOKENS: TokenMap = {
+  '--mdp-font':
+    '"Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif',
+  '--mdp-brand': '#ff333f',
+  '--mdp-accent': '#e3192a',
+  '--mdp-accent-hover': '#c9101f',
+  '--mdp-accent-text': '#d0182a',
+  '--mdp-accent-soft': 'rgba(255, 51, 63, 0.09)',
+  '--mdp-accent-soft-strong': 'rgba(255, 51, 63, 0.16)',
+  '--mdp-row-selected': 'rgba(255, 51, 63, 0.05)',
+  '--mdp-on-accent': '#ffffff',
+  '--mdp-ring': 'rgba(255, 51, 63, 0.42)',
 
-  --mdp-glass: rgba(255, 255, 255, 0.82);
-  --mdp-surface: #ffffff;
-  --mdp-surface-sunken: #f4f4f6;
-  --mdp-surface-hover: rgba(17, 17, 26, 0.05);
-  --mdp-surface-active: rgba(17, 17, 26, 0.09);
-  --mdp-border: rgba(17, 17, 26, 0.10);
-  --mdp-border-strong: rgba(17, 17, 26, 0.20);
-  --mdp-text: #18181b;
-  --mdp-text-muted: #52525b;
-  --mdp-text-subtle: #6b6b74;
+  '--mdp-glass': 'rgba(255, 255, 255, 0.82)',
+  '--mdp-surface': '#ffffff',
+  '--mdp-surface-sunken': '#f4f4f6',
+  '--mdp-surface-hover': 'rgba(17, 17, 26, 0.05)',
+  '--mdp-surface-active': 'rgba(17, 17, 26, 0.09)',
+  '--mdp-border': 'rgba(17, 17, 26, 0.10)',
+  '--mdp-border-strong': 'rgba(17, 17, 26, 0.20)',
+  '--mdp-text': '#18181b',
+  '--mdp-text-muted': '#52525b',
+  '--mdp-text-subtle': '#6b6b74',
 
-  --mdp-success: #0f7b4b;
-  --mdp-success-soft: rgba(18, 183, 106, 0.12);
-  --mdp-warning: #a15c07;
-  --mdp-warning-soft: rgba(247, 144, 9, 0.14);
-  --mdp-danger: #c81e1e;
-  --mdp-danger-hover: #a91616;
-  --mdp-danger-soft: rgba(217, 45, 32, 0.09);
-  --mdp-info: #1d5fd1;
-  --mdp-info-soft: rgba(46, 144, 250, 0.12);
+  '--mdp-success': '#0f7b4b',
+  '--mdp-success-soft': 'rgba(18, 183, 106, 0.12)',
+  '--mdp-warning': '#a15c07',
+  '--mdp-warning-soft': 'rgba(247, 144, 9, 0.14)',
+  '--mdp-danger': '#c81e1e',
+  '--mdp-danger-hover': '#a91616',
+  '--mdp-danger-soft': 'rgba(217, 45, 32, 0.09)',
+  '--mdp-info': '#1d5fd1',
+  '--mdp-info-soft': 'rgba(46, 144, 250, 0.12)',
 
-  --mdp-shadow-sm: 0 1px 2px rgba(16, 16, 24, 0.06), 0 1px 1px rgba(16, 16, 24, 0.04);
-  --mdp-shadow-lg: 0 1px 1px rgba(16, 16, 24, 0.04), 0 8px 20px -6px rgba(16, 16, 24, 0.14), 0 28px 56px -16px rgba(16, 16, 24, 0.22);
-  --mdp-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  '--mdp-shadow-sm': '0 1px 2px rgba(16, 16, 24, 0.06), 0 1px 1px rgba(16, 16, 24, 0.04)',
+  '--mdp-shadow-lg':
+    '0 1px 1px rgba(16, 16, 24, 0.04), 0 8px 20px -6px rgba(16, 16, 24, 0.14), 0 28px 56px -16px rgba(16, 16, 24, 0.22)',
+  '--mdp-highlight': 'inset 0 1px 0 rgba(255, 255, 255, 0.7)',
 
-  --mdp-radius-sm: 8px;
-  --mdp-radius-md: 12px;
-  --mdp-radius-lg: 20px;
-  --mdp-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --mdp-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
+  '--mdp-radius-sm': '8px',
+  '--mdp-radius-md': '12px',
+  '--mdp-radius-lg': '20px',
+  '--mdp-ease-out': 'cubic-bezier(0.22, 1, 0.36, 1)',
+  '--mdp-ease-spring': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+};
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --mdp-brand: #da3e50;
-    --mdp-accent: #cc2e44;
-    --mdp-accent-hover: #dd4459;
-    --mdp-accent-text: #ff7a85;
-    --mdp-accent-soft: rgba(255, 92, 108, 0.12);
-    --mdp-accent-soft-strong: rgba(255, 92, 108, 0.20);
-    --mdp-row-selected: rgba(255, 92, 108, 0.08);
-    --mdp-ring: rgba(255, 110, 124, 0.55);
+const DARK_TOKENS: TokenMap = {
+  '--mdp-brand': '#da3e50',
+  '--mdp-accent': '#cc2e44',
+  '--mdp-accent-hover': '#dd4459',
+  '--mdp-accent-text': '#ff7a85',
+  '--mdp-accent-soft': 'rgba(255, 92, 108, 0.12)',
+  '--mdp-accent-soft-strong': 'rgba(255, 92, 108, 0.20)',
+  '--mdp-row-selected': 'rgba(255, 92, 108, 0.08)',
+  '--mdp-ring': 'rgba(255, 110, 124, 0.55)',
 
-    --mdp-glass: rgba(34, 34, 38, 0.80);
-    --mdp-surface: #1e1e22;
-    --mdp-surface-sunken: #151518;
-    --mdp-surface-hover: rgba(255, 255, 255, 0.06);
-    --mdp-surface-active: rgba(255, 255, 255, 0.10);
-    --mdp-border: rgba(255, 255, 255, 0.10);
-    --mdp-border-strong: rgba(255, 255, 255, 0.20);
-    --mdp-text: #f4f4f5;
-    --mdp-text-muted: #b4b4bd;
-    --mdp-text-subtle: #8e8e98;
+  '--mdp-glass': 'rgba(34, 34, 38, 0.80)',
+  '--mdp-surface': '#1e1e22',
+  '--mdp-surface-sunken': '#151518',
+  '--mdp-surface-hover': 'rgba(255, 255, 255, 0.06)',
+  '--mdp-surface-active': 'rgba(255, 255, 255, 0.10)',
+  '--mdp-border': 'rgba(255, 255, 255, 0.10)',
+  '--mdp-border-strong': 'rgba(255, 255, 255, 0.20)',
+  '--mdp-text': '#f4f4f5',
+  '--mdp-text-muted': '#b4b4bd',
+  '--mdp-text-subtle': '#8e8e98',
 
-    --mdp-success: #5bd69a;
-    --mdp-success-soft: rgba(91, 214, 154, 0.14);
-    --mdp-warning: #f5b544;
-    --mdp-warning-soft: rgba(245, 181, 68, 0.14);
-    --mdp-danger: #ff6b6b;
-    --mdp-danger-hover: #ff8a8a;
-    --mdp-danger-soft: rgba(255, 107, 107, 0.12);
-    --mdp-info: #7aa7ff;
-    --mdp-info-soft: rgba(122, 167, 255, 0.14);
+  '--mdp-success': '#5bd69a',
+  '--mdp-success-soft': 'rgba(91, 214, 154, 0.14)',
+  '--mdp-warning': '#f5b544',
+  '--mdp-warning-soft': 'rgba(245, 181, 68, 0.14)',
+  '--mdp-danger': '#ff6b6b',
+  '--mdp-danger-hover': '#ff8a8a',
+  '--mdp-danger-soft': 'rgba(255, 107, 107, 0.12)',
+  '--mdp-info': '#7aa7ff',
+  '--mdp-info-soft': 'rgba(122, 167, 255, 0.14)',
 
-    --mdp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --mdp-shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 12px 28px -8px rgba(0, 0, 0, 0.55), 0 32px 64px -20px rgba(0, 0, 0, 0.7);
-    --mdp-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  }
-}
+  '--mdp-shadow-sm': '0 1px 2px rgba(0, 0, 0, 0.4)',
+  '--mdp-shadow-lg':
+    '0 0 0 1px rgba(255, 255, 255, 0.06), 0 12px 28px -8px rgba(0, 0, 0, 0.55), 0 32px 64px -20px rgba(0, 0, 0, 0.7)',
+  '--mdp-highlight': 'inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+};
 
+/** 部品のスタイル（トークンの CSS 変数だけを使う。直書きしない） */
+const COMPONENT_CSS = `
 /* ---------- 共通 ---------- */
 .mdp-scope, .mdp-scope *, .mdp-scope *::before, .mdp-scope *::after { box-sizing: border-box; }
 .mdp-scope {
@@ -678,6 +683,9 @@ label.mdp-file input[type="file"] { position: absolute; inset: 0; width: 100%; h
   input.bulk-checkbox:checked::before { background: CanvasText; }
 }
 `;
+
+/** 注入する CSS 全体（トークン + 部品） */
+const THEME_CSS = `${buildTokenCss({ light: LIGHT_TOKENS, dark: DARK_TOKENS })}\n${COMPONENT_CSS}`;
 
 /**
  * テーマのスタイルシートを 1 度だけ注入する
