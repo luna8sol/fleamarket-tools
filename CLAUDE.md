@@ -164,13 +164,13 @@ update queue-manager.ts
 
 **すべてリポジトリルートで実行する。** npm workspaces なので `node_modules` はルートにだけあり、ルートのスクリプトが 3 つのワークスペース（core / mercari / rakuma）を順に回す。core には `build` が無いので `--if-present` で飛ばされる。
 
-| 項目 | コマンド | 現状（2026-10-05 / `40f0179` 実測） |
+| 項目 | コマンド | 現状（2026-10-09 / `8621165` 実測） |
 | --- | --- | --- |
 | 型チェック | `npm run typecheck` | **通過**（exit 0） |
 | ビルド | `npm run build` | **通過**（exit 0）。出力は `packages/*/dist/` |
 | 静的解析 | `npm run lint` | **通過**（exit 0） |
 | 上の 3 つをまとめて | `npm run check` | **通過**（exit 0）。約 40 秒 |
-| フォーマット | `npm run format:check` | **メルカリで落ちる**（exit 1）。既存コードが未通過で、コミット済み内容で `packages/mercari/src/` 配下 21 ファイル。ラクマは通過 |
+| フォーマット | `npm run format:check` | **メルカリで落ちる**（exit 1）。既存コードが未通過で、コミット済み内容で `packages/mercari/src/` 配下 17 ファイル。ラクマは通過 |
 | テスト | （無し） | テストフレームワーク未導入 |
 
 **型チェック・ビルド・lint は通るのが正常。落ちたらそれは自分の変更のせい。** 1 パッケージだけ回すときは `-w` を付ける（例: `npm run typecheck -w packages/rakuma`）。
@@ -183,7 +183,7 @@ update queue-manager.ts
   git show HEAD:<path> | npx prettier --stdin-filepath <path> --check
   ```
 
-  `40f0179` 時点で未通過なのは `packages/mercari/src/` 配下 21 ファイル。増えていなければ自分の変更は白。**リポジトリ全体を `npm run format` で一括整形しない**（差分が膨れて本来の変更が埋もれる）。触ったファイルだけ `npx prettier --write <パス>` で直す。
+  `8621165` 時点で未通過なのは `packages/mercari/src/` 配下 17 ファイル。増えていなければ自分の変更は白。**元から未通過のファイルに `prettier --write` をかけない**（無関係な整形差分が混ざる。触った行だけ整形済みの形で書く）。**リポジトリ全体を `npm run format` で一括整形しない**（差分が膨れて本来の変更が埋もれる）。触ったファイルだけ `npx prettier --write <パス>` で直す。
 - **Prettier は 3.6 系に固定している**（ルート `package.json` の `~3.6.2`）。3.9 系ではメルカリの未通過が 24 ファイルに増える。上げるなら、その 3 ファイルの整形を `style:` の別コミットにしてから上げる。
 - **改行コードは [.gitattributes](.gitattributes) で LF に固定している。** `core.autocrlf` の設定に関わらず LF でチェックアウトされる。`format:check` が全ファイルで落ちたら、まず改行コードを疑う（`git ls-files --eol <パス>` の `w/` が `lf` か）。
 - **`npm run <script>` はルートの `--workspaces` 経由で両パッケージを回す。** 片方が失敗しても、もう片方も実行されてから exit 1 になる。出力のどのパッケージで落ちたかを見る（`npm error workspace <name>` の行）。

@@ -94,7 +94,7 @@
 
 共通の落とし穴（`format:check` の既存分・改行コード・`--workspaces` の挙動）はルートの CLAUDE.md。加えて:
 
-- **`npm run format:check` はこのパッケージが元から落ちる。** コミット済み内容で `src/` 配下 21 ファイル（2026-10-05 / `40f0179`）。自分が触ったファイルが指摘に増えていないかで判断する。
+- **`npm run format:check` はこのパッケージが元から落ちる。** コミット済み内容で `src/` 配下 17 ファイル（2026-10-09 / `8621165`）。自分が触ったファイルが指摘に増えていないかで判断する。元から未通過のファイルに `prettier --write` をかけない（無関係な整形差分が混ざる）。
 - **`@anthropic-ai/sdk` はこのパッケージの `dependencies`**（ルートの devDependencies ではない）。`src/background/` が実行時に使う唯一のランタイム依存。バンドルに入るので、ここに増やすものは慎重に選ぶ（現状 `dist/background.js` は開発ビルドで約 930KB）。
 - **background は `target: 'webworker'` で、`LimitChunkCountPlugin` で 1 チャンクにまとめている**（service worker は単一ファイルである必要があるため）。動的 import を足してもチャンクは分かれない。
 - **選択状態は永続化していない**（メモリ上のみ）。リロードやページ遷移で消えるのが現在の仕様。
