@@ -45,7 +45,8 @@ content script・background・popup・options page のどこからでも import 
 | ファイル | 役割 |
 |---------|------|
 | `ext-storage.ts` | `chrome.storage.local` への読み書き（`ExtStorageKey` enum でキー管理）。ポップアップ・content script・background・options page が同じ領域を共有する。再出品キューと自動保存設定もここに入る |
-| `messaging.ts` | content script ⇔ background のメッセージ型と `MESSAGE_ACTION` 定数 |
+| `messaging.ts` | content script ⇔ background のメッセージ型と `MESSAGE_ACTION` 定数、応答型の対応表 `MessageResponses` |
+| `send-message.ts` | メッセージ送信のラッパー `sendToRuntime` / `sendToTab`（応答型の解決。骨格は `@fleamarket/core/messaging`） |
 | `dom.ts` | 例外安全な DOM 操作ラッパー。React 制御下の input へ値を入れる `setReactInputValue` もここ（隠し iframe 内の要素にも使える） |
 | `utils.ts` | 非同期待機・乱数などの汎用関数。条件が満たされるまでポーリングする `waitFor`、本文の照合に使う `fnv1a32` もここ |
 

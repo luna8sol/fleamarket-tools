@@ -39,7 +39,8 @@
 | ページ種別（下書き / 出品中 / 編集・出品フォーム）の判定 | [src/content/infra/page-detector.ts](src/content/infra/page-detector.ts) |
 | 永続化（`chrome.storage.local`） | [src/common/ext-storage.ts](src/common/ext-storage.ts) |
 | ユーザー設定の読み書き | [src/content/infra/user-settings.ts](src/content/infra/user-settings.ts) |
-| content script ⇔ background のメッセージ型 | [src/common/messaging.ts](src/common/messaging.ts) |
+| content script ⇔ background のメッセージ型・応答型の対応表 | [src/common/messaging.ts](src/common/messaging.ts) |
+| メッセージ送信のラッパー（応答型の解決） | [src/common/send-message.ts](src/common/send-message.ts)（型アサーションの閉じ込めは `@fleamarket/core/messaging`。判別キー `action`・方向ごとのユニオンはここ） |
 | 初期化とページ種別ごとの分岐 | [src/content/logic/app-initializer.ts](src/content/logic/app-initializer.ts) |
 | 出品処理 | [src/content/logic/publisher.ts](src/content/logic/publisher.ts) |
 | 再出品処理 | [src/content/logic/relist-manager.ts](src/content/logic/relist-manager.ts) |
@@ -84,6 +85,7 @@
 
 - DOM セレクタ・設定値は必ず [src/content/infra/constants.ts](src/content/infra/constants.ts) に追加する
 - ログは [src/content/infra/logger.ts](src/content/infra/logger.ts) を使う。接頭辞 `[Fleamarket Tools for Mercari]`・時刻・`[LOG]` などのタグはこのファイルで付ける（レベル制御の骨格だけ `@fleamarket/core/logger`）。**この出力形式を変えない**
+- メッセージの送信は [src/common/send-message.ts](src/common/send-message.ts) の `sendToRuntime` / `sendToTab` を使う。`chrome.runtime.sendMessage` / `chrome.tabs.sendMessage` を呼び出し側から直接呼ばない（戻り値が `any` のため、呼び出し側ごとに型アサーションを書くと応答型の食い違いを検査できない）。応答型は `messaging.ts` の `MessageResponses` に書く
 - **Claude API キーを読むのは `src/background/` と options page だけ。** content script 側のコードに渡さない（メルカリのページへ注入されるバンドルにキーを載せないため）。生成処理は `chrome.runtime.sendMessage` で background に依頼する
 - **background・options page から使うモジュールは `src/common/` に置く。** `src/content/` 配下は content script のための層。service worker から参照すると層の意味と食い違う
   - **既知の例外: `src/common/` と `src/background/` が `src/content/infra/logger` に依存している**（層の逆依存）。logger の骨格は `@fleamarket/core` に移したが、出力形式を持つラッパーは `src/content/infra/logger.ts` に残しているので逆依存はそのまま。解消するにはラッパーを `src/common/` へ動かして import 先を書き換える必要があり、別タスク。それまでは踏襲してよいが、新たな逆依存を増やさない

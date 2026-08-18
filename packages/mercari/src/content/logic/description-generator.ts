@@ -4,6 +4,7 @@ import {
   GenerateDescriptionRequest,
   GenerateDescriptionResponse,
 } from '../../common/messaging';
+import { sendToRuntime } from '../../common/send-message';
 import { debugMethodStart, debugMethodEnd, warn } from '../infra/logger';
 
 /**
@@ -37,9 +38,7 @@ export async function requestDescription(
   };
 
   try {
-    const response = (await chrome.runtime.sendMessage(request)) as
-      | GenerateDescriptionResponse
-      | undefined;
+    const response = await sendToRuntime(request);
 
     if (!response) {
       // background が応答を返さなかった場合（service workerの停止など）

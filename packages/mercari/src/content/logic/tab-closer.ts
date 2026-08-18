@@ -1,4 +1,5 @@
-import { MESSAGE_ACTION, TabCloseResponse } from '../../common/messaging';
+import { MESSAGE_ACTION } from '../../common/messaging';
+import { sendToRuntime } from '../../common/send-message';
 import { debug, warn } from '../infra/logger';
 
 /**
@@ -22,9 +23,9 @@ import { debug, warn } from '../infra/logger';
  */
 export async function markThisTabForClose(): Promise<boolean> {
   try {
-    const response = (await chrome.runtime.sendMessage({
+    const response = await sendToRuntime({
       action: MESSAGE_ACTION.MARK_TAB_FOR_CLOSE,
-    })) as TabCloseResponse | undefined;
+    });
 
     debug('タブに閉じる印を依頼しました', { ok: response?.ok });
     return response?.ok === true;
@@ -43,9 +44,9 @@ export async function markThisTabForClose(): Promise<boolean> {
  */
 export async function closeThisTabIfMarked(): Promise<void> {
   try {
-    const response = (await chrome.runtime.sendMessage({
+    const response = await sendToRuntime({
       action: MESSAGE_ACTION.CLOSE_TAB_IF_MARKED,
-    })) as TabCloseResponse | undefined;
+    });
 
     if (response?.ok) debug('下書き保存後のタブとして閉じられます');
   } catch (e) {

@@ -1,6 +1,8 @@
 import { loadUserSettings, saveUserSettings } from '../content/infra/user-settings';
 import { loadAutoSaveSettings, saveAutoSaveSettings } from '../content/infra/auto-save-settings';
 import { AutoSaveSettings } from '../content/infra/types';
+import { MESSAGE_ACTION } from '../common/messaging';
+import { sendToTab } from '../common/send-message';
 
 /** 「保存しました」を出しておく時間 */
 const SAVED_INDICATOR_MS = 1600;
@@ -74,8 +76,8 @@ async function initializeDebugToggle(): Promise<void> {
     // デバッグモードの変更をコンテンツスクリプトに通知
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]?.id) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          action: 'updateDebugMode',
+        void sendToTab(tabs[0].id, {
+          action: MESSAGE_ACTION.UPDATE_DEBUG_MODE,
           debugMode: debugToggle.checked
         });
       }

@@ -1,4 +1,5 @@
-import { BackgroundBoundMessage, ListBoundMessage, ResponseTo } from './messages';
+import { BackgroundBoundMessage, ListBoundMessage, MessageResponses, ResponseTo } from './messages';
+import { createMessaging } from '@fleamarket/core/messaging';
 
 /**
  * Background ⇔ Content Script のメッセージ送信。
@@ -6,7 +7,8 @@ import { BackgroundBoundMessage, ListBoundMessage, ResponseTo } from './messages
  * chrome.tabs.sendMessage / chrome.runtime.sendMessage の戻り値は any のため、
  * 呼び出し側でそれぞれ型アサーションを書くと、送ったメッセージと受け取る型が
  * 食い違っていてもコンパイラが検査できない。応答型の対応は
- * messages.ts の MessageResponses に一元化し、アサーションはこの2関数に閉じ込める。
+ * messages.ts の MessageResponses に一元化し、アサーションは共有部品
+ * `@fleamarket/core/messaging` に閉じ込める（判別キー `type` と対応表を型で渡す）。
  *
  * 送信の失敗（受け手が居ない・チャネルが閉じた等）はここでは握り潰さない。
  * 通信できなかったことを失敗として扱うか無視してよいかは呼び出し側の判断のため、
@@ -15,6 +17,7 @@ import { BackgroundBoundMessage, ListBoundMessage, ResponseTo } from './messages
  * 引数のメッセージは送信方向ごとのユニオンで制約する。逆向きのメッセージ
  * （例: sendToTab に START_QUEUE）を渡すとコンパイルエラーになる。
  */
+const messaging = createMessaging<'type', MessageResponses>();
 
 /**
  * 指定タブのContent Scriptへ送る（Backgroundから使う）。
@@ -25,7 +28,7 @@ export async function sendToTab<M extends ListBoundMessage>(
   tabId: number,
   message: M
 ): Promise<ResponseTo<M> | undefined> {
-  return (await chrome.tabs.sendMessage(tabId, message)) as ResponseTo<M> | undefined;
+  return messaging.sendToTab(tabId, message);
 }
 
 /**
@@ -36,5 +39,5 @@ export async function sendToTab<M extends ListBoundMessage>(
 export async function sendToRuntime<M extends BackgroundBoundMessage>(
   message: M
 ): Promise<ResponseTo<M> | undefined> {
-  return (await chrome.runtime.sendMessage(message)) as ResponseTo<M> | undefined;
+  return messaging.sendToRuntime(message);
 }

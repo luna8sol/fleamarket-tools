@@ -57,7 +57,7 @@
 | 機能概要・設計判断・実機で確認済みの DOM 前提 | [README.md](README.md)（※下記の既知の状態を読むこと） |
 | 拡張機能の権限・対象 URL・エントリーポイント | [manifest.json](manifest.json) |
 | Background ⇔ Content のメッセージ型・キューの型 | [src/common/messages.ts](src/common/messages.ts) |
-| メッセージ送信のラッパー（応答型の解決） | [src/common/send-message.ts](src/common/send-message.ts) |
+| メッセージ送信のラッパー（応答型の解決） | [src/common/send-message.ts](src/common/send-message.ts)（型アサーションの閉じ込めは `@fleamarket/core/messaging`。判別キー `type`・方向ごとのユニオンはここ） |
 | キューのモードごとの性質表（一覧タブ依存・フォーム有無・完了判定・商品間の待機） | [src/common/queue-mode-traits.ts](src/common/queue-mode-traits.ts) |
 | 処理キュー・タブ追跡・完了検知・待機・ウォッチドッグ | [src/background/queue-manager.ts](src/background/queue-manager.ts) |
 | Background の配線（メッセージ・タブ・アラーム） | [src/background/index.ts](src/background/index.ts) |

@@ -4,11 +4,12 @@
  * - `chrome.runtime.sendMessage` / `chrome.tabs.sendMessage` の payload をここで一元管理します。
  * - 新たなメッセージを追加する場合は MESSAGE_ACTION と型定義の両方を更新してください。
  *
+ * - 送信は src/common/send-message.ts の sendToRuntime / sendToTab を使い、応答型は
+ *   下の MessageResponses で解決します（chrome API を直接呼ぶと応答が any になる）。
+ *
  * @example
- *   const res = await chrome.runtime.sendMessage<GenerateDescriptionRequest, GenerateDescriptionResponse>({
- *     action: MESSAGE_ACTION.GENERATE_DESCRIPTION,
- *     payload: context,
- *   });
+ *   const res = await sendToRuntime({ action: MESSAGE_ACTION.GENERATE_DESCRIPTION, payload: context });
+ *   // res: GenerateDescriptionResponse | undefined
  */
 
 /**
@@ -135,10 +136,50 @@ export interface TabCloseResponse {
 }
 
 /**
- * 拡張機能内でやり取りされるメッセージの総称
+ * content script → background へ送るメッセージ。
+ * 送信には sendToRuntime を使う（src/common/send-message.ts）。
  */
-export type ExtensionMessage =
+export type BackgroundBoundMessage =
   | GenerateDescriptionRequest
-  | UpdateDebugModeRequest
   | MarkTabForCloseRequest
   | CloseTabIfMarkedRequest;
+
+/**
+ * popup → content script へ送るメッセージ。
+ * 送信には sendToTab を使う（src/common/send-message.ts）。
+ */
+export type ContentBoundMessage = UpdateDebugModeRequest;
+
+/**
+ * 拡張機能内でやり取りされるメッセージの総称
+ *
+ * 送信側は方向ごとのユニオンで制約するため、ここを直接使うのは方向を問わず
+ * 扱う箇所（応答型の対応表、background の受信ハンドラ）に限る。
+ */
+export type ExtensionMessage = BackgroundBoundMessage | ContentBoundMessage;
+
+/**
+ * MessageResponses の書き漏れを防ぐための制約。
+ * ExtensionMessage のすべての種別に応答型を書くことを強制する。
+ */
+type ResponseMap<T extends Record<ExtensionMessage['action'], unknown>> = T;
+
+/**
+ * メッセージ種別ごとの応答の型。
+ *
+ * chrome.runtime.sendMessage / chrome.tabs.sendMessage の戻り値は any のため、
+ * 送ったメッセージと受け取る型の対応はここでだけ定義する（送信は
+ * src/common/send-message.ts の sendToRuntime / sendToTab を使う）。
+ * ExtensionMessage に種別を足してここに書き忘れると、ResponseMap の制約で
+ * コンパイルエラーになる。
+ */
+export type MessageResponses = ResponseMap<{
+  [MESSAGE_ACTION.GENERATE_DESCRIPTION]: GenerateDescriptionResponse;
+  [MESSAGE_ACTION.MARK_TAB_FOR_CLOSE]: TabCloseResponse;
+  [MESSAGE_ACTION.CLOSE_TAB_IF_MARKED]: TabCloseResponse;
+  /** content script は受け取るだけで応答を返さない */
+  [MESSAGE_ACTION.UPDATE_DEBUG_MODE]: undefined;
+}>;
+
+/** メッセージ M を送ったときに返ってくる応答の型 */
+export type ResponseTo<M extends ExtensionMessage> = MessageResponses[M['action']];
