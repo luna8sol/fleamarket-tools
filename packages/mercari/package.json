@@ -1,7 +1,7 @@
 {
   "name": "@fleamarket/mercari",
   "version": "0.1.0",
-  "description": "メルカリの下書き商品の一括出品・出品中商品の一括再出品・一括削除・説明文の一括置換を行う拡張機能",
+  "description": "フリマサイトの出品作業をまとめて進める拡張機能。一括出品・一括再出品・一括削除・説明文の一括置換",
   "private": true,
   "type": "module",
   "scripts": {
